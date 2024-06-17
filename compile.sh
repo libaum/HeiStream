@@ -3,14 +3,17 @@
 NCORES=12
 unamestr=`uname`
 
-rm -rf deploy
-rm -rf build
-mkdir build
-cd build 
+if [ ! -d "build" ]; then
+  mkdir build
+fi
+
+cd build
 cmake ../
 make -j $NCORES
 cd ..
 
-mkdir deploy
+if [ ! -d "deploy" ]; then
+  mkdir deploy
+fi
+
 cp ./build/heistream deploy/
-rm -r build
