@@ -61,7 +61,7 @@ class graph_io_stream {
 
                 static
 		void readFirstLineStream(PartitionConfig & partition_config, std::string graph_filename, EdgeWeight& total_edge_cut);
-                
+
                 static
 		void loadRemainingLines(PartitionConfig & partition_config, LINE_BUFFER &lines);
 
@@ -91,18 +91,18 @@ class graph_io_stream {
 		void processQuotientEdgeInBatch(PartitionConfig & config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight);
 
                 static
-		EdgeID insertRegularEdgeInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+		EdgeID insertRegularEdgeInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 										NodeID node, LongNodeID global_target, EdgeWeight edge_weight);
 
                 static
-		NodeID mapGhostKeysToNodesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+		NodeID mapGhostKeysToNodesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 							std::vector<NodeWeight>& all_nodes, std::vector<NodeWeight>& all_assigned_ghost_nodes, NodeID& node_counter);
 
                 static
 		NodeID restreamMapGhostKeysToNodes(PartitionConfig & config);
 
                 static
-		NodeID greedyMapGhostKeysToNodes(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+		NodeID greedyMapGhostKeysToNodes(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 						std::vector<NodeWeight>& all_nodes, std::vector<NodeWeight>& all_assigned_ghost_nodes, NodeID& node_counter);
 
                 static
@@ -143,36 +143,36 @@ class graph_io_stream {
 };
 
 inline void graph_io_stream::loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input) {
-	if (partition_config.ram_stream) {                                                                    
+	if (partition_config.ram_stream) {
 		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, partition_config.remaining_stream_nodes);
-	}                                                                                                     
-}                                                                                                             
+	}
+}
 
 inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines) {
-	if (!partition_config.ram_stream) {                                                                   
-		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines);            
-	}                                                                                                     
-}                                                                                                             
+	if (!partition_config.ram_stream) {
+		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines);
+	}
+}
 
 inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines) {
-	std::vector<std::vector<LongNodeID>>* input;                                                          
-	input = new std::vector<std::vector<LongNodeID>>(num_lines);                                                                                          
-	std::vector<std::string>* lines;                                                                      
-	lines = new std::vector<std::string>(1);                                                              
-	LongNodeID node_counter = 0;                                                                          
-	buffered_input *ss2 = NULL;                                                                           
-	while( node_counter < num_lines) {                                                                    
-		std::getline(*(partition_config.stream_in),(*lines)[0]);                                      
-		if ((*lines)[0][0] == '%') { // a comment in the file                                         
-			continue;                                                                             
-		}                                                                                             
-		ss2 = new buffered_input(lines);                                                              
-		ss2->simple_scan_line((*input)[node_counter++]);                                              
-		(*lines)[0].clear(); delete ss2;                                                              
-	}                                                                                                     
-	delete lines;                                                                                         
-	return input;                                                                                         
-}                                                                                                             
+	std::vector<std::vector<LongNodeID>>* input;
+	input = new std::vector<std::vector<LongNodeID>>(num_lines);
+	std::vector<std::string>* lines;
+	lines = new std::vector<std::string>(1);
+	LongNodeID node_counter = 0;
+	buffered_input *ss2 = NULL;
+	while( node_counter < num_lines) {
+		std::getline(*(partition_config.stream_in),(*lines)[0]);
+		if ((*lines)[0][0] == '%') { // a comment in the file
+			continue;
+		}
+		ss2 = new buffered_input(lines);
+		ss2->simple_scan_line((*input)[node_counter++]);
+		(*lines)[0].clear(); delete ss2;
+	}
+	delete lines;
+	return input;
+}
 
 
 
