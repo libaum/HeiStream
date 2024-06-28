@@ -1,5 +1,5 @@
 /******************************************************************************
- * streampartition.cpp 
+ * streampartition.cpp
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Marcelo Fonseca Faraj <marcelofaraj@gmail.com>
@@ -11,7 +11,7 @@
 #include <regex.h>
 #include <sstream>
 #include <stdio.h>
-#include <string.h> 
+#include <string.h>
 #include <vector>
 #include <fstream>
 #include <sstream>
@@ -52,11 +52,11 @@ int main(int argn, char **argv) {
         bool suppress_output   = false;
         bool recursive         = false;
 
-        int ret_code = parse_parameters(argn, argv, 
-                                        partition_config, 
-                                        graph_filename, 
-                                        is_graph_weighted, 
-                                        suppress_output, recursive); 
+        int ret_code = parse_parameters(argn, argv,
+                                        partition_config,
+                                        graph_filename,
+                                        is_graph_weighted,
+                                        suppress_output, recursive);
 
         if(ret_code) {
                 return 0;
@@ -65,27 +65,27 @@ int main(int argn, char **argv) {
         std::ofstream ofs;
         ofs.open("/dev/null");
         if(suppress_output) {
-                std::cout.rdbuf(ofs.rdbuf()); 
+                std::cout.rdbuf(ofs.rdbuf());
         }
 	srand(partition_config.seed);
 	random_functions::setSeed(partition_config.seed);
 
         partition_config.LogDump(stdout);
 	partition_config.stream_input = true;
-	graph_access *G = new graph_access(); 
+	graph_access *G = new graph_access();
 
 
 	int &passes = partition_config.num_streams_passes;
 	for (partition_config.restream_number=0; partition_config.restream_number<passes; partition_config.restream_number++) {
 
-		// ***************************** IO operations ***************************************       
+		// ***************************** IO operations ***************************************
 		io_t.restart();
 		graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);
 		graph_io_stream::loadRemainingLinesToBinary(partition_config, input);
 		buffer_io_time += io_t.elapsed();
 
 		while (partition_config.remaining_stream_nodes) {
-			// ***************************** IO operations ***************************************       
+			// ***************************** IO operations ***************************************
 			io_t.restart();
 			partition_config.nmbNodes = MIN(partition_config.stream_buffer_len, partition_config.remaining_stream_nodes);
 			graph_io_stream::loadBufferLinesToBinary(partition_config, input, partition_config.nmbNodes);
@@ -93,8 +93,8 @@ int main(int argn, char **argv) {
 
 			t.restart();
 
-			// ***************************** build model ***************************************       
-			G->set_partition_count(partition_config.k); 
+			// ***************************** build model ***************************************
+			G->set_partition_count(partition_config.k);
 			graph_io_stream::createModel (partition_config, *G, input);
 			buffer_mapping_time = 0;
 			graph_io_stream::countAssignedNodes(partition_config);
@@ -104,18 +104,18 @@ int main(int argn, char **argv) {
 			config_multibfs_initial_partitioning(partition_config);
 
 
-			// ***************************** perform partitioning ***************************************       
+			// ***************************** perform partitioning ***************************************
 			graph_partitioner partitioner;
 			partitioner.perform_partitioning(partition_config, *G);
 			ofs.close();
 
-			// ***************************** permanent assignment ***************************************       
+			// ***************************** permanent assignment ***************************************
 			graph_io_stream::generalizeStreamPartition(partition_config, *G);
 
 			global_mapping_time += t.elapsed();
 
-			 
-			// write batch partition to the disc 
+
+			// write batch partition to the disc
 			if (partition_config.stream_output_progress) {
 				std::stringstream filename;
 				if(!partition_config.filename_output.compare("")) {
@@ -128,7 +128,7 @@ int main(int argn, char **argv) {
 				}
 				graph_io_stream::writePartitionStream(partition_config, filename.str());
 			}
-	 
+
 		}
 
 		if (partition_config.ram_stream) {
@@ -139,17 +139,19 @@ int main(int argn, char **argv) {
 
 	double total_time = processing_t.elapsed();
 
-        std::cout << "Total processing time: " << total_time  << std::endl;
-        std::cout << "io time: " << buffer_io_time  << std::endl;
-        std::cout << "partitioning/mapping time in total: " << global_mapping_time  << std::endl;
+        // std::cout << "Total processing time: " << total_time  << std::endl;
+        // std::cout << "io time: " << buffer_io_time  << std::endl;
+        // std::cout << "partitioning/mapping time in total: " << global_mapping_time  << std::endl;
 
 	graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
 
-        std::cout << "cut \t\t"         << total_edge_cut                        << std::endl;
-        std::cout << "finalobjective  " << total_edge_cut			 << std::endl;
-        std::cout << "balance \t"  << qm.balance_full_stream(*partition_config.stream_blocks_weight) << std::endl;
+	std::cout << global_mapping_time << " " << total_edge_cut << std::endl;
 
-        // write the partition to the disc 
+        // std::cout << "cut \t\t"         << total_edge_cut                        << std::endl;
+        // std::cout << "finalobjective  " << total_edge_cut			 << std::endl;
+        // std::cout << "balance \t"  << qm.balance_full_stream(*partition_config.stream_blocks_weight) << std::endl;
+
+        // write the partition to the disc
         std::stringstream filename;
         if(!partition_config.filename_output.compare("")) {
                 filename << "tmppartition" << partition_config.k;
@@ -164,7 +166,7 @@ int main(int argn, char **argv) {
         }
 
 	delete G;
-	
+
 	if (partition_config.ghostkey_to_edges != NULL) {
 		delete partition_config.ghostkey_to_edges;
 	}

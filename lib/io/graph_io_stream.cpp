@@ -24,106 +24,106 @@ graph_io_stream::~graph_io_stream() {
 
 
 NodeID graph_io_stream::createModel (PartitionConfig & config, graph_access & G, std::vector<std::vector<LongNodeID>>* &input) {
-	NodeWeight total_nodeweight = 0;                                                                      
-	NodeID node_counter = 0;                                                                              
-	EdgeID edge_counter = 0;                                                                              
-	LongEdgeID used_edges = 0;                                                                            
-	bool read_ew = false;                                                                                 
-	bool read_nw = false;                                                                                 
-	LongEdgeID nmbEdges = 2*config.remaining_stream_edges;                                                
-	LongNodeID target;                                                                                    
-	NodeWeight weight;                                                                                    
-	std::vector<std::vector<std::pair<NodeID,EdgeWeight>>> all_edges;                                     
-	std::vector<NodeWeight> all_nodes;                                                                    
+	NodeWeight total_nodeweight = 0;
+	NodeID node_counter = 0;
+	EdgeID edge_counter = 0;
+	LongEdgeID used_edges = 0;
+	bool read_ew = false;
+	bool read_nw = false;
+	LongEdgeID nmbEdges = 2*config.remaining_stream_edges;
+	LongNodeID target;
+	NodeWeight weight;
+	std::vector<std::vector<std::pair<NodeID,EdgeWeight>>> all_edges;
+	std::vector<NodeWeight> all_nodes;
 
-	std::vector<NodeWeight> all_assigned_ghost_nodes(config.nmbNodes + config.quotient_nodes,0);          
-	all_edges.resize(config.nmbNodes + config.quotient_nodes);                                            
-	all_nodes.resize(config.nmbNodes + config.quotient_nodes);                                            
+	std::vector<NodeWeight> all_assigned_ghost_nodes(config.nmbNodes + config.quotient_nodes,0);
+	all_edges.resize(config.nmbNodes + config.quotient_nodes);
+	all_nodes.resize(config.nmbNodes + config.quotient_nodes);
 	config.lower_global_node = config.total_stream_nodecounter + 1; // Bounds below start from 1 instead of 0
-	config.upper_global_node = config.total_stream_nodecounter + config.nmbNodes;                         
-	LongNodeID cursor = 0;                                                                                
-	NodeID node = 0;                                                                                      
+	config.upper_global_node = config.total_stream_nodecounter + config.nmbNodes;
+	LongNodeID cursor = 0;
+	NodeID node = 0;
 
-	config.curr_batch++;                                                                                  
+	config.curr_batch++;
 
-	if (config.ram_stream) {                                                                              
-		cursor = input->size() - config.remaining_stream_nodes;                                       
-	}                                                                                                     
+	if (config.ram_stream) {
+		cursor = input->size() - config.remaining_stream_nodes;
+	}
 
 
 	if( nmbEdges > std::numeric_limits<EdgeWeight>::max() || config.nmbNodes > std::numeric_limits<LongNodeID>::max()) {
-#ifdef MODE64BITEDGES                                                                                         
-		std::cerr <<  "The graph is too large. Currently only 64bits supported!"  << std::endl;       
-#else                                                                                                         
-		std::cerr <<  "The graph is too large. Currently only 32bits supported!"  << std::endl;       
-#endif                                                                                                        
-		exit(0);                                                                                      
-	}                                                                                                     
+#ifdef MODE64BITEDGES
+		std::cerr <<  "The graph is too large. Currently only 64bits supported!"  << std::endl;
+#else
+		std::cerr <<  "The graph is too large. Currently only 32bits supported!"  << std::endl;
+#endif
+		exit(0);
+	}
 
-	switch(config.remaining_stream_ew) {                                                                  
-		case 1:                                                                                       
-			read_ew = true;                                                                       
-			break;                                                                                
-		case 10:                                                                                      
-			read_nw = true;                                                                       
-			break;                                                                                
-		case 11:                                                                                      
-			read_ew = true;                                                                       
-			read_nw = true;                                                                       
-			break;                                                                                
-	}                                                                                                     
+	switch(config.remaining_stream_ew) {
+		case 1:
+			read_ew = true;
+			break;
+		case 10:
+			read_nw = true;
+			break;
+		case 11:
+			read_ew = true;
+			read_nw = true;
+			break;
+	}
 
 	/* config.degree_nodeBlock = new std::vector<std::vector<EdgeWeight>> (config.nmbNodes, std::vector<EdgeWeight>(config.k,0)); */
 	/* config.edge_block_nodes = new std::vector<std::vector<NodeID>> (config.k, std::vector<NodeID>()); */
 	config.edge_block_nodes = new std::vector<std::vector<std::pair<NodeID,NodeWeight>>> (
 							config.k, std::vector<std::pair<NodeID,NodeWeight>>());
 
-	setupForGhostNeighbors(config);                                                                       
+	setupForGhostNeighbors(config);
 
-	for (node_counter=0; node_counter < config.nmbNodes; node_counter++) {                                
-		std::vector<LongNodeID> &line_numbers = (*input)[cursor];                                     
-		LongNodeID col_counter = 0;                                                                   
-		node = (NodeID) node_counter;                                                                 
-		weight = 1;                                                                                   
-		if( read_nw ) {                                                                               
-			weight = line_numbers[col_counter++];                                                 
-			if( total_nodeweight > std::numeric_limits<NodeWeight>::max()) {                      
+	for (node_counter=0; node_counter < config.nmbNodes; node_counter++) {
+		std::vector<LongNodeID> &line_numbers = (*input)[cursor];
+		LongNodeID col_counter = 0;
+		node = (NodeID) node_counter;
+		weight = 1;
+		if( read_nw ) {
+			weight = line_numbers[col_counter++];
+			if( total_nodeweight > std::numeric_limits<NodeWeight>::max()) {
 				std::cerr <<  "The sum of the node weights is too large (it exceeds the node weight type)."  << std::endl;
 				std::cerr <<  "Currently not supported. Please scale your node weights."  << std::endl;
-				exit(0);                                                                      
-			}                                                                                     
-		}                                                                                             
-		total_nodeweight += weight;                                                                   
-		processNodeWeight(config, all_nodes, node, weight);                                           
+				exit(0);
+			}
+		}
+		total_nodeweight += weight;
+		processNodeWeight(config, all_nodes, node, weight);
 
-		while (col_counter < line_numbers.size()) {                                                   
-			target = line_numbers[col_counter++];                                                 
-			EdgeWeight edge_weight = 1;                                                           
-			if( read_ew ) {                                                                       
-				edge_weight = line_numbers[col_counter++];                                    
-			}                                                                                     
+		while (col_counter < line_numbers.size()) {
+			target = line_numbers[col_counter++];
+			EdgeWeight edge_weight = 1;
+			if( read_ew ) {
+				edge_weight = line_numbers[col_counter++];
+			}
 
-			if(target > config.upper_global_node) { // edge to future batch                       
-				processGhostNeighborInBatch(config, node, target, edge_weight);               
-			} else if(target < config.lower_global_node ) { // edge to previous batch             
-				used_edges++;                                                                 
-				processQuotientEdgeInBatch(config, node, target, edge_weight);                
-			} else { // edge to current batch                                                     
+			if(target > config.upper_global_node) { // edge to future batch
+				processGhostNeighborInBatch(config, node, target, edge_weight);
+			} else if(target < config.lower_global_node ) { // edge to previous batch
+				used_edges++;
+				processQuotientEdgeInBatch(config, node, target, edge_weight);
+			} else { // edge to current batch
 				used_edges += ((NodeID)(target - config.lower_global_node) < node); // used_edges only counts arcs to previus nodes
 				edge_counter += insertRegularEdgeInBatch(config, all_edges, node, target, edge_weight);
-			}                                                                                     
-		}                                                                                             
+			}
+		}
 
-		cursor++;                                                                                     
-	}                                                                                                     
-	if (!config.ram_stream) {                                                                             
-		delete input;                                                                                 
-	}                                                                                                     
+		cursor++;
+	}
+	if (!config.ram_stream) {
+		delete input;
+	}
 
 	NodeID uncontracted_ghost_nodes = mapGhostKeysToNodesInBatch(config, all_edges, all_nodes, all_assigned_ghost_nodes, node_counter);
-	insertQuotientNodesInBatch(config, all_nodes, uncontracted_ghost_nodes, node_counter);                
-	edge_counter += insertGhostEdgesInBatch(config, all_edges);                                           
-	edge_counter += insertQuotientEdgesInBatch(config, all_edges, uncontracted_ghost_nodes);              
+	insertQuotientNodesInBatch(config, all_nodes, uncontracted_ghost_nodes, node_counter);
+	edge_counter += insertGhostEdgesInBatch(config, all_edges);
+	edge_counter += insertQuotientEdgesInBatch(config, all_edges, uncontracted_ghost_nodes);
 
 	createGraphForBatch(config, G, node_counter, edge_counter, all_edges, all_nodes, all_assigned_ghost_nodes);
 
@@ -131,19 +131,19 @@ NodeID graph_io_stream::createModel (PartitionConfig & config, graph_access & G,
 	delete config.edge_block_nodes;
 
 
-	config.total_stream_nodecounter += config.nmbNodes;                                                   
-	config.total_stream_nodeweight  += total_nodeweight;                                                  
-	config.remaining_stream_nodes   -= config.nmbNodes;                                                   
-	config.remaining_stream_edges   -= used_edges;                                                        
+	config.total_stream_nodecounter += config.nmbNodes;
+	config.total_stream_nodeweight  += total_nodeweight;
+	config.remaining_stream_nodes   -= config.nmbNodes;
+	config.remaining_stream_edges   -= used_edges;
 
-	if( node_counter != (NodeID) config.nmbNodes + uncontracted_ghost_nodes + config.quotient_nodes) {    
-		std::cerr <<  "number of specified nodes mismatch"  << std::endl;                             
+	if( node_counter != (NodeID) config.nmbNodes + uncontracted_ghost_nodes + config.quotient_nodes) {
+		std::cerr <<  "number of specified nodes mismatch"  << std::endl;
 		std::cerr <<  (config.nmbNodes + uncontracted_ghost_nodes + config.quotient_nodes) <<  " " <<  node_counter  << std::endl;
-		exit(0);                                                                                      
-	}                                                                                                     
+		exit(0);
+	}
 
-	return node_counter;                                                                                  
-}                                                                                                             
+	return node_counter;
+}
 
 
 
@@ -160,22 +160,22 @@ void graph_io_stream::insertQuotientNodesInBatch(PartitionConfig & config, std::
 
 /* EdgeID graph_io_stream::insertQuotientEdgesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, NodeID uncontracted_ghost_nodes) { */
 /* 	EdgeID inserted_edges = 0; */
-/* 	for (NodeID node=0; node < config.nmbNodes; node++) { */ 
-/* 		for (PartitionID block=0; block < config.k; block++) { */ 
+/* 	for (NodeID node=0; node < config.nmbNodes; node++) { */
+/* 		for (PartitionID block=0; block < config.k; block++) { */
 /* 			NodeID target = config.nmbNodes + uncontracted_ghost_nodes + block; */
 /* 			EdgeWeight edge_weight = (*config.degree_nodeBlock)[node][block]; */
 /* 			if (edge_weight > 0) { */
 /* 				inserted_edges += includeEdgeInBatch(all_edges, node, target, (1+config.double_non_ghost_edges)*edge_weight); */
 /* 			} */
 /* 		} */
-/* 	} */ 
+/* 	} */
 /* 	return inserted_edges; */
 /* } */
 /* EdgeID graph_io_stream::insertQuotientEdgesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, NodeID uncontracted_ghost_nodes) { */
 /* 	EdgeID inserted_edges = 0; */
 /* 	NodeID prev_node; */
 /* 	EdgeWeight edge_weight; */
-/* 	for (PartitionID block=0; block < config.k; block++) { */ 
+/* 	for (PartitionID block=0; block < config.k; block++) { */
 /* 		NodeID target = config.nmbNodes + uncontracted_ghost_nodes + block; */
 /* 		if ((*config.edge_block_nodes)[block].size() >= 1) { */
 /* 			prev_node = (*config.edge_block_nodes)[block][0]; */
@@ -192,27 +192,27 @@ void graph_io_stream::insertQuotientNodesInBatch(PartitionConfig & config, std::
 /* 		} */
 /* 		// necessary because last neighbor of each block is not directly included inside the inner for loop */
 /* 		inserted_edges += includeEdgeInBatch(all_edges, prev_node, target, (1+config.double_non_ghost_edges)*edge_weight); */
-/* 	} */ 
+/* 	} */
 /* 	return inserted_edges; */
 /* } */
 EdgeID graph_io_stream::insertQuotientEdgesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, NodeID uncontracted_ghost_nodes) {
 	EdgeID inserted_edges = 0;
 	EdgeWeight edge_weight;
-	for (PartitionID block=0; block < config.k; block++) { 
+	for (PartitionID block=0; block < config.k; block++) {
 		NodeID target = config.nmbNodes + uncontracted_ghost_nodes + block;
 		if ((*config.edge_block_nodes)[block].size() < 1) continue; // if block has no neighbors in batch, continue outer for loop
 		for (auto& element : (*config.edge_block_nodes)[block]) {
-			inserted_edges += includeEdgeInBatch(all_edges, 
-							     element.first, 
-							     target, 
+			inserted_edges += includeEdgeInBatch(all_edges,
+							     element.first,
+							     target,
 							     (1+config.double_non_ghost_edges)*element.second);
 		}
-	} 
+	}
 	return inserted_edges;
 }
 
 
-EdgeID graph_io_stream::insertGhostEdgesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges) { 
+EdgeID graph_io_stream::insertGhostEdgesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges) {
 	EdgeID inserted_edges = 0;
 	if (config.stream_allow_ghostnodes || config.restream_number) {
 		for (LongNodeID ghost_key=0; ghost_key < config.ghostkey_to_edges->size(); ghost_key++) {
@@ -226,7 +226,7 @@ EdgeID graph_io_stream::insertGhostEdgesInBatch(PartitionConfig & config, std::v
 	return inserted_edges;
 }
 
-NodeID graph_io_stream::mapGhostKeysToNodesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+NodeID graph_io_stream::mapGhostKeysToNodesInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 					std::vector<NodeWeight>& all_nodes, std::vector<NodeWeight>& all_assigned_ghost_nodes, NodeID& node_counter) {
 	NodeID inserted_nodes = 0;
 	if (config.restream_number) {
@@ -246,14 +246,14 @@ NodeID graph_io_stream::restreamMapGhostKeysToNodes(PartitionConfig & config) {
 	config.ghostkey_to_node = new std::vector<NodeID>(config.ghost_nodes,0);
 	for(PartitionID targetPar = 0; targetPar<config.ghost_nodes; targetPar++) {
 		NodeID node = targetPar + config.nmbNodes;
-		(*config.ghostkey_to_node)[targetPar] = node; // PS: weight of quotient nodes is already up-to-date 
-	} 
+		(*config.ghostkey_to_node)[targetPar] = node; // PS: weight of quotient nodes is already up-to-date
+	}
 	return 0;
 }
 
-NodeID graph_io_stream::greedyMapGhostKeysToNodes(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+NodeID graph_io_stream::greedyMapGhostKeysToNodes(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 						std::vector<NodeWeight>& all_nodes, std::vector<NodeWeight>& all_assigned_ghost_nodes, NodeID& node_counter) {
-	if (config.ghostkey_to_node != NULL) 
+	if (config.ghostkey_to_node != NULL)
 		delete config.ghostkey_to_node;
 	config.ghostkey_to_node = new std::vector<NodeID>(config.ghost_nodes,0);
 	NodeID inserted_nodes =  MIN(config.ghost_nodes,config.ghost_nodes_threshold);
@@ -269,10 +269,10 @@ NodeID graph_io_stream::greedyMapGhostKeysToNodes(PartitionConfig & config, std:
 			auto & list_edges = (*config.ghostkey_to_edges)[ghost_key];
 //			int contr_pos = random_functions::nextInt(0, list_edges.size()-1);
 			LongNodeID contr_pos = ((LongNodeID)ghost_key*config.curr_batch) % list_edges.size();
-			NodeID node = return_and_delete_element(list_edges, contr_pos).first; // remove self edge 
+			NodeID node = return_and_delete_element(list_edges, contr_pos).first; // remove self edge
 			(*config.ghostkey_to_node)[ghost_key] = node;
-			all_nodes[node]++; 
-			all_assigned_ghost_nodes[node]++; 
+			all_nodes[node]++;
+			all_assigned_ghost_nodes[node]++;
 		}
 	}
 	return inserted_nodes;
@@ -287,7 +287,7 @@ void graph_io_stream::processGhostNeighborInBatch(PartitionConfig & config, Node
 			config.ghostglobal_to_ghostkey->push_back(ghost_target-1, ghost_key);
 			config.ghostkey_to_edges->push_back(std::vector<std::pair<NodeID,ShortEdgeWeight>>());
 		} else {
-			ghost_key = (*config.ghostglobal_to_ghostkey)[ghost_target-1]; 
+			ghost_key = (*config.ghostglobal_to_ghostkey)[ghost_target-1];
 		}
 		(*config.ghostkey_to_edges)[ghost_key].push_back(std::make_pair(node, (ShortEdgeWeight)edge_weight));
 	}
@@ -297,8 +297,8 @@ void graph_io_stream::processGhostNeighborInBatch(PartitionConfig & config, Node
 /* void graph_io_stream::processQuotientEdgeInBatch(PartitionConfig & config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight) { */
 /* 	PartitionID targetGlobalPar = (*config.stream_nodes_assign)[global_target-1]; */
 /* 	if ( targetGlobalPar == config.k ) { // SIGNAL: neighbor not yet assigned */
-/* 		processGhostNeighborInBatch(config, node, global_target, edge_weight); */ 
-/* 		return; */	
+/* 		processGhostNeighborInBatch(config, node, global_target, edge_weight); */
+/* 		return; */
 /* 	} */
 /* 	if ( targetGlobalPar > config.k ) { */
 /* 		std::cerr << "ERROR regarding number of parts.\n"; */
@@ -309,8 +309,8 @@ void graph_io_stream::processGhostNeighborInBatch(PartitionConfig & config, Node
 /* void graph_io_stream::processQuotientEdgeInBatch(PartitionConfig & config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight) { */
 /* 	PartitionID targetGlobalPar = (*config.stream_nodes_assign)[global_target-1]; */
 /* 	if ( targetGlobalPar == config.k ) { // SIGNAL: neighbor not yet assigned */
-/* 		processGhostNeighborInBatch(config, node, global_target, edge_weight); */ 
-/* 		return; */	
+/* 		processGhostNeighborInBatch(config, node, global_target, edge_weight); */
+/* 		return; */
 /* 	} */
 /* 	if ( targetGlobalPar > config.k ) { */
 /* 		std::cerr << "ERROR regarding number of parts.\n"; */
@@ -321,8 +321,8 @@ void graph_io_stream::processGhostNeighborInBatch(PartitionConfig & config, Node
 void graph_io_stream::processQuotientEdgeInBatch(PartitionConfig & config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight) {
 	PartitionID targetGlobalPar = (*config.stream_nodes_assign)[global_target-1];
 	if ( targetGlobalPar == config.k ) { // SIGNAL: neighbor not yet assigned
-		processGhostNeighborInBatch(config, node, global_target, edge_weight); 
-		return;	
+		processGhostNeighborInBatch(config, node, global_target, edge_weight);
+		return;
 	}
 	if ( targetGlobalPar > config.k ) {
 		std::cerr << "ERROR regarding number of parts.\n";
@@ -350,7 +350,7 @@ void graph_io_stream::processNodeWeight(PartitionConfig & config, std::vector<No
 }
 
 
-EdgeID graph_io_stream::insertRegularEdgeInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges, 
+EdgeID graph_io_stream::insertRegularEdgeInBatch(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 										NodeID node, LongNodeID global_target, EdgeWeight edge_weight) {
 	NodeID target = (NodeID) (global_target - config.lower_global_node);
 	if(target == node) {
@@ -358,9 +358,9 @@ EdgeID graph_io_stream::insertRegularEdgeInBatch(PartitionConfig & config, std::
 		exit(0);
 	}
 	if (target > node) {
-		return 0; 
-	} 
-	 
+		return 0;
+	}
+
 	return includeEdgeInBatch(all_edges, node, target, (1+config.double_non_ghost_edges)*edge_weight);
 }
 
@@ -401,7 +401,7 @@ void graph_io_stream::createGraphForBatch(PartitionConfig & config, graph_access
 	std::vector<NodeID> neighbors;
 	EdgeID e;
 	for(NodeID i = 0 ; i < node_counter ; i++) { // actual insertion of nodes and edges
-                NodeID node = G.new_node(); 
+                NodeID node = G.new_node();
                 NodeWeight weight = all_nodes[node];
                 NodeWeight ghost_weight = all_assigned_ghost_nodes[node];
                 G.setNodeWeight(node, weight);
@@ -432,7 +432,7 @@ void graph_io_stream::recoverBlockAssignedToNode(PartitionConfig & config, graph
 	if (node >= node_counter - config.quotient_nodes) { // quotient nodes
 		NodeID targetPar = node - (node_counter - config.quotient_nodes);
 		G.setPartitionIndex(node, targetPar);
-	} else if (config.restream_number && (config.restream_vcycle || config.initial_partitioning_type == INITIAL_PARTITIONING_FENNEL) ) { 
+	} else if (config.restream_number && (config.restream_vcycle || config.initial_partitioning_type == INITIAL_PARTITIONING_FENNEL) ) {
 		if (node < config.nmbNodes) { // regular nodes
 			LongNodeID global_node = config.lower_global_node + (LongNodeID) node - 1;
 			PartitionID targetPar = (*config.stream_nodes_assign)[global_node];
@@ -452,17 +452,17 @@ void graph_io_stream::generalizeStreamPartition(PartitionConfig & config, graph_
 		LongNodeID global_node = (LongNodeID) node + config.lower_global_node - 1;
 		(*config.stream_nodes_assign)[global_node] = block;
 		(*config.stream_blocks_weight)[block] += G_local.getNodeWeight(node) - G_local.getImplicitGhostNodes(node);
-	} 
+	}
 }
 
 void graph_io_stream::countAssignedNodes(PartitionConfig & config) {
 	config.stream_assigned_nodes = 0;
-	for(int i=0; i<(int)config.stream_blocks_weight->size(); i++) { 
+	for(int i=0; i<(int)config.stream_blocks_weight->size(); i++) {
 		config.stream_assigned_nodes += (*config.stream_blocks_weight)[i];
 	}
 }
 
-// This method modifies the matrix edges_virtualReal 
+// This method modifies the matrix edges_virtualReal
 void graph_io_stream::onePassPartition(PartitionConfig & config, std::vector<std::vector<EdgeWeight>> & edges_virtualReal,
 				std::vector<PartitionID> & blockVirtualToReal, std::vector<NodeWeight> & weight_VirtualBlocks) {
 	int len = edges_virtualReal.size();
@@ -582,11 +582,11 @@ double graph_io_stream::getFennelWeight(PartitionConfig & partition_config) {
 
 void graph_io_stream::writePartitionStream(PartitionConfig & config, const std::string & filename) {
         std::ofstream f(filename.c_str());
-        std::cout << "writing partition to " << filename << " ... " << std::endl;
-	
+        // std::cout << "writing partition to " << filename << " ... " << std::endl;
+
 	for (LongNodeID node = 0; node < config.stream_nodes_assign->size(); node++) {
                 f << (*config.stream_nodes_assign)[node] <<  "\n";
-        } 
+        }
 
         f.close();
 }
@@ -629,8 +629,8 @@ void graph_io_stream::readFirstLineStream(PartitionConfig & partition_config, st
 	partition_config.total_stream_nodecounter = 0;
 	partition_config.stream_n_nodes = partition_config.remaining_stream_nodes;
 
-	auto total_weight = (partition_config.balance_edges) ? 
-		(partition_config.remaining_stream_nodes+2*partition_config.remaining_stream_edges) : 
+	auto total_weight = (partition_config.balance_edges) ?
+		(partition_config.remaining_stream_nodes+2*partition_config.remaining_stream_edges) :
 		partition_config.remaining_stream_nodes;
 
 	if (partition_config.num_streams_passes > 1 + partition_config.restream_number) {
@@ -641,14 +641,14 @@ void graph_io_stream::readFirstLineStream(PartitionConfig & partition_config, st
 					(total_weight/(double)partition_config.k));
 	}
 
-	partition_config.fennel_alpha = partition_config.remaining_stream_edges * 
-				std::pow(partition_config.k,partition_config.fennel_gamma-1) / 
+	partition_config.fennel_alpha = partition_config.remaining_stream_edges *
+				std::pow(partition_config.k,partition_config.fennel_gamma-1) /
 				(std::pow(partition_config.remaining_stream_nodes,partition_config.fennel_gamma));
 
         partition_config.fennel_alpha_gamma = partition_config.fennel_alpha * partition_config.fennel_gamma;
 
 	partition_config.quotient_nodes = partition_config.k;
-	 
+
 	total_edge_cut = 0;
 	if (partition_config.stream_buffer_len == 0) { // signal of partial restream standard buffer size
 		partition_config.stream_buffer_len = (LongNodeID) ceil(partition_config.remaining_stream_nodes/(double)partition_config.k);
@@ -788,7 +788,7 @@ template< typename T>
 T graph_io_stream::return_and_delete_element(std::vector<T> & vec, LongNodeID pos) {
 	T val = vec[pos];
 	vec[pos] = vec[vec.size()-1];
-	vec.erase(vec.begin()+vec.size()-1); 
+	vec.erase(vec.begin()+vec.size()-1);
 	return val;
 }
 

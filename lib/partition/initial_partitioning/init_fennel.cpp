@@ -138,7 +138,7 @@ void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, st
 
 
 EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &G) {
-    bool PARTITION_WITH_PQ = false;
+    bool PARTITION_WITH_PQ = true;
 
     random_functions::fastRandBool<uint64_t> random_obj;
     // bool node_too_large = false;
@@ -256,7 +256,7 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
             } else {
                 partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
             }
-        } // endfor
+        } endfor
 
         if (PARTITION_WITH_PQ) {
             while (!pq_delayed_nodes.empty()) {
