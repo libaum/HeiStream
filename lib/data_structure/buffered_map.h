@@ -82,8 +82,9 @@ class buffered_input {
 		}
 		~buffered_input() {
 		}
-		void simple_scan_line(std::vector<LongNodeID>& vec) {
-			vec.clear();
+		void simple_scan_line(std::vector<LongNodeID>& vec, bool clear_vec = true) {
+			if (clear_vec)
+				vec.clear();
 			this->column = 0;
 			LongNodeID item = 0;
 			while (this->next_int(item)) {

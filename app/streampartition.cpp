@@ -74,6 +74,7 @@ int main(int argn, char **argv) {
 	partition_config.stream_input = true;
 	graph_access *G = new graph_access();
 
+	partition_config.delayed_lines = new std::vector<std::vector<LongNodeID>>(partition_config.stream_buffer_len);
 
 	int &passes = partition_config.num_streams_passes;
 	for (partition_config.restream_number=0; partition_config.restream_number<passes; partition_config.restream_number++) {

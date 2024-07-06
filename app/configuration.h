@@ -42,6 +42,8 @@ class configuration {
 
 inline void configuration::strong( PartitionConfig & partition_config ) {
         standard(partition_config);
+        partition_config.num_nodes_delayed = 0;
+        partition_config.total_nodes_loaded = 0;
         partition_config.matching_type                          = MATCHING_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_GOOD;
         partition_config.permutation_during_refinement          = PERMUTATION_QUALITY_GOOD;
@@ -495,8 +497,6 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.stream_assigned_nodes	           = 0;
         partition_config.stream_n_nodes		           = 0;
         partition_config.stream_in                         = NULL;
-        partition_config.lower_global_node                 = 1;
-        partition_config.upper_global_node                 = partition_config.k;
         partition_config.stream_nodes_assign               = NULL;
         partition_config.stream_blocks_weight              = NULL;
         partition_config.nmbNodes                          = 0;

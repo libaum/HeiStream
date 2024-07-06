@@ -330,7 +330,7 @@ void init_fennel::partition_node(PartitionConfig &partition_config, graph_access
 
     // If the node is too large for any cluster, assign it to a random cluster
     if (node_too_large) {
-    max_block = fnv2a(partition_config.lower_global_node + node) % partition_config.k; // Random choice
+    max_block = fnv2a((*partition_config.local_to_global_map)[node]) % partition_config.k; // Random choice
     }
 
     // Update the cluster sizes and assign the node to the selected cluster
