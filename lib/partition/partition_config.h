@@ -25,12 +25,12 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
+
 	int num_nodes_delayed;
         int total_nodes_loaded;
         unsigned number_of_nodes;
         std::vector<NodeID> *local_to_global_map;
         std::vector<unsigned> *node_in_current_block;
-        std::vector<std::vector<LongNodeID>> *delayed_lines;
 
         //============================================================
         //=======================MATCHING=============================

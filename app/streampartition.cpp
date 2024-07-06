@@ -74,7 +74,7 @@ int main(int argn, char **argv) {
 	partition_config.stream_input = true;
 	graph_access *G = new graph_access();
 
-	partition_config.delayed_lines = new std::vector<std::vector<LongNodeID>>(partition_config.stream_buffer_len);
+	std::deque<std::vector<LongNodeID>> *delayed_lines_queue = new std::deque<std::vector<LongNodeID>>();
 
 	int &passes = partition_config.num_streams_passes;
 	for (partition_config.restream_number=0; partition_config.restream_number<passes; partition_config.restream_number++) {
@@ -82,14 +82,14 @@ int main(int argn, char **argv) {
 		// ***************************** IO operations ***************************************
 		io_t.restart();
 		graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);
-		graph_io_stream::loadRemainingLinesToBinary(partition_config, input);
+		// graph_io_stream::loadRemainingLinesToBinary(partition_config, input);
 		buffer_io_time += io_t.elapsed();
 
 		while (partition_config.remaining_stream_nodes) {
 			// ***************************** IO operations ***************************************
 			io_t.restart();
 			partition_config.nmbNodes = MIN(partition_config.stream_buffer_len, partition_config.remaining_stream_nodes);
-			graph_io_stream::loadBufferLinesToBinary(partition_config, input, partition_config.nmbNodes);
+			graph_io_stream::loadBufferLinesToBinary(partition_config, input, partition_config.nmbNodes, *delayed_lines_queue);
 			buffer_io_time += io_t.elapsed();
 
 			t.restart();

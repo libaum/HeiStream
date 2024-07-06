@@ -128,10 +128,10 @@ class graph_io_stream {
 		void loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input);
 
                 static
-		void loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines);
+		void loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue);
 
                 static
-		std::vector<std::vector<LongNodeID>>* loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines);
+		std::vector<std::vector<LongNodeID>>* loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue);
 
 		template< typename T>
                 static
@@ -144,17 +144,19 @@ class graph_io_stream {
 
 inline void graph_io_stream::loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input) {
 	if (partition_config.ram_stream) {
-		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, partition_config.remaining_stream_nodes);
+		// input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, partition_config.remaining_stream_nodes);
 	}
 }
 
-inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines) {
+inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
 	if (!partition_config.ram_stream) {
-		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines);
+		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines, delayed_lines_queue);
 	}
 }
 
-inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines) {
+inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
+	int MAX_DELAYED_NODES = partition_config.nmbNodes;
+
 	std::vector<std::vector<LongNodeID>>* input;
 	input = new std::vector<std::vector<LongNodeID>>(num_lines);
 	std::vector<std::string>* lines;
@@ -164,28 +166,54 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	bool is_first_batch = partition_config.curr_batch == 0;
 	bool is_last_batch = partition_config.remaining_stream_nodes == partition_config.nmbNodes;
 	bool is_second_last_batch = partition_config.remaining_stream_nodes <= 2*partition_config.nmbNodes;
-	int MAX_DELAYED_NODES = partition_config.nmbNodes/2;
 	int max_capacity_delayed_nodes = is_second_last_batch ? (partition_config.remaining_stream_nodes - partition_config.nmbNodes < MAX_DELAYED_NODES ? partition_config.remaining_stream_nodes - partition_config.nmbNodes : MAX_DELAYED_NODES) : MAX_DELAYED_NODES;
-	float largest_ratio_to_be_delayed = 0.1;
+	float largest_ratio_to_be_delayed = 0.2;
 
 	std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
 
 	unsigned i=0;
-	while (partition_config.num_nodes_delayed > 0) {
-		std::vector<LongNodeID> *line = &(*partition_config.delayed_lines)[i++];
-		(*input)[node_counter++] = (*line);
-		(*partition_config.node_in_current_block)[(*line)[0]-1] = 1; // line[0] == global_node_id
-		partition_config.num_nodes_delayed--;
+	int num_nodes_delayed = partition_config.num_nodes_delayed;
+	while (num_nodes_delayed > 0 && node_counter < num_lines) {
+		std::vector<LongNodeID> *line = &delayed_lines_queue.front();
+
+		// Check if line should be delayed -> append to delayed nodes else append to input
+		unsigned num_neighbours = line->size() - 1;
+		unsigned num_of_neighours_partitioned = 0;
+		for (unsigned i = 1; i < line->size(); i++) {
+			LongNodeID target = (*line)[i];
+			if ((*partition_config.stream_nodes_assign)[target-1] != INVALID_PARTITION) {
+				num_of_neighours_partitioned++;
+			}
+		}
+		float ratio = num_of_neighours_partitioned / (float) num_neighbours;
+		bool should_stay_delayed = ratio <= largest_ratio_to_be_delayed;
+
+		if (should_stay_delayed) {
+			delayed_lines_queue.push_back(*line);
+			delayed_lines_queue.pop_front();
+		} else {
+			(*input)[node_counter++] = (*line);
+			(*partition_config.node_in_current_block)[(*line)[0]-1] = 1; // line[0] == global_node_id
+			delayed_lines_queue.pop_front();
+			partition_config.num_nodes_delayed--;
+		}
+		num_nodes_delayed--;
 	}
 
+	// std::cout << "num_nodes_delayed: " << partition_config.num_nodes_delayed << std::flush;
+
 	while( node_counter < num_lines) {
-		if (partition_config.stream_in->eof()) {
+		if (partition_config.stream_in->eof()) { // If the file has ended, we need to check if there are still delayed nodes to be processed
 			while (partition_config.num_nodes_delayed > 0) {
 				if (node_counter >= num_lines)
 					break;
-				std::vector<LongNodeID> *line = &(*partition_config.delayed_lines)[--partition_config.num_nodes_delayed];
+
+				// No check if line should be delayed -> append to input
+				std::vector<LongNodeID> *line = &delayed_lines_queue.front();
 				(*input)[node_counter++] = (*line);
 				(*partition_config.node_in_current_block)[(*line)[0]-1] = 1; // line[0] == global_node_id
+				delayed_lines_queue.pop_front();
+				partition_config.num_nodes_delayed--;
 			}
 			break;
 
@@ -222,7 +250,8 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 		}
 
 		if (should_be_delayed) {
-			(*partition_config.delayed_lines)[partition_config.num_nodes_delayed++] = *new_line;
+			delayed_lines_queue.push_back(*new_line);
+			partition_config.num_nodes_delayed++;
 		} else {
 			node_counter++;
 			(*partition_config.node_in_current_block)[global_node_id-1] = 1;
@@ -232,6 +261,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 		partition_config.total_nodes_loaded++;
 	}
 
+	// std::cout << ", later num_nodes_delayed: " << partition_config.num_nodes_delayed << std::endl;
 
 	delete lines;
 	return input;
