@@ -212,6 +212,9 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *no_relabel			     = arg_lit0(NULL, "no_relabel", "Keep original node IDs during graph translation. (Default: disabled)");
         struct arg_lit *input_header_absent		     = arg_lit0(NULL, "input_header_absent", "Input graph does not include first rown specifying number of nodes and edges. (Default: disabled)");
 
+        struct arg_int *max_delayed_nodes		     = arg_int0(NULL, "max_delayed_nodes", NULL, "Maximum number of delayed nodes. Default 32768.");
+        struct arg_dbl *largest_ratio_to_delay		     = arg_dbl0(NULL, "largest_ratio_to_delay", NULL, "Largest ratio of partitioned neighbours to neighbours of nodes to delay that node. Default 0.1.");
+
         struct arg_end *end                                  = arg_end(100);
 
         // Define argtable.
@@ -267,6 +270,8 @@ int parse_parameters(int argn, char **argv,
 		stream_allow_ghostnodes,
 		num_streams_passes,
 		balance_edges,
+                max_delayed_nodes,
+                largest_ratio_to_delay,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
                 preconfiguration,
@@ -1617,6 +1622,14 @@ int parse_parameters(int argn, char **argv,
 
         if( xxx->count > 0) {
                 partition_config.xxx = xxx->ival[0];
+        }
+
+        if( max_delayed_nodes->count > 0) {
+                partition_config.max_delayed_nodes = max_delayed_nodes->ival[0];
+        }
+
+        if( largest_ratio_to_delay->count > 0) {
+                partition_config.largest_ratio_to_be_delayed = largest_ratio_to_delay->dval[0];
         }
 
 

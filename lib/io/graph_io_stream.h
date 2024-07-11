@@ -155,8 +155,6 @@ inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition
 }
 
 inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
-	int MAX_DELAYED_NODES = partition_config.nmbNodes;
-
 	std::vector<std::vector<LongNodeID>>* input;
 	input = new std::vector<std::vector<LongNodeID>>(num_lines);
 	std::vector<std::string>* lines;
@@ -166,8 +164,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	bool is_first_batch = partition_config.curr_batch == 0;
 	bool is_last_batch = partition_config.remaining_stream_nodes == partition_config.nmbNodes;
 	bool is_second_last_batch = partition_config.remaining_stream_nodes <= 2*partition_config.nmbNodes;
-	int max_capacity_delayed_nodes = is_second_last_batch ? (partition_config.remaining_stream_nodes - partition_config.nmbNodes < MAX_DELAYED_NODES ? partition_config.remaining_stream_nodes - partition_config.nmbNodes : MAX_DELAYED_NODES) : MAX_DELAYED_NODES;
-	float largest_ratio_to_be_delayed = 0.2;
+	int max_capacity_delayed_nodes = is_second_last_batch ? (partition_config.remaining_stream_nodes - partition_config.nmbNodes < partition_config.max_delayed_nodes ? partition_config.remaining_stream_nodes - partition_config.nmbNodes : partition_config.max_delayed_nodes) : partition_config.max_delayed_nodes;
 
 	std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
 
@@ -186,7 +183,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 			}
 		}
 		float ratio = num_of_neighours_partitioned / (float) num_neighbours;
-		bool should_stay_delayed = ratio <= largest_ratio_to_be_delayed;
+		bool should_stay_delayed = ratio <= partition_config.largest_ratio_to_be_delayed;
 
 		if (should_stay_delayed) {
 			delayed_lines_queue.push_back(*line);
@@ -201,7 +198,6 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	}
 
 	// std::cout << "num_nodes_delayed: " << partition_config.num_nodes_delayed << std::flush;
-
 	while( node_counter < num_lines) {
 		if (partition_config.stream_in->eof()) { // If the file has ended, we need to check if there are still delayed nodes to be processed
 			while (partition_config.num_nodes_delayed > 0) {
@@ -245,7 +241,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 					}
 				}
 				float ratio = num_neighbours > 0 ? num_of_neighours_partitioned / (float) num_neighbours : 1;
-				should_be_delayed = ratio <= largest_ratio_to_be_delayed;
+				should_be_delayed = ratio <= partition_config.largest_ratio_to_be_delayed;
 			}
 		}
 
