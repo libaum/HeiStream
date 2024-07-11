@@ -1,5 +1,5 @@
 /******************************************************************************
- * parse_parameters.h 
+ * parse_parameters.h
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -13,11 +13,11 @@
 #include <sstream>
 #include "configuration.h"
 
-int parse_parameters(int argn, char **argv, 
-                     PartitionConfig & partition_config, 
-                     std::string & graph_filename, 
-                     bool & is_graph_weighted, 
-                     bool & suppress_program_output, 
+int parse_parameters(int argn, char **argv,
+                     PartitionConfig & partition_config,
+                     std::string & graph_filename,
+                     bool & is_graph_weighted,
+                     bool & suppress_program_output,
                      bool & recursive) {
 
         const char *progname = argv[0];
@@ -174,15 +174,15 @@ int parse_parameters(int argn, char **argv,
         struct arg_str *hierarchy_parameter_string           = arg_str0(NULL, "hierarchy_parameter_string", NULL, "Specify as 4:8:8 for 4 cores per PE, 8 PEs per rack, ... and so forth.");
         struct arg_str *distance_parameter_string            = arg_str0(NULL, "distance_parameter_string", NULL, "Specify as 1:10:100 if cores on the same chip have distance 1, PEs in the same rack have distance 10, ... and so forth.");
         struct arg_lit *online_distances                     = arg_lit0(NULL, "online_distances", "Do not store processor distances in a matrix, but do recomputation. (Default: disabled)");
-        struct arg_str *map_construction_algorithm           = arg_str0(NULL, "map_construction_algorithm", NULL, "Specify mapping construction algorithm."); 
-        struct arg_lit *skip_map_ls                          = arg_lit0(NULL, "skip_map_ls", "Skip mapping local search. (Default: disabled)"); 
-        struct arg_lit *delta_gains                          = arg_lit0(NULL, "delta_gains", "Use delta gains to accelerate map local searches. (Default: disabled)"); 
-        struct arg_lit *use_bin_id                           = arg_lit0(NULL, "use_bin_id", "Hierarchically split IDs for faster online distances. (Default: disabled)"); 
-        struct arg_lit *use_compact_bin_id                   = arg_lit0(NULL, "use_compact_bin_id", "Use binary IDs for online distances. (Default: disabled)"); 
-        struct arg_lit *full_matrix                          = arg_lit0(NULL, "full_matrix", "Store full topology matrix. (Default: disabled)"); 
+        struct arg_str *map_construction_algorithm           = arg_str0(NULL, "map_construction_algorithm", NULL, "Specify mapping construction algorithm.");
+        struct arg_lit *skip_map_ls                          = arg_lit0(NULL, "skip_map_ls", "Skip mapping local search. (Default: disabled)");
+        struct arg_lit *delta_gains                          = arg_lit0(NULL, "delta_gains", "Use delta gains to accelerate map local searches. (Default: disabled)");
+        struct arg_lit *use_bin_id                           = arg_lit0(NULL, "use_bin_id", "Hierarchically split IDs for faster online distances. (Default: disabled)");
+        struct arg_lit *use_compact_bin_id                   = arg_lit0(NULL, "use_compact_bin_id", "Use binary IDs for online distances. (Default: disabled)");
+        struct arg_lit *full_matrix                          = arg_lit0(NULL, "full_matrix", "Store full topology matrix. (Default: disabled)");
         struct arg_lit *enable_convergence_map               = arg_lit0(NULL, "enable_convergence_map", "Enables convergence mode, i.e. every step is running until no change.(Default: disabled).");
-        struct arg_lit *adapt_bal                            = arg_lit0(NULL, "adapt_bal", "Use adaptive balancing to improve balancing during inital construction. (Default: disabled)"); 
-        
+        struct arg_lit *adapt_bal                            = arg_lit0(NULL, "adapt_bal", "Use adaptive balancing to improve balancing during inital construction. (Default: disabled)");
+
         // Stream Partition
         struct arg_int *stream_buffer                        = arg_int0(NULL, "stream_buffer", NULL, "Buffer size (number of nodes) for stream partitioning or mapping: Default 32768.");
         struct arg_lit *use_fennel_objective                 = arg_lit0(NULL, "use_fennel_objective", "Use Fennel objetcive function in the local search. (Default: disabled)");
@@ -218,30 +218,30 @@ int parse_parameters(int argn, char **argv,
         void* argtable[] = {
                 help, filename, user_seed,
 #ifdef MODE_DEVEL
-                k, graph_weighted, imbalance, edge_rating_tiebreaking, 
-                matching_type, edge_rating, rate_first_level_inner_outer, first_level_random_matching, 
+                k, graph_weighted, imbalance, edge_rating_tiebreaking,
+                matching_type, edge_rating, rate_first_level_inner_outer, first_level_random_matching,
                 aggressive_random_levels, gpa_grow_internal, match_islands, stop_rule, num_vert_stop_factor,
-                initial_partition, initial_partitioning_repetitions, disable_refined_bubbling, 
+                initial_partition, initial_partitioning_repetitions, disable_refined_bubbling,
                 bubbling_iterations, initial_partition_optimize, bipartition_post_fm_limit, bipartition_post_ml_limit, bipartition_tries,
                 bipartition_algorithm,
                 permutation_quality, permutation_during_refinement, enforce_balance,
-                refinement_scheduling_algorithm, bank_account_factor, refinement_type, 
-                fm_search_limit, flow_region_factor, most_balanced_flows,toposort_iterations, 
-                kway_rounds, kway_search_stop_rule, kway_fm_limits, kway_adaptive_limits_alpha, 
+                refinement_scheduling_algorithm, bank_account_factor, refinement_type,
+                fm_search_limit, flow_region_factor, most_balanced_flows,toposort_iterations,
+                kway_rounds, kway_search_stop_rule, kway_fm_limits, kway_adaptive_limits_alpha,
                 enable_corner_refinement, disable_qgraph_refinement,local_multitry_fm_alpha, local_multitry_rounds,
-                global_cycle_iterations, use_wcycles, wcycle_no_new_initial_partitioning, use_fullmultigrid, use_vcycle,level_split, 
-                enable_convergence, compute_vertex_separator, suppress_output, 
-                input_partition, preconfiguration, only_first_level, disable_max_vertex_weight_constraint, 
-                recursive_bipartitioning, use_bucket_queues, time_limit, unsuccessful_reps, local_partitioning_repetitions, 
-                mh_pool_size, mh_plain_repetitions, mh_disable_nc_combine, mh_disable_cross_combine, mh_enable_tournament_selection,       
-                mh_disable_combine, mh_enable_quickstart, mh_disable_diversify_islands, mh_flip_coin, mh_initial_population_fraction, 
+                global_cycle_iterations, use_wcycles, wcycle_no_new_initial_partitioning, use_fullmultigrid, use_vcycle,level_split,
+                enable_convergence, compute_vertex_separator, suppress_output,
+                input_partition, preconfiguration, only_first_level, disable_max_vertex_weight_constraint,
+                recursive_bipartitioning, use_bucket_queues, time_limit, unsuccessful_reps, local_partitioning_repetitions,
+                mh_pool_size, mh_plain_repetitions, mh_disable_nc_combine, mh_disable_cross_combine, mh_enable_tournament_selection,
+                mh_disable_combine, mh_enable_quickstart, mh_disable_diversify_islands, mh_flip_coin, mh_initial_population_fraction,
 		mh_print_log,mh_sequential_mode, mh_optimize_communication_volume, mh_enable_tabu_search,
                 mh_disable_diversify, mh_diversify_best, mh_cross_combine_original_k, disable_balance_singletons, initial_partition_optimize_fm_limits,
                 initial_partition_optimize_multitry_fm_alpha, initial_partition_optimize_multitry_rounds,
-                enable_omp, 
+                enable_omp,
                 amg_iterations,
-                kaba_neg_cycle_algorithm, kabaE_internal_bal, kaba_internal_no_aug_steps_aug, 
-                kaba_packing_iterations, kaba_flip_packings, kaba_lsearch_p, kaffpa_perfectly_balanced_refinement, 
+                kaba_neg_cycle_algorithm, kabaE_internal_bal, kaba_internal_no_aug_steps_aug,
+                kaba_packing_iterations, kaba_flip_packings, kaba_lsearch_p, kaffpa_perfectly_balanced_refinement,
                 kaba_unsucc_iterations, kaba_disable_zero_weight_cycles,
                 maxT, maxIter, minipreps, mh_penalty_for_unconnected, mh_enable_kabapE,
 
@@ -250,7 +250,7 @@ int parse_parameters(int argn, char **argv,
                 multisection, qap_label_propagation, qap_blabel_propagation, qap_alabel_propagation,
                 qap_multitry_fm, qap_bmultitry_fm, qap_kway_fm, qap_bkway_fm, qap_quotient_ref, qap_bquotient_ref,
                 qap_0quotient_ref, quotient_more_mem, disable_bipartition_gp_local_search, enable_mapping,
-                hierarchy_parameter_string,  distance_parameter_string, online_distances, filename_output, 
+                hierarchy_parameter_string,  distance_parameter_string, online_distances, filename_output,
                 map_construction_algorithm, skip_map_ls, delta_gains, use_bin_id, use_compact_bin_id, full_matrix,
                 matching_type, global_cycle_iterations, suppress_output, kway_fm_limits, enable_convergence_map,
                 qap_label_iterations, adapt_bal, stream_buffer, use_fennel_objective,
@@ -259,8 +259,8 @@ int parse_parameters(int argn, char **argv,
 		num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs, initial_part_fennel,
 		skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx,
 #elif defined MODE_STREAMPARTITION
-                k, imbalance,  
-                filename_output, 
+                k, imbalance,
+                filename_output,
                 stream_buffer,
 		ram_stream,
 		stream_output_progress,
@@ -268,10 +268,10 @@ int parse_parameters(int argn, char **argv,
 		num_streams_passes,
 		balance_edges,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
-                k, imbalance,  
-                preconfiguration, 
-                time_limit, 
-                enforce_balance, 
+                k, imbalance,
+                preconfiguration,
+                time_limit,
+                enforce_balance,
 		balance_edges,
                 integrated_mapping,
                 multisection,
@@ -288,10 +288,10 @@ int parse_parameters(int argn, char **argv,
                 quotient_more_mem,
                 disable_bipartition_gp_local_search,
                 enable_mapping,
-                hierarchy_parameter_string, 
+                hierarchy_parameter_string,
                 distance_parameter_string,
                 online_distances,
-                filename_output, 
+                filename_output,
                 map_construction_algorithm,
                 skip_map_ls,
                 delta_gains,
@@ -305,10 +305,10 @@ int parse_parameters(int argn, char **argv,
                 enable_convergence_map,
                 qap_label_iterations,
 #elif defined MODE_MULTILEVELMAPPING
-                k, imbalance,  
-                preconfiguration, 
-                time_limit, 
-                enforce_balance, 
+                k, imbalance,
+                preconfiguration,
+                time_limit,
+                enforce_balance,
 		balance_edges,
                 integrated_mapping,
                 multisection,
@@ -325,10 +325,10 @@ int parse_parameters(int argn, char **argv,
                 quotient_more_mem,
                 disable_bipartition_gp_local_search,
                 enable_mapping,
-                hierarchy_parameter_string, 
+                hierarchy_parameter_string,
                 distance_parameter_string,
                 online_distances,
-                filename_output, 
+                filename_output,
                 map_construction_algorithm,
                 skip_map_ls,
                 delta_gains,
@@ -343,38 +343,38 @@ int parse_parameters(int argn, char **argv,
                 qap_label_iterations,
                 adapt_bal,
 #elif defined MODE_KAFFPA
-                k, imbalance,  
-                preconfiguration, 
-                time_limit, 
-                enforce_balance, 
+                k, imbalance,
+                preconfiguration,
+                time_limit,
+                enforce_balance,
 		balance_edges,
                 enable_mapping,
-                hierarchy_parameter_string, 
+                hierarchy_parameter_string,
                 distance_parameter_string,
                 online_distances,
-                filename_output, 
+                filename_output,
 #elif defined MODE_GRAPH_TRANSLATOR
-                filename_output, 
+                filename_output,
 		graph_translation_specs,
 		no_relabel,
 		input_header_absent,
 #elif defined MODE_EVALUATOR
-                k,   
-                preconfiguration, 
+                k,
+                preconfiguration,
                 input_partition,
                 k,
                 enable_mapping,
-                hierarchy_parameter_string, 
+                hierarchy_parameter_string,
                 distance_parameter_string,
                 online_distances,
                 use_bin_id,
                 use_compact_bin_id,
 #elif defined MODE_NODESEP
                 //k,
-                imbalance,  
-                preconfiguration, 
-                filename_output, 
-                //time_limit, 
+                imbalance,
+                preconfiguration,
+                filename_output,
+                //time_limit,
                 //edge_rating,
                 //max_flow_improv_steps,
                 //max_initial_ns_tries,
@@ -395,28 +395,28 @@ int parse_parameters(int argn, char **argv,
                 //sep_edge_rating_during_ip,
                 //sep_faster_ns,
 #elif defined MODE_PARTITIONTOVERTEXSEPARATOR
-                k, input_partition, 
-                filename_output, 
+                k, input_partition,
+                filename_output,
 #elif defined MODE_IMPROVEVERTEXSEPARATOR
-                input_partition, 
-                filename_output, 
+                input_partition,
+                filename_output,
 #elif defined MODE_KAFFPAE
-                k, imbalance, 
-                preconfiguration,  
-                time_limit,  
-                mh_enable_quickstart, 
-		mh_print_log, mh_optimize_communication_volume, 
+                k, imbalance,
+                preconfiguration,
+                time_limit,
+                mh_enable_quickstart,
+		mh_print_log, mh_optimize_communication_volume,
                 mh_enable_tabu_search,
-                maxT, maxIter,  
+                maxT, maxIter,
                 mh_enable_kabapE,
-                kabaE_internal_bal,  
+                kabaE_internal_bal,
 		balance_edges,
                 input_partition,
-                filename_output, 
+                filename_output,
 #elif defined MODE_LABELPROPAGATION
                 cluster_upperbound,
                 label_propagation_iterations,
-                filename_output, 
+                filename_output,
 #endif
                 end
         };
@@ -437,7 +437,7 @@ int parse_parameters(int argn, char **argv,
                 arg_print_errors(stderr, end, progname);
                 printf("Try '%s --help' for more information.\n",progname);
                 arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
-                return 1; 
+                return 1;
         }
 
         if (k->count > 0) {
@@ -513,7 +513,7 @@ int parse_parameters(int argn, char **argv,
 #endif
         }
 
-        
+
 
         if(enable_mapping->count > 0) {
                 partition_config.enable_mapping = true;
@@ -530,14 +530,14 @@ int parse_parameters(int argn, char **argv,
 
         if(hierarchy_parameter_string->count) {
                 std::istringstream f(hierarchy_parameter_string->sval[0]);
-                std::string s;    
+                std::string s;
                 partition_config.group_sizes.clear();
                 while (getline(f, s, ':')) {
                         partition_config.group_sizes.push_back(stoi(s));
-                }       
+                }
 
                 PartitionID old_k = partition_config.k;
-                partition_config.k = 1; // recompute k 
+                partition_config.k = 1; // recompute k
                 for( unsigned int i = 0; i < partition_config.group_sizes.size(); i++) {
                         partition_config.k *= partition_config.group_sizes[i];
                 }
@@ -547,15 +547,15 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
 
         if(distance_parameter_string->count) {
                 std::istringstream f(distance_parameter_string->sval[0]);
-                std::string s;    
+                std::string s;
                 partition_config.distances.clear();
                 while (getline(f, s, ':')) {
                         partition_config.distances.push_back(stoi(s));
-                }       
+                }
         }
 
         if(online_distances->count > 0) {
@@ -593,7 +593,7 @@ int parse_parameters(int argn, char **argv,
 	if(balance_edges->count > 0) {
 		partition_config.balance_edges = true;
 	}
-        
+
         if(mh_optimize_communication_volume->count > 0) {
                 partition_config.mh_optimize_communication_volume = true;
         }
@@ -848,37 +848,37 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(use_wcycles->count > 0) {
-                partition_config.use_wcycles = true; 
+                partition_config.use_wcycles = true;
         }
 
         if(enable_convergence->count > 0) {
-                partition_config.no_change_convergence = true; 
+                partition_config.no_change_convergence = true;
         }
 
         if(use_fullmultigrid->count > 0) {
-                partition_config.use_fullmultigrid = true; 
+                partition_config.use_fullmultigrid = true;
         }
 
         if(use_vcycle->count > 0) {
-                partition_config.use_fullmultigrid = false; 
-                partition_config.use_wcycles       = false; 
+                partition_config.use_fullmultigrid = false;
+                partition_config.use_wcycles       = false;
         }
 
 
         if(toposort_iterations->count > 0) {
-                partition_config.toposort_iterations = toposort_iterations->ival[0]; 
+                partition_config.toposort_iterations = toposort_iterations->ival[0];
         }
 
         if(bipartition_tries->count > 0) {
-                partition_config.bipartition_tries = bipartition_tries->ival[0]; 
+                partition_config.bipartition_tries = bipartition_tries->ival[0];
         }
 
         if(bipartition_post_fm_limit->count > 0) {
-                partition_config.bipartition_post_fm_limits = bipartition_post_fm_limit->ival[0]; 
+                partition_config.bipartition_post_fm_limits = bipartition_post_fm_limit->ival[0];
         }
 
         if(bipartition_post_ml_limit->count > 0) {
-                partition_config.bipartition_post_ml_limits = bipartition_post_ml_limit->ival[0]; 
+                partition_config.bipartition_post_ml_limits = bipartition_post_ml_limit->ival[0];
         }
 
         if(disable_max_vertex_weight_constraint->count > 0) {
@@ -886,23 +886,23 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(num_vert_stop_factor->count > 0) {
-                partition_config.num_vert_stop_factor = num_vert_stop_factor->ival[0]; 
+                partition_config.num_vert_stop_factor = num_vert_stop_factor->ival[0];
         }
 
         if(local_multitry_rounds->count > 0) {
-                partition_config.local_multitry_rounds = local_multitry_rounds->ival[0]; 
+                partition_config.local_multitry_rounds = local_multitry_rounds->ival[0];
         }
 
         if(local_multitry_fm_alpha->count > 0) {
-                partition_config.local_multitry_fm_alpha = local_multitry_fm_alpha->ival[0]; 
+                partition_config.local_multitry_fm_alpha = local_multitry_fm_alpha->ival[0];
         }
 
         if(wcycle_no_new_initial_partitioning->count > 0) {
-                partition_config.no_new_initial_partitioning = true; 
+                partition_config.no_new_initial_partitioning = true;
         }
 
         if(graph_weighted->count > 0) {
-                is_graph_weighted = true;                
+                is_graph_weighted = true;
         }
 
         if(disable_refined_bubbling->count > 0) {
@@ -1190,7 +1190,7 @@ int parse_parameters(int argn, char **argv,
                 }
         }
 
-        if (initial_partition->count > 0) { 
+        if (initial_partition->count > 0) {
                 if (strcmp("recursive", initial_partition->sval[0]) == 0) {
                         partition_config.initial_partitioning_type = INITIAL_PARTITIONING_RECPARTITION;
                 } else {
@@ -1231,7 +1231,7 @@ int parse_parameters(int argn, char **argv,
         if (multisection->count > 0) {
                 partition_config.multisection = true;
                 if(!integrated_mapping->count && !enable_mapping->count) {
-                        std::cout <<  "--multisection only works together with either of these flags: " << 
+                        std::cout <<  "--multisection only works together with either of these flags: " <<
                                         "--integrated_mapping , --enable_mapping"  << std::endl;
                         exit(0);
                 }
@@ -1260,7 +1260,7 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
         if (qap_multitry_fm->count > 0) {
                 partition_config.qap_multitry_kway_fm = true;
                 if(!integrated_mapping->count) {
@@ -1268,7 +1268,7 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
         if (qap_bmultitry_fm->count > 0) {
                 partition_config.qap_bmultitry_kway_fm = true;
                 if(!integrated_mapping->count) {
@@ -1276,7 +1276,7 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
         if (qap_kway_fm->count > 0) {
                 partition_config.qap_kway_fm = true;
                 if(!integrated_mapping->count) {
@@ -1284,7 +1284,7 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
         if (qap_bkway_fm->count > 0) {
                 partition_config.qap_bkway_fm = true;
                 if(!integrated_mapping->count) {
@@ -1294,26 +1294,26 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(enable_convergence_map->count > 0) {
-                partition_config.no_change_convergence_map = true; 
+                partition_config.no_change_convergence_map = true;
                 if(!integrated_mapping->count) {
                         std::cout <<  "--enable_convergence_map only works together with the --integrated_mapping flag."  << std::endl;
                         exit(0);
                 }
         }
-        
+
         if (qap_quotient_ref->count > 0) {
                 partition_config.qap_quotient_ref = true;
         }
-        
+
         if (qap_bquotient_ref->count > 0) {
                 partition_config.qap_bquotient_ref = true;
         }
-        
+
         if (qap_0quotient_ref->count > 0) {
                 partition_config.qap_bquotient_ref = true;
                 partition_config.qap_0quotient_ref = true;
         }
-        
+
         if (quotient_more_mem->count > 0) {
                 partition_config.quotient_more_mem = true;
                 if(!integrated_mapping->count && !use_fennel_objective->count) {
@@ -1321,7 +1321,7 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-        
+
         if (disable_bipartition_gp_local_search->count > 0) {
                 partition_config.bipartition_gp_local_search = false;
                 if(!integrated_mapping->count) {
@@ -1335,7 +1335,7 @@ int parse_parameters(int argn, char **argv,
 
 
 
-        if(map_construction_algorithm->count) { 
+        if(map_construction_algorithm->count) {
                 if (strcmp("oldgrowingfaster", map_construction_algorithm->sval[0]) == 0) {
                         partition_config.construction_algorithm = MAP_CONST_OLDGROWING_FASTER;
                 } else if (strcmp("random", map_construction_algorithm->sval[0]) == 0) {
@@ -1346,8 +1346,8 @@ int parse_parameters(int argn, char **argv,
                         partition_config.construction_algorithm = MAP_CONST_FASTHIERARCHY_BOTTOMUP;
                 } else if (strcmp("fasthierarchytopdown", map_construction_algorithm->sval[0]) == 0) {
                         partition_config.construction_algorithm = MAP_CONST_FASTHIERARCHY_TOPDOWN;
-                } else if (strcmp("greedyallc", map_construction_algorithm->sval[0]) == 0) {    
-                        partition_config.construction_algorithm = MAP_CONST_OLDGROWING;         
+                } else if (strcmp("greedyallc", map_construction_algorithm->sval[0]) == 0) {
+                        partition_config.construction_algorithm = MAP_CONST_OLDGROWING;
                 } else {
                         std::cout <<  "map_construction_algorithm should be one of the following options:"  << std::endl;
                         std::cout <<  "oldgrowingfaster random identity fasthierarchybottomup fasthierarchytopdown greedyallc" << std::endl;
@@ -1444,11 +1444,11 @@ int parse_parameters(int argn, char **argv,
         if(ram_stream->count > 0) {
                 partition_config.ram_stream = true;
         }
-	  
+
         if(stream_output_progress->count > 0) {
                 partition_config.stream_output_progress = true;
         }
-	  
+
         if(stream_allow_ghostnodes->count > 0) {
                 partition_config.stream_allow_ghostnodes = true;
 		partition_config.stream_whole_adjacencies = true;
@@ -1465,33 +1465,33 @@ int parse_parameters(int argn, char **argv,
 //                        std::cout <<  "--fennel_dynamics only works together with --use_fennel_objective"  << std::endl;
 //                        exit(0);
 //                }
-		if (strcmp("original", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_ORIGINAL;         
-                } else if (strcmp("double", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_DOUBLE;         
-                } else if (strcmp("linear", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_LINEAR;         
-                } else if (strcmp("quadratic", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_QUADRATIC;         
-                } else if (strcmp("midlinear", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_MID_LINEAR;         
-                } else if (strcmp("midquadratic", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_MID_QUADRATIC;         
-                } else if (strcmp("midconstant", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_MID_CONSTANT;         
-		} else if (strcmp("edgecut", fennel_dynamics->sval[0]) == 0) {    
-                        partition_config.fennel_dynamics = FENNELADP_EDGE_CUT;         
+		if (strcmp("original", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_ORIGINAL;
+                } else if (strcmp("double", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_DOUBLE;
+                } else if (strcmp("linear", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_LINEAR;
+                } else if (strcmp("quadratic", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_QUADRATIC;
+                } else if (strcmp("midlinear", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_MID_LINEAR;
+                } else if (strcmp("midquadratic", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_MID_QUADRATIC;
+                } else if (strcmp("midconstant", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_MID_CONSTANT;
+		} else if (strcmp("edgecut", fennel_dynamics->sval[0]) == 0) {
+                        partition_config.fennel_dynamics = FENNELADP_EDGE_CUT;
 		}
         }
 
         if(fennel_batch_order->count > 0) {
-                if (strcmp("unchanged", fennel_batch_order->sval[0]) == 0) {    
-                        partition_config.fennel_batch_order = FENN_ORDER_UNCHANGED;         
-                } else if (strcmp("ascdegree", fennel_batch_order->sval[0]) == 0) {    
-                        partition_config.fennel_batch_order = FENN_ORDER_ASC_DEGREE;         
-                } else if (strcmp("descdegree", fennel_batch_order->sval[0]) == 0) {    
-                        partition_config.fennel_batch_order = FENN_ORDER_DESC_DEGREE;         
-                } 
+                if (strcmp("unchanged", fennel_batch_order->sval[0]) == 0) {
+                        partition_config.fennel_batch_order = FENN_ORDER_UNCHANGED;
+                } else if (strcmp("ascdegree", fennel_batch_order->sval[0]) == 0) {
+                        partition_config.fennel_batch_order = FENN_ORDER_ASC_DEGREE;
+                } else if (strcmp("descdegree", fennel_batch_order->sval[0]) == 0) {
+                        partition_config.fennel_batch_order = FENN_ORDER_DESC_DEGREE;
+                }
         }
 
         if(ghost_nodes_procedure->count > 0) {
@@ -1499,16 +1499,16 @@ int parse_parameters(int argn, char **argv,
                         std::cout <<  "--ghost_nodes_procedure only works together with --stream_allow_ghostnodes"  << std::endl;
                         exit(0);
                 }
-                if (strcmp("contract", ghost_nodes_procedure->sval[0]) == 0) {    
-                        partition_config.ghost_nodes_procedure = GHOST_CONTRACT_ALL;         
+                if (strcmp("contract", ghost_nodes_procedure->sval[0]) == 0) {
+                        partition_config.ghost_nodes_procedure = GHOST_CONTRACT_ALL;
 			partition_config.ghost_nodes_threshold = 0;
-                } else if (strcmp("keep", ghost_nodes_procedure->sval[0]) == 0) {    
+                } else if (strcmp("keep", ghost_nodes_procedure->sval[0]) == 0) {
                         partition_config.ghost_nodes_procedure = GHOST_KEEP_ALL;
 			partition_config.ghost_nodes_threshold = std::numeric_limits<LongNodeID>::max();
-                } else if (strcmp("keepthresholdcontract", ghost_nodes_procedure->sval[0]) == 0) {    
-                        partition_config.ghost_nodes_procedure = GHOST_KEEP_THRESHOLD_CONTRACT_REST;         
+                } else if (strcmp("keepthresholdcontract", ghost_nodes_procedure->sval[0]) == 0) {
+                        partition_config.ghost_nodes_procedure = GHOST_KEEP_THRESHOLD_CONTRACT_REST;
 			partition_config.ghost_nodes_threshold = 1024;
-                } 
+                }
         }
 
         if (ghost_nodes_threshold->count > 0) {
@@ -1520,17 +1520,17 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(graph_translation_specs->count > 0) {
-		if (strcmp("edgestream_metis", graph_translation_specs->sval[0]) == 0) {    
-                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METIS;         
-                } else if (strcmp("edgestream_hmetis", graph_translation_specs->sval[0]) == 0) {    
-                        partition_config.graph_translation_specs = EDGE_STREAM_TO_HMETIS;         
-                } else if (strcmp("metis_hmetis", graph_translation_specs->sval[0]) == 0) {    
-                        partition_config.graph_translation_specs = METIS_TO_HMETIS;         
-		} else if (strcmp("edgestream_metisbuffered", graph_translation_specs->sval[0]) == 0) {    
-                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METISBUFFERED;         
-		} else if (strcmp("edgestream_metisexternal", graph_translation_specs->sval[0]) == 0) {    
-                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METISEXTERNAL;         
-                } 
+		if (strcmp("edgestream_metis", graph_translation_specs->sval[0]) == 0) {
+                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METIS;
+                } else if (strcmp("edgestream_hmetis", graph_translation_specs->sval[0]) == 0) {
+                        partition_config.graph_translation_specs = EDGE_STREAM_TO_HMETIS;
+                } else if (strcmp("metis_hmetis", graph_translation_specs->sval[0]) == 0) {
+                        partition_config.graph_translation_specs = METIS_TO_HMETIS;
+		} else if (strcmp("edgestream_metisbuffered", graph_translation_specs->sval[0]) == 0) {
+                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METISBUFFERED;
+		} else if (strcmp("edgestream_metisexternal", graph_translation_specs->sval[0]) == 0) {
+                        partition_config.graph_translation_specs = EDGE_STREAM_TO_METISEXTERNAL;
+                }
         }
 
         if (num_streams_passes->count > 0) {
@@ -1596,16 +1596,16 @@ int parse_parameters(int argn, char **argv,
 
 
         if(stream_label_rounds->count > 0) {
-                if (strcmp("minimal", stream_label_rounds->sval[0]) == 0) {    
+                if (strcmp("minimal", stream_label_rounds->sval[0]) == 0) {
 			partition_config.label_iterations             = 5;
 			partition_config.label_iterations_refinement  = 1;
-                } else if (strcmp("normal", stream_label_rounds->sval[0]) == 0) {    
+                } else if (strcmp("normal", stream_label_rounds->sval[0]) == 0) {
 			partition_config.label_iterations             = 5;
 			partition_config.label_iterations_refinement  = 5;
-                } else if (strcmp("high", stream_label_rounds->sval[0]) == 0) {    
+                } else if (strcmp("high", stream_label_rounds->sval[0]) == 0) {
 			partition_config.label_iterations             = 5;
 			partition_config.label_iterations_refinement  = 15;
-                } 
+                }
         }
 
         if(automatic_buffer_len->count > 0) {
