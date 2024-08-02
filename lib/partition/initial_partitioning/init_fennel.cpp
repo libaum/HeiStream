@@ -76,7 +76,7 @@ float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> 
     int total_edge_weight = 0;
     int num_partioned_neighbours = 0;
     int num_total_neighbours = 0;
-    int ghost_edge_weight = 0;
+    int quotient_edge_weight = 0;
     int num_ghost_neighbours = 0;
     forall_out_edges(G, e, node) {
         num_total_neighbours++;
@@ -89,26 +89,29 @@ float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> 
             num_partioned_neighbours++;
         }
         if(target >= G.number_of_nodes() - partition_config.quotient_nodes) {
-            ghost_edge_weight += edge_weight;
+            quotient_edge_weight += edge_weight;
             num_ghost_neighbours++;
         }
     } endfor
     float theta = 2;
     float ghost_weight_factor = 1.0;
 
+
+    // return (num_partioned_neighbours / (float) num_total_neighbours);
+    // return (partitioned_edge_weight+quotient_edge_weight) / (float) total_edge_weight;
     // CBS
-    return total_edge_weight / 300.0
-        + theta * (partitioned_edge_weight / (float) total_edge_weight);
+    return total_edge_weight / 1000.0
+        + theta * (partitioned_edge_weight+quotient_edge_weight) / (float) total_edge_weight;
 
     // // CBS2 with total_edge_weight-quotient_edge_weight > 100
-    // return total_edge_weight - ghost_edge_weight / 100.0
-    //     + theta * ((partitioned_edge_weight-ghost_edge_weight) / (float) (total_edge_weight-ghost_edge_weight))
-    //     + ghost_weight_factor * ghost_edge_weight / (float) partitioned_edge_weight;
+    // return total_edge_weight - quotient_edge_weight / 100.0
+    //     + theta * ((partitioned_edge_weight-quotient_edge_weight) / (float) (total_edge_weight-quotient_edge_weight))
+    //     + ghost_weight_factor * quotient_edge_weight / (float) partitioned_edge_weight;
 
     // CBS3
-    // return total_edge_weight - ghost_edge_weight / 100.0
-    //     + theta * ((partitioned_edge_weight-ghost_edge_weight) / (float) (total_edge_weight-ghost_edge_weight))
-    //     + ghost_weight_factor * ghost_edge_weight / (float) partitioned_edge_weight
+    // return total_edge_weight - quotient_edge_weight / 100.0
+    //     + theta * ((partitioned_edge_weight-quotient_edge_weight) / (float) (total_edge_weight-quotient_edge_weight))
+    //     + ghost_weight_factor * quotient_edge_weight / (float) partitioned_edge_weight
     //     + num_partioned_neighbours / (float) num_total_neighbours;
 
     // return total_edge_weight / 1000.0 + theta * (partitioned_edge_weight / (float) total_edge_weight + num_partioned_neighbours / (float) num_total_neighbours);
@@ -233,7 +236,7 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
                 } endfor
 
                 // First, assign nodes to the priority queue with priority based on the already partitioned neighbors or partition directly
-                bool should_be_partitioned_directly = num_of_neighbours == 0 || total_edge_weight > 300; //total_edge_weight-quotient_edge_weight > 100;//  || total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 70; //num_of_neighbours > 100 || (total_edge_weight > 200 && quotient_edge_weight/total_edge_weight > 0.7)
+                bool should_be_partitioned_directly = num_of_neighbours == 0 || total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 100;//  || total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 70; //num_of_neighbours > 100 || (total_edge_weight > 200 && quotient_edge_weight/total_edge_weight > 0.7)
                 if (should_be_partitioned_directly) {
                     // Partition node and update priority of neighbours in pq
                     partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
