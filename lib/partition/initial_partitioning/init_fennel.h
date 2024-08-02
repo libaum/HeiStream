@@ -7,7 +7,6 @@
 
 #ifndef INITFENNEL_7I4IR31Y
 #define INITFENNEL_7I4IR31Y
-
 #include "initial_partitioner.h"
 #include "quality_metrics.h"
 #include "random_functions.h"
@@ -50,10 +49,10 @@ class init_fennel : public initial_partitioner {
         private:
 		EdgeWeight fennel(PartitionConfig & partition_config, graph_access & G);
 
-        float get_priority(graph_access &G, NodeID node, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config);
+        float get_priority(graph_access &G, NodeID node, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config, bool &all_neighbours_partitioned);
         void partition_node(PartitionConfig &partition_config, graph_access &G, NodeID node, std::vector<PartitionID> &hash_map, std::vector<NodeWeight> &cluster_sizes, std::vector<NodeWeight> &cluster_ghost_nodes, random_functions::fastRandBool<uint64_t> &random_obj, double fennel_weight, bool preliminary_sol, std::vector<bool> &node_is_partitioned);
-        void update_neighbours_priority(graph_access &G, NodeID node_id, std::priority_queue<pq_node, std::vector<pq_node>, ComparePriority> &pq, std::vector<float> &node_id_to_priority, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config);
-                                    //    random_functions::fastRandBool<uint64_t> &random_obj, double fennel_weight, bool preliminary_sol, std::vector<NodeWeight> &cluster_sizes, std::vector<NodeWeight> &cluster_ghost_nodes, std::vector<PartitionID> &hash_map);
+        void update_neighbours_priority(graph_access &G, NodeID node_id, std::priority_queue<pq_node, std::vector<pq_node>, ComparePriority> &pq, std::vector<float> &node_id_to_priority, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config,
+                                       random_functions::fastRandBool<uint64_t> &random_obj, double fennel_weight, bool preliminary_sol, std::vector<NodeWeight> &cluster_sizes, std::vector<NodeWeight> &cluster_ghost_nodes, std::vector<PartitionID> &hash_map);
 };
 
 

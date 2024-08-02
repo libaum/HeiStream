@@ -71,13 +71,11 @@ void init_fennel::initial_partition(PartitionConfig &config,
 }
 
 
-float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config) {
+float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config, bool &all_neighbours_partitioned) {
     int partitioned_edge_weight = 0;
     int total_edge_weight = 0;
     int num_partioned_neighbours = 0;
     int num_total_neighbours = 0;
-    int ghost_edge_weight = 0;
-    int num_ghost_neighbours = 0;
     forall_out_edges(G, e, node) {
         num_total_neighbours++;
         EdgeWeight edge_weight = G.getEdgeWeight(e);
@@ -88,47 +86,28 @@ float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> 
             partitioned_edge_weight += edge_weight;
             num_partioned_neighbours++;
         }
-        if(target >= G.number_of_nodes() - partition_config.quotient_nodes) {
-            ghost_edge_weight += edge_weight;
-            num_ghost_neighbours++;
-        }
     } endfor
     float theta = 2;
-    float ghost_weight_factor = 1.0;
 
+    all_neighbours_partitioned = num_partioned_neighbours == num_total_neighbours;
     // CBS
-    return total_edge_weight / 300.0
-        + theta * (partitioned_edge_weight / (float) total_edge_weight);
-
-    // // CBS2 with total_edge_weight-quotient_edge_weight > 100
-    // return total_edge_weight - ghost_edge_weight / 100.0
-    //     + theta * ((partitioned_edge_weight-ghost_edge_weight) / (float) (total_edge_weight-ghost_edge_weight))
-    //     + ghost_weight_factor * ghost_edge_weight / (float) partitioned_edge_weight;
-
-    // CBS3
-    // return total_edge_weight - ghost_edge_weight / 100.0
-    //     + theta * ((partitioned_edge_weight-ghost_edge_weight) / (float) (total_edge_weight-ghost_edge_weight))
-    //     + ghost_weight_factor * ghost_edge_weight / (float) partitioned_edge_weight
-    //     + num_partioned_neighbours / (float) num_total_neighbours;
-
-    // return total_edge_weight / 1000.0 + theta * (partitioned_edge_weight / (float) total_edge_weight + num_partioned_neighbours / (float) num_total_neighbours);
-    // return total_edge_weight / 1000.0 + theta * partitioned_edge_weight / (float) total_edge_weight;
-    // return (num_partioned_neighbours / (float) num_total_neighbours);// * (partitioned_edge_weight / (float) total_edge_weight);
+    return num_total_neighbours / 100.0 + theta * partitioned_edge_weight / (float) total_edge_weight;
 }
 
 // Update the priority value of the neighbours of the node that was just partitioned in the priority queue (insert with new value)
-void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, std::priority_queue<pq_node, std::vector<pq_node>, ComparePriority> &pq, std::vector<float> &node_id_to_priority, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config) {
-    // random_functions::fastRandBool<uint64_t> &random_obj, double fennel_weight, bool preliminary_sol, std::vector<NodeWeight> &cluster_sizes, std::vector<NodeWeight> &cluster_ghost_nodes, std::vector<PartitionID> &hash_map) {
+void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, std::priority_queue<pq_node, std::vector<pq_node>, ComparePriority> &pq, std::vector<float> &node_id_to_priority, std::vector<bool> &node_is_partitioned, PartitionConfig &partition_config,
+    random_functions::fastRandBool<uint64_t> &random_obj, double fennel_weight, bool preliminary_sol, std::vector<NodeWeight> &cluster_sizes, std::vector<NodeWeight> &cluster_ghost_nodes, std::vector<PartitionID> &hash_map) {
     forall_out_edges(G, e, node_id) {
         NodeID target = G.getEdgeTarget(e);
         if (!node_is_partitioned[target] && node_id_to_priority[target] != -1) {
-            float new_priority = get_priority(G, target, node_is_partitioned, partition_config);
-            // if ((int) new_priority == 1) {
-            //     partition_node(partition_config, G, target, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
-            //     update_neighbours_priority(G, target, pq, node_id_to_priority, node_is_partitioned, partition_config,
-            //         random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
-            //     continue;
-            // }
+            bool all_neighbours_partitioned;
+            float new_priority = get_priority(G, target, node_is_partitioned, partition_config, all_neighbours_partitioned);
+            if (all_neighbours_partitioned) {
+                partition_node(partition_config, G, target, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
+                update_neighbours_priority(G, target, pq, node_id_to_priority, node_is_partitioned, partition_config,
+                    random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
+                continue;
+            }
 
             node_id_to_priority[target] = new_priority;
             pq.push(pq_node(target, new_priority));
@@ -138,7 +117,8 @@ void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, st
 
 
 EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &G) {
-    bool PARTITION_WITH_PQ = false;
+
+    bool PARTITION_WITH_PQ = true;
 
     random_functions::fastRandBool<uint64_t> random_obj;
     // bool node_too_large = false;
@@ -204,7 +184,8 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
     fennel_weight = 1;
 
     std::priority_queue<pq_node, std::vector<pq_node>, ComparePriority> pq_delayed_nodes;
-    std::vector<float> node_id_to_priority(G.number_of_nodes(), -1); // if -1: not in priority queue, else: index in priority queue with corresponding priority
+
+    std::vector<float> node_id_to_priority(G.number_of_nodes(), -INFINITY); // if -INFINITY: not in priority queue, else: index in priority queue with corresponding priority
 
     for (int j = 0; j < partition_config.initial_part_fennel_tries; j++) {
         bool preliminary_sol = j || partition_config.restream_number;
@@ -233,25 +214,24 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
                 } endfor
 
                 // First, assign nodes to the priority queue with priority based on the already partitioned neighbors or partition directly
-                bool should_be_partitioned_directly = num_of_neighbours == 0 || total_edge_weight > 300; //total_edge_weight-quotient_edge_weight > 100;//  || total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 70; //num_of_neighbours > 100 || (total_edge_weight > 200 && quotient_edge_weight/total_edge_weight > 0.7)
+                bool should_be_partitioned_directly = num_of_neighbours == 0 || num_of_neighbours > 100; //total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 100;//  || total_edge_weight > 1000; //total_edge_weight-quotient_edge_weight > 70; //num_of_neighbours > 100 || (total_edge_weight > 200 && quotient_edge_weight/total_edge_weight > 0.7)
                 if (should_be_partitioned_directly) {
                     // Partition node and update priority of neighbours in pq
                     partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
-                    update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config);
-                        // random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
-                } else if (node_id_to_priority[node] == -1) { // If node is not already in priority queue
+                    update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config,
+                        random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
+                } else if (node_id_to_priority[node] == -INFINITY) { // If node is not already in priority queue
                     // Add node to priority queue
-                    float priority = get_priority(G, node, node_is_partitioned, partition_config);
-
-                    // if (partitioned_edge_weight == total_edge_weight) {
-                    //     partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
-                    //     update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config,
-                    //         random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
-                    //     continue;
-                    // }
-
-                    pq_delayed_nodes.push(pq_node(node, priority));
-                    node_id_to_priority[node] = priority;
+                    bool all_neighbours_partitioned = false;
+                    float priority = get_priority(G, node, node_is_partitioned, partition_config, all_neighbours_partitioned);
+                    if (all_neighbours_partitioned) {
+                        partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
+                        update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config,
+                            random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
+                    } else {
+                        pq_delayed_nodes.push(pq_node(node, priority));
+                        node_id_to_priority[node] = priority;
+                    }
                 }
             } else {
                 partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
@@ -265,21 +245,14 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
                 NodeID node = cur_node.id;
                 if (!node_is_partitioned[node] && cur_node.priority == node_id_to_priority[node]) { // If priority is the current priority of the node
                     // Partition node and update priority of neighbours in pq
-
                     partition_node(partition_config, G, node, hash_map, cluster_sizes, cluster_ghost_nodes, random_obj, fennel_weight, preliminary_sol, node_is_partitioned);
-                    update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config);
-                        // random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
+                    update_neighbours_priority(G, node, pq_delayed_nodes, node_id_to_priority, node_is_partitioned, partition_config,
+                        random_obj, fennel_weight, preliminary_sol, cluster_sizes, cluster_ghost_nodes, hash_map);
                 }
             }
         }
 
     }
-
-    // for (bool node_id : node_is_partitioned) {
-    //     if (!node_id) {
-    //         std::cout << "Node not partitioned" << std::endl;
-    //     }
-    // }
 
     return 0;
 }
