@@ -5,3 +5,4 @@ tags
 build
 out
 compileDEBUG.sh
+.vscode
