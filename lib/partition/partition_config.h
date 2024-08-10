@@ -25,7 +25,7 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
-        float largest_ratio_to_be_delayed;
+        float threshold_delay;
         int max_delayed_nodes;
 
 	int num_nodes_delayed;

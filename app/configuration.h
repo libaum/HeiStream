@@ -42,7 +42,7 @@ class configuration {
 
 inline void configuration::strong( PartitionConfig & partition_config ) {
         standard(partition_config);
-        partition_config.largest_ratio_to_be_delayed = 0.1;
+        partition_config.threshold_delay = 0.1;
         partition_config.max_delayed_nodes = 32768;
         partition_config.num_nodes_delayed = 0;
         partition_config.total_nodes_loaded = 0;
