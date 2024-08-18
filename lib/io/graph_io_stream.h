@@ -128,7 +128,7 @@ class graph_io_stream {
 		void streamEvaluatePartition(PartitionConfig & config, const std::string & filename, EdgeWeight& edgeCut);
 
                 static
-		void loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input);
+		void loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, std::deque<std::vector<LongNodeID>> &delayed_lines_queue);
 
                 static
 		void loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue);
@@ -145,15 +145,23 @@ class graph_io_stream {
 
 };
 
-inline void graph_io_stream::loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input) {
+inline void graph_io_stream::loadRemainingLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
 	if (partition_config.ram_stream) {
-		// input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, partition_config.remaining_stream_nodes);
+		partition_config.max_delayed_nodes = 0; // no delayed nodes in RAM mode
+		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, partition_config.remaining_stream_nodes, delayed_lines_queue);
 	}
 }
 
 inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition_config, std::vector<std::vector<LongNodeID>>* &input, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
 	if (!partition_config.ram_stream) {
 		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines, delayed_lines_queue);
+	} else {
+		std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
+		int lower_global_node = partition_config.number_of_nodes - partition_config.remaining_stream_nodes;
+		int upper_global_node = lower_global_node + num_lines > partition_config.number_of_nodes ? partition_config.number_of_nodes : lower_global_node + num_lines;
+		for (int global_node_id = lower_global_node+1; global_node_id <= upper_global_node; global_node_id++) {
+			(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+		}
 	}
 }
 
@@ -201,6 +209,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	int num_nodes_delayed = delayed_lines_queue.size();
 	int lower_global_node = partition_config.total_nodes_loaded;
 	int max_global_node_in_batch = partition_config.total_nodes_loaded + num_lines - node_counter;
+
 
 	switch(partition_config.remaining_stream_ew) {
 		case 1:
@@ -259,7 +268,9 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 			if (should_be_delayed) {
 				delayed_lines_queue.push_back(*new_line);
 			} else {
-				(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+				if (!partition_config.ram_stream) {
+					(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+				}
 				node_counter++;
 			}
 

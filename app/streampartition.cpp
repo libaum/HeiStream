@@ -82,7 +82,7 @@ int main(int argn, char **argv) {
 		// ***************************** IO operations ***************************************
 		io_t.restart();
 		graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);
-		// graph_io_stream::loadRemainingLinesToBinary(partition_config, input);
+		graph_io_stream::loadRemainingLinesToBinary(partition_config, input, *delayed_lines_queue);
 		buffer_io_time += io_t.elapsed();
 
 		while (partition_config.remaining_stream_nodes) {

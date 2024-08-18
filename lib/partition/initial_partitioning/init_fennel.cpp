@@ -118,7 +118,7 @@ void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, st
 
 EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &G) {
 
-    bool PARTITION_WITH_PQ = true;
+    bool PARTITION_WITH_PQ = false;
 
     random_functions::fastRandBool<uint64_t> random_obj;
     // bool node_too_large = false;
