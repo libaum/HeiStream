@@ -1,95 +1,54 @@
-# HeiStream 
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/315a384a931d4136a89a4b2846ae0475)](https://app.codacy.com/gh/KaHIP/HeiStream/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-HeiStream is a buffered streaming algorithm to heuristically solve the graph partitioning problem: dividing the nodes of a graph into k disjoint blocks of roughly the same size while minimizing the number of edges running between blocks.
-HeiStream is a first attempt to close a gap observed in the space of available partitioning algorithms. 
-On the one hand, there are streaming algorithms that have been adopted to partition massive graph data on small machines. 
-In the streaming model, vertices arrive one at a time including their neighborhood and then have to be assigned directly to a block. 
-These algorithms can partition huge graphs quickly with little memory, but they produce partitions with low solution quality. 
-On the other hand, there are offline (shared-memory) multilevel algorithms that produce partitions with high quality but also need a machine with enough
-memory to partition huge networks. 
-HeiStream uses a buffered streaming computational model and a multilevel algorithm, which allows it to compute significantly improved partitions of huge graphs using a single machine with little memory.
+# HeiStream Enhanced Version
 
-<p align="center">
-<img src="./img/MultilevelBufferedStreamGP.png"
-  alt="Overall Structure of HeiStream"
-  width="601" >
-</p>
+## Overview
 
-The image above illustrates the overall structure of HeiStream. 
-It slides through the streamed graph G by repeating the following successive operations until all the nodes of G are assigned to blocks. 
-First, it loads a batch containing the desired number of nodes alongside with their adjacency lists. 
-Second, it builds a model B to be partitined. 
-This model represents the already partitioned vertices as well as the nodes of the current batch. 
-Third, it partitions B with a multilevel partitioning algorithm to optimize for the Fennel objective function. 
-Finally, it permanently assigns the nodes from the current batch to blocks. 
 
-## Installation Notes
 
-### Requirements
+This repository contains an enhanced version of the HeiStream algorithm, a buffered streaming algorithm designed to solve the graph partitioning problem. Our enhancements aim to improve the robustness and performance of HeiStream, particularly by addressing its dependency on node ordering during streaming.
+For more general information about HeiStream have a look at the original repository.
 
-* C++-14 ready compiler 
-* CMake 
-* Scons (http://www.scons.org/)
-* Argtable (http://argtable.sourceforge.net/)
+### Key Enhancements
 
-### Building HeiStream
+1.  **Global Approach**: Implements a delayed batch insertion queue for nodes with low locality, reducing the impact of suboptimal node ordering (in *graph_io_stream::loadLinesFromStreamToBinary*).
 
-To build the software, run
-```shell
-./compile.sh
-```
+2.  **Local Approach**: Introduces a priority queue for initial partitioning to enhance the partition order (in *init_fennel::fennel*).
 
-Alternatively, you can use the standard CMake build process.
 
-The resulting binary is located in `deploy/heistream`.
 
-## Running HeiStream
+These modifications aim to improve partitioning quality and efficiency, especially under random or suboptimal node orderings.
+
+
+## Running the Enhanced Version of HeiStream
+
 
 To partition a graph in METIS format using the basic model of HeiStream, run
 
-```shell
-./heistream <graph filename> --k=<number of blocks> --stream_buffer=<nodes per bufer>
-```
-
-To partition a graph in METIS format using the extended model of HeiStream, run
 
 ```shell
-./heistream <graph filename> --k=<number of blocks> --stream_buffer=<nodes per bufer> --stream_allow_ghostnodes
+./heistream <graph  filename> --k=<number  of  blocks> --stream_buffer=<nodes  per  bufer>
 ```
+For our global approach, we added the optional parameters (both default to 0):
+- `--max_delayed_nodes=<maximum  number  of  delayed  nodes>`
 
-For a complete list of parameters alongside with descriptions, run:
+- `--threshold_delay=<delay  threshold>`
+
+
+To activate the local approach use the parameter:
+- `--local_pq`
+
+
+### Examples
+
+ To execute the only the global approach, this would be a valid command:
 
 ```shell
-./heistream --help
+./heistream  graphs/in-2004.graph  --k=2  --max_delayed_nodes=131072  --threshold_delay=0.1
 ```
 
-For a description of the graph format, please have a look at the [KaHiP manual](https://github.com/KaHIP/KaHIP/raw/master/manual/kahip.pdf).
+  To execute only the local approach, this would be a possible command:
 
-## Edge Balancing
-
-HeiStream was not designed to balance edges, but we have implemented a temporary solution to allow this. 
-If you want to balance edges instead of nodes, you can enable the --balance_edges flag within your command for executing HeiStream.
-
-## Licensing
-
-HeiStream is free software provided under the MIT License.
-If you publish results using our algorithms, please acknowledge our work by citing the following paper ([pdf](https://dl.acm.org/doi/10.1145/3546911)):
-
-```
-@article{heistream,
-	author = {Marcelo Fonseca Faraj and Christian Schulz},
-	title = {Buffered Streaming Graph Partitioning},
-	year = {2022},
-	publisher = {Association for Computing Machinery},
-	address = {New York, NY, USA},
-	issn = {1084-6654},
-	url = {https://doi.org/10.1145/3546911},
-	doi = {10.1145/3546911},
-	journal = {ACM Journal of Experimental Algorithmics},
-	month = {jun},
-	keywords = {streaming algorithms, multilevel algorithms, graph partitioning}
-}
+```shell
+./heistream  graphs/in-2004.graph  --k=2 --local_pq"
 ```
 
