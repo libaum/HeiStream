@@ -60,7 +60,7 @@ class graph_io_stream {
 		void writePartitionStream(PartitionConfig & config, const std::string & filename);
 
 				static
- 		float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch);
+ 		float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch, bool read_nw, bool read_ew);
 
                 static
 		void readFirstLineStream(PartitionConfig & partition_config, std::string graph_filename, EdgeWeight& total_edge_cut);
@@ -157,20 +157,24 @@ inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition
 	}
 }
 
-inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch) {
+inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch, bool read_nw, bool read_ew) {
 	// check if node should be delayed
 	unsigned num_neighbours = 0;
 	unsigned num_of_neighours_partitioned = 0;
 	unsigned num_neighbours_in_batch = 0;
-	for (unsigned i = 1; i < line->size(); i++) {
-		num_neighbours++;
-		LongNodeID target = (*line)[i];
+	unsigned col_counter = read_nw ? 2 : 1;
+	while (col_counter < line->size()) {
+		LongNodeID target = (*line)[col_counter++];
+		if(read_ew) {
+			col_counter++;
+		}
 		if (!partition_config.curr_batch == 0 && (*partition_config.stream_nodes_assign)[target-1] != INVALID_PARTITION) {
 			num_of_neighours_partitioned++;
 		}
 		if ((*partition_config.node_in_current_block)[target-1] == 1 || (lower_global_node < target && target < max_global_node_in_batch)) {
 			num_neighbours_in_batch++;
 		}
+		num_neighbours++;
 	}
 	if (num_neighbours == 0) {
 		return 1;
@@ -180,6 +184,8 @@ inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfi
 }
 
 inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
+	bool read_ew = false;
+	bool read_nw = false;
 	std::vector<std::vector<LongNodeID>>* input;
 	input = new std::vector<std::vector<LongNodeID>>(num_lines);
 	std::vector<std::string>* lines;
@@ -196,12 +202,25 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	int lower_global_node = partition_config.total_nodes_loaded;
 	int max_global_node_in_batch = partition_config.total_nodes_loaded + num_lines - node_counter;
 
+	switch(partition_config.remaining_stream_ew) {
+		case 1:
+			read_ew = true;
+			break;
+		case 10:
+			read_nw = true;
+			break;
+		case 11:
+			read_ew = true;
+			read_nw = true;
+			break;
+	}
+
 	// Load new nodes until batch is full, delay nodes if criteria is met
 	while( node_counter < num_lines) {
 		if (num_nodes_delayed > 0) { // Before loading new nodes, check if delayed nodes can be processed
 			std::vector<LongNodeID> *line = &delayed_lines_queue.front();
 			// Check if line should stay delayed -> append to delayed nodes else append to input
-			float ratio = get_ratio_of_partitioned_neighbours(partition_config, line, INFINITY, -INFINITY);
+			float ratio = get_ratio_of_partitioned_neighbours(partition_config, line, INFINITY, -INFINITY, read_nw, read_ew);
 			bool should_stay_delayed = ratio <= partition_config.threshold_delay;
 			if (should_stay_delayed) {
 				delayed_lines_queue.push_back(*line);
@@ -232,7 +251,7 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 			if (!is_last_batch) {
 				bool delayed_nodes_has_capacity = delayed_lines_queue.size() < max_capacity_delayed_nodes;
 				if (delayed_nodes_has_capacity) {
-					float ratio = get_ratio_of_partitioned_neighbours(partition_config, new_line, lower_global_node, max_global_node_in_batch);
+					float ratio = get_ratio_of_partitioned_neighbours(partition_config, new_line, lower_global_node, max_global_node_in_batch, read_nw, read_ew);
 					should_be_delayed = ratio <= partition_config.threshold_delay;
 				}
 			}
