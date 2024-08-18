@@ -1,5 +1,5 @@
 /******************************************************************************
- * partition_config.h 
+ * partition_config.h
  *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -32,25 +32,25 @@ struct PartitionConfig
         bool edge_rating_tiebreaking;
 
         EdgeRating edge_rating;
-        
+
         PermutationQuality permutation_quality;
 
         MatchingType matching_type;
-        
+
         bool match_islands;
 
         bool first_level_random_matching;
-        
+
         bool rate_first_level_inner_outer;
 
-        NodeWeight max_vertex_weight; 
-        
-        NodeWeight largest_graph_weight; 
+        NodeWeight max_vertex_weight;
+
+        NodeWeight largest_graph_weight;
 
 	NodeWeight work_load;
 
         unsigned aggressive_random_levels;
-        
+
         bool disable_max_vertex_weight_constraint;
 
         //============================================================
@@ -60,7 +60,7 @@ struct PartitionConfig
 
         unsigned int minipreps;
 
-        bool refined_bubbling; 
+        bool refined_bubbling;
 
         InitialPartitioningType initial_partitioning_type;
 
@@ -90,10 +90,10 @@ struct PartitionConfig
         ImbalanceType imbalance;
 
         unsigned bubbling_iterations;
-       
-        unsigned kway_rounds; 
-       
-        bool quotient_graph_refinement_disabled; 
+
+        unsigned kway_rounds;
+
+        bool quotient_graph_refinement_disabled;
 
         KWayStopRule kway_stop_rule;
 
@@ -104,25 +104,25 @@ struct PartitionConfig
         unsigned max_flow_iterations;
 
         unsigned local_multitry_rounds;
-        
+
         unsigned local_multitry_fm_alpha;
 
         bool graph_allready_partitioned;
 
         unsigned int fm_search_limit;
-        
+
         unsigned int kway_fm_search_limit;
 
         NodeWeight upper_bound_partition;
 
         double bank_account_factor;
 
-        RefinementSchedulingAlgorithm refinement_scheduling_algorithm; 
+        RefinementSchedulingAlgorithm refinement_scheduling_algorithm;
 
         bool most_balanced_minimum_cuts;
 
         bool most_balanced_minimum_cuts_node_sep;
-        
+
         unsigned toposort_iterations;
 
         bool softrebalance;
@@ -144,14 +144,14 @@ struct PartitionConfig
 
         unsigned level_split;
 
-        bool no_new_initial_partitioning; 
+        bool no_new_initial_partitioning;
 
-        bool omit_given_partitioning; 
+        bool omit_given_partitioning;
 
         StopRule stop_rule;
 
         int num_vert_stop_factor;
-        
+
         bool no_change_convergence;
 
         //=======================================
@@ -179,7 +179,7 @@ struct PartitionConfig
 
         unsigned kaba_unsucc_iterations;
 
-        
+
         //=======================================
         //============PAR_PSEUDOMH / MH =========
         //=======================================
@@ -192,7 +192,7 @@ struct PartitionConfig
 	unsigned local_partitioning_repetitions;
 
         bool mh_plain_repetitions;
-        
+
         bool mh_easy_construction;
 
         bool mh_enable_gal_combine;
@@ -245,8 +245,8 @@ struct PartitionConfig
 
 	bool suppress_partitioner_output;
 
-        unsigned maxT; 
-        
+        unsigned maxT;
+
         unsigned maxIter;
         //=======================================
         //===============BUFFOON=================
@@ -256,7 +256,7 @@ struct PartitionConfig
         bool buffoon;
 
         bool kabapE;
-        
+
         bool mh_penalty_for_unconnected;
         //=======================================
         //===============MISC====================
@@ -299,9 +299,9 @@ struct PartitionConfig
         //=======================================
         NodeOrderingType node_ordering;
 
-        int cluster_coarsening_factor; 
+        int cluster_coarsening_factor;
 
-        bool ensemble_clusterings; 
+        bool ensemble_clusterings;
 
         int label_iterations;
 
@@ -363,7 +363,7 @@ struct PartitionConfig
         //=========INITIAL PARTITIONING==========
         //=======================================
 
-        // variables controling the size of the blocks during 
+        // variables controling the size of the blocks during
         // multilevel recursive bisection
         // (for the case where k is not a power of 2)
         std::vector<int> target_weights;
@@ -392,7 +392,7 @@ struct PartitionConfig
 
         PreConfigMapping preconfiguration_mapping;
 
-        int max_recursion_levels_construction; 
+        int max_recursion_levels_construction;
 
         bool enable_mapping;
 
@@ -418,7 +418,7 @@ struct PartitionConfig
         bool suppress_output;
         bool no_change_convergence_map;
         bool full_matrix;
-        matrix* D;            
+        matrix* D;
         std::vector< NodeID >* perm_rank;
 
 
@@ -484,7 +484,7 @@ struct PartitionConfig
         double fennel_gamma;
         double fennel_alpha;
         double fennel_alpha_gamma;
-        bool use_fennel_objective; // maps global blocks to current stream blocks 
+        bool use_fennel_objective; // maps global blocks to current stream blocks
         std::vector<NodeWeight>* add_blocks_weight;
 	int fennel_dynamics;
         bool ram_stream;
@@ -528,7 +528,7 @@ struct PartitionConfig
 	double* t1;
 	double* t2;
 	double* t3;
-        
+
         //=======================================
         // Conversion of graphs between formats =
         //=======================================
