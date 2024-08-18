@@ -139,17 +139,15 @@ int main(int argn, char **argv) {
 
 	double total_time = processing_t.elapsed();
 
-        // std::cout << "Total processing time: " << total_time  << std::endl;
-        // std::cout << "io time: " << buffer_io_time  << std::endl;
-        // std::cout << "partitioning/mapping time in total: " << global_mapping_time  << std::endl;
+        std::cout << "Total processing time: " << total_time  << std::endl;
+        std::cout << "io time: " << buffer_io_time  << std::endl;
+        std::cout << "partitioning/mapping time in total: " << global_mapping_time  << std::endl;
 
 	graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
 
-	std::cout << global_mapping_time << " " << total_edge_cut << std::endl;
-
-        // std::cout << "cut \t\t"         << total_edge_cut                        << std::endl;
-        // std::cout << "finalobjective  " << total_edge_cut			 << std::endl;
-        // std::cout << "balance \t"  << qm.balance_full_stream(*partition_config.stream_blocks_weight) << std::endl;
+        std::cout << "cut \t\t"         << total_edge_cut                        << std::endl;
+        std::cout << "finalobjective  " << total_edge_cut			 << std::endl;
+        std::cout << "balance \t"  << qm.balance_full_stream(*partition_config.stream_blocks_weight) << std::endl;
 
         // write the partition to the disc
         std::stringstream filename;

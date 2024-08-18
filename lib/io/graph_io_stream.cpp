@@ -582,7 +582,7 @@ double graph_io_stream::getFennelWeight(PartitionConfig & partition_config) {
 
 void graph_io_stream::writePartitionStream(PartitionConfig & config, const std::string & filename) {
         std::ofstream f(filename.c_str());
-        // std::cout << "writing partition to " << filename << " ... " << std::endl;
+        std::cout << "writing partition to " << filename << " ... " << std::endl;
 
 	for (LongNodeID node = 0; node < config.stream_nodes_assign->size(); node++) {
                 f << (*config.stream_nodes_assign)[node] <<  "\n";

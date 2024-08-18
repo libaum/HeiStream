@@ -42,6 +42,7 @@ class configuration {
 
 inline void configuration::strong( PartitionConfig & partition_config ) {
         standard(partition_config);
+        partition_config.local_pq_enabled                       = false;
         partition_config.matching_type                          = MATCHING_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_GOOD;
         partition_config.permutation_during_refinement          = PERMUTATION_QUALITY_GOOD;

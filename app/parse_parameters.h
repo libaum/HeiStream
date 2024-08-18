@@ -212,6 +212,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *no_relabel			     = arg_lit0(NULL, "no_relabel", "Keep original node IDs during graph translation. (Default: disabled)");
         struct arg_lit *input_header_absent		     = arg_lit0(NULL, "input_header_absent", "Input graph does not include first rown specifying number of nodes and edges. (Default: disabled)");
 
+        struct arg_lit *local_pq                             = arg_lit0(NULL, "local_pq", "Enable local priority queue for partitioning of nodes of the contracted batch graph. (Default: disabled)");
+
         struct arg_end *end                                  = arg_end(100);
 
         // Define argtable.
@@ -267,6 +269,8 @@ int parse_parameters(int argn, char **argv,
 		stream_allow_ghostnodes,
 		num_streams_passes,
 		balance_edges,
+                local_pq,
+
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
                 preconfiguration,
@@ -1619,6 +1623,9 @@ int parse_parameters(int argn, char **argv,
                 partition_config.xxx = xxx->ival[0];
         }
 
+        if(local_pq->count > 0) {
+                partition_config.local_pq_enabled = true;
+        }
 
         return 0;
 }
