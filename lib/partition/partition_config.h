@@ -25,6 +25,7 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
+        bool local_pq_enabled;
         float threshold_delay;
         int max_delayed_nodes;
 

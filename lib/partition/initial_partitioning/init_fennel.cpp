@@ -90,7 +90,6 @@ float init_fennel::get_priority(graph_access &G, NodeID node, std::vector<bool> 
     float theta = 2;
 
     all_neighbours_partitioned = num_partioned_neighbours == num_total_neighbours;
-    // CBS
     return num_total_neighbours / 100.0 + theta * partitioned_edge_weight / (float) total_edge_weight;
 }
 
@@ -117,8 +116,6 @@ void init_fennel::update_neighbours_priority(graph_access &G, NodeID node_id, st
 
 
 EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &G) {
-
-    bool PARTITION_WITH_PQ = false;
 
     random_functions::fastRandBool<uint64_t> random_obj;
     // bool node_too_large = false;
@@ -197,7 +194,7 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
                 continue;
 			}
 
-            if (PARTITION_WITH_PQ) {
+            if (partition_config.local_pq_enabled) {
                 if (node_is_partitioned[node]) {
                     continue;
                 }
@@ -238,7 +235,7 @@ EdgeWeight init_fennel::fennel(PartitionConfig &partition_config, graph_access &
             }
         } endfor
 
-        if (PARTITION_WITH_PQ) {
+        if (partition_config.local_pq_enabled) {
             while (!pq_delayed_nodes.empty()) {
                 pq_node cur_node = pq_delayed_nodes.top();
                 pq_delayed_nodes.pop();

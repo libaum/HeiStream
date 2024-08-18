@@ -212,8 +212,9 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *no_relabel			     = arg_lit0(NULL, "no_relabel", "Keep original node IDs during graph translation. (Default: disabled)");
         struct arg_lit *input_header_absent		     = arg_lit0(NULL, "input_header_absent", "Input graph does not include first rown specifying number of nodes and edges. (Default: disabled)");
 
+        struct arg_lit *local_pq                             = arg_lit0(NULL, "local_pq", "Enable local priority queue for partitioning of nodes of the contracted batch graph. (Default: disabled)");
         struct arg_int *max_delayed_nodes		     = arg_int0(NULL, "max_delayed_nodes", NULL, "Maximum number of delayed nodes. Default 32768.");
-        struct arg_dbl *threshold_delay		     = arg_dbl0(NULL, "threshold_delay", NULL, "Largest ratio of partitioned neighbours to neighbours of nodes to delay that node. Default 0.1.");
+        struct arg_dbl *threshold_delay		             = arg_dbl0(NULL, "threshold_delay", NULL, "Largest ratio of partitioned neighbours to neighbours of nodes to delay that node. Default 0.1.");
 
         struct arg_end *end                                  = arg_end(100);
 
@@ -270,6 +271,7 @@ int parse_parameters(int argn, char **argv,
 		stream_allow_ghostnodes,
 		num_streams_passes,
 		balance_edges,
+                local_pq,
                 max_delayed_nodes,
                 threshold_delay,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
@@ -1622,6 +1624,10 @@ int parse_parameters(int argn, char **argv,
 
         if( xxx->count > 0) {
                 partition_config.xxx = xxx->ival[0];
+        }
+
+        if(local_pq->count > 0) {
+                partition_config.local_pq_enabled = true;
         }
 
         if( max_delayed_nodes->count > 0) {

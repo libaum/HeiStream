@@ -236,7 +236,8 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 				delayed_lines_queue.pop_front();
 			} else {
 				(*input)[node_counter++] = (*line);
-				(*partition_config.node_in_current_block)[(*line)[0]-1] = 1; // line[0]: global_node_id
+				LongNodeID global_node_id = (*line)[0];
+				(*partition_config.node_in_current_block)[global_node_id-1] = 1;
 				delayed_lines_queue.pop_front();
 			}
 			num_nodes_delayed--;
@@ -283,7 +284,8 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 			// No check if line should be delayed -> just append to input
 			std::vector<LongNodeID> *line = &delayed_lines_queue.front();
 			(*input)[node_counter++] = (*line);
-			(*partition_config.node_in_current_block)[(*line)[0]-1] = 1; // line[0] == global_node_id
+			int global_node_id = (*line)[0];
+			(*partition_config.node_in_current_block)[global_node_id-1] = 1;
 			delayed_lines_queue.pop_front();
 		}
 	}

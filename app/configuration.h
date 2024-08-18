@@ -42,10 +42,12 @@ class configuration {
 
 inline void configuration::strong( PartitionConfig & partition_config ) {
         standard(partition_config);
-        partition_config.threshold_delay = 0.1;
-        partition_config.max_delayed_nodes = 32768;
-        partition_config.num_nodes_delayed = 0;
-        partition_config.total_nodes_loaded = 0;
+        partition_config.local_pq_enabled                       = false;
+        partition_config.threshold_delay                        = 0;
+        partition_config.max_delayed_nodes                      = 0;
+        partition_config.num_nodes_delayed                      = 0;
+        partition_config.total_nodes_loaded                     = 0;
+
         partition_config.matching_type                          = MATCHING_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_GOOD;
         partition_config.permutation_during_refinement          = PERMUTATION_QUALITY_GOOD;
