@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <list>
 #include <algorithm>
+#include <memory>
 
 #include "definitions.h"
 #include "data_structure/graph_access.h"
@@ -60,7 +61,7 @@ class graph_io_stream {
 		void writePartitionStream(PartitionConfig & config, const std::string & filename);
 
 				static
- 		float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch, bool read_nw, bool read_ew);
+ 		float get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, LongNodeID lower_global_node, LongNodeID max_global_node_in_batch, bool read_nw, bool read_ew);
 
                 static
 		void readFirstLineStream(PartitionConfig & partition_config, std::string graph_filename, EdgeWeight& total_edge_cut);
@@ -157,15 +158,15 @@ inline void graph_io_stream::loadBufferLinesToBinary(PartitionConfig & partition
 		input = graph_io_stream::loadLinesFromStreamToBinary(partition_config, num_lines, delayed_lines_queue);
 	} else {
 		std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
-		int lower_global_node = partition_config.number_of_nodes - partition_config.remaining_stream_nodes;
-		int upper_global_node = lower_global_node + num_lines > partition_config.number_of_nodes ? partition_config.number_of_nodes : lower_global_node + num_lines;
-		for (int global_node_id = lower_global_node+1; global_node_id <= upper_global_node; global_node_id++) {
+		LongNodeID lower_global_node = partition_config.number_of_nodes - partition_config.remaining_stream_nodes;
+		LongNodeID upper_global_node = lower_global_node + num_lines > partition_config.number_of_nodes ? partition_config.number_of_nodes : lower_global_node + num_lines;
+		for (LongNodeID global_node_id = lower_global_node+1; global_node_id <= upper_global_node; global_node_id++) {
 			(*partition_config.node_in_current_block)[global_node_id-1] = 1;
 		}
 	}
 }
 
-inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, int lower_global_node, int max_global_node_in_batch, bool read_nw, bool read_ew) {
+inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfig & partition_config, std::vector<LongNodeID>* line, LongNodeID lower_global_node, LongNodeID max_global_node_in_batch, bool read_nw, bool read_ew) {
 	// check if node should be delayed
 	unsigned num_neighbours = 0;
 	unsigned num_of_neighours_partitioned = 0;
@@ -176,7 +177,7 @@ inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfi
 		if(read_ew) {
 			col_counter++;
 		}
-		if (!partition_config.curr_batch == 0 && (*partition_config.stream_nodes_assign)[target-1] != INVALID_PARTITION) {
+		if (partition_config.curr_batch != 0 && (*partition_config.stream_nodes_assign)[target-1] != INVALID_PARTITION) {
 			num_of_neighours_partitioned++;
 		}
 		if ((*partition_config.node_in_current_block)[target-1] == 1 || (lower_global_node < target && target < max_global_node_in_batch)) {
@@ -194,24 +195,23 @@ inline float graph_io_stream::get_ratio_of_partitioned_neighbours(PartitionConfi
 inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStreamToBinary(PartitionConfig & partition_config, LongNodeID num_lines, std::deque<std::vector<LongNodeID>> &delayed_lines_queue) {
 	bool read_ew = false;
 	bool read_nw = false;
-	std::vector<std::vector<LongNodeID>>* input;
-	input = new std::vector<std::vector<LongNodeID>>(num_lines);
-	std::vector<std::string>* lines;
-	lines = new std::vector<std::string>(1);
+	auto input = std::make_unique<std::vector<std::vector<LongNodeID>>>(num_lines);
+	auto lines = std::make_unique<std::vector<std::string>>(1);
 	LongNodeID node_counter = 0;
-	buffered_input *ss2 = NULL;
+	std::unique_ptr<buffered_input> ss2 = nullptr;
 	std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
 
 	bool is_last_batch = partition_config.remaining_stream_nodes == partition_config.nmbNodes;
-	bool is_second_last_batch = partition_config.remaining_stream_nodes <= 2*partition_config.nmbNodes;
-	int max_capacity_delayed_nodes = is_second_last_batch ? (partition_config.remaining_stream_nodes - partition_config.nmbNodes < partition_config.max_delayed_nodes ? partition_config.remaining_stream_nodes - partition_config.nmbNodes : partition_config.max_delayed_nodes) : partition_config.max_delayed_nodes;
+	bool is_second_last_batch = partition_config.remaining_stream_nodes <= 2 * partition_config.nmbNodes;
+	LongNodeID max_capacity_delayed_nodes = is_second_last_batch ?
+		std::min(partition_config.remaining_stream_nodes - partition_config.nmbNodes, partition_config.max_delayed_nodes)
+		: partition_config.max_delayed_nodes;
 
-	int num_nodes_delayed = delayed_lines_queue.size();
-	int lower_global_node = partition_config.total_nodes_loaded;
-	int max_global_node_in_batch = partition_config.total_nodes_loaded + num_lines - node_counter;
+	LongNodeID num_nodes_delayed = delayed_lines_queue.size();
+	LongNodeID lower_global_node = partition_config.total_nodes_loaded;
+	LongNodeID max_global_node_in_batch = partition_config.total_nodes_loaded + num_lines - node_counter;
 
-
-	switch(partition_config.remaining_stream_ew) {
+	switch (partition_config.remaining_stream_ew) {
 		case 1:
 			read_ew = true;
 			break;
@@ -225,19 +225,21 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 	}
 
 	// Load new nodes until batch is full, delay nodes if criteria is met
-	while( node_counter < num_lines) {
+	while (node_counter < num_lines) {
 		if (num_nodes_delayed > 0) { // Before loading new nodes, check if delayed nodes can be processed
-			std::vector<LongNodeID> *line = &delayed_lines_queue.front();
+			auto& line = delayed_lines_queue.front();
 			// Check if line should stay delayed -> append to delayed nodes else append to input
-			float ratio = get_ratio_of_partitioned_neighbours(partition_config, line, INFINITY, -INFINITY, read_nw, read_ew);
+			float ratio = get_ratio_of_partitioned_neighbours(partition_config, &line, partition_config.number_of_nodes, 0, read_nw, read_ew);
 			bool should_stay_delayed = ratio <= partition_config.threshold_delay;
 			if (should_stay_delayed) {
-				delayed_lines_queue.push_back(*line);
+				delayed_lines_queue.push_back(std::move(line));
+				line.clear();
 				delayed_lines_queue.pop_front();
 			} else {
-				(*input)[node_counter++] = (*line);
-				LongNodeID global_node_id = (*line)[0];
-				(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+				LongNodeID global_node_id = line[0];
+				(*input)[node_counter++] = std::move(line);
+				line.clear();
+				(*partition_config.node_in_current_block)[global_node_id - 1] = 1;
 				delayed_lines_queue.pop_front();
 			}
 			num_nodes_delayed--;
@@ -245,53 +247,53 @@ inline std::vector<std::vector<LongNodeID>>* graph_io_stream::loadLinesFromStrea
 				max_global_node_in_batch = partition_config.total_nodes_loaded + num_lines - node_counter;
 			}
 		} else if (!partition_config.stream_in->eof()) { // Load new nodes
-			std::getline(*(partition_config.stream_in),(*lines)[0]);
-			if ((*lines)[0][0] == '%') { // a comment in the file
+			std::getline(*(partition_config.stream_in), (*lines)[0]);
+			if ((*lines)[0][0] == '%') { //} || partition_config.stream_in->eof()) { // a comment in the file or the file has ended (eof gets updated after getline)
 				continue;
 			}
-			ss2 = new buffered_input(lines);
-			LongNodeID global_node_id = partition_config.total_nodes_loaded+1;
-			std::vector<LongNodeID> *new_line = &(*input)[node_counter];
-			new_line->clear();
-			new_line->push_back(global_node_id);
-			ss2->simple_scan_line((*new_line), false);
+			ss2 = std::make_unique<buffered_input>(lines.get());
+			LongNodeID global_node_id = ++partition_config.total_nodes_loaded;
+			auto& new_line = (*input)[node_counter];
+			new_line.clear();
+			new_line.push_back(global_node_id);
+			ss2->simple_scan_line(new_line, false);
 
 			// Check if line should be delayed -> append to delayed nodes else append to input
 			bool should_be_delayed = false;
 			if (!is_last_batch) {
 				bool delayed_nodes_has_capacity = delayed_lines_queue.size() < max_capacity_delayed_nodes;
 				if (delayed_nodes_has_capacity) {
-					float ratio = get_ratio_of_partitioned_neighbours(partition_config, new_line, lower_global_node, max_global_node_in_batch, read_nw, read_ew);
+					float ratio = get_ratio_of_partitioned_neighbours(partition_config, &new_line, lower_global_node, max_global_node_in_batch, read_nw, read_ew);
 					should_be_delayed = ratio <= partition_config.threshold_delay;
 				}
 			}
-
 			if (should_be_delayed) {
-				delayed_lines_queue.push_back(*new_line);
+				delayed_lines_queue.push_back(std::move(new_line));
+				new_line.clear();
 			} else {
 				if (!partition_config.ram_stream) {
-					(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+					if ((*partition_config.node_in_current_block).size() > global_node_id - 1) {
+						(*partition_config.node_in_current_block)[global_node_id - 1] = 1;
+					}
 				}
 				node_counter++;
 			}
-
-			(*lines)[0].clear(); delete ss2;
-			partition_config.total_nodes_loaded++;
+			(*lines)[0].clear();
 		} else { // If the file has ended, we need to check if there are still delayed nodes to be processed
-			if (delayed_lines_queue.size() == 0) {
+			if (delayed_lines_queue.empty()) {
 				break;
 			}
 			// No check if line should be delayed -> just append to input
-			std::vector<LongNodeID> *line = &delayed_lines_queue.front();
-			(*input)[node_counter++] = (*line);
-			int global_node_id = (*line)[0];
-			(*partition_config.node_in_current_block)[global_node_id-1] = 1;
+			auto& line = delayed_lines_queue.front();
+			LongNodeID global_node_id = line[0];
+			(*input)[node_counter++] = std::move(line);
+			line.clear();
+			(*partition_config.node_in_current_block)[global_node_id - 1] = 1;
 			delayed_lines_queue.pop_front();
 		}
 	}
 
-	delete lines;
-	return input;
+	return input.release();
 }
 
 

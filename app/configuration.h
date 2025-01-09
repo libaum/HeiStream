@@ -42,11 +42,6 @@ class configuration {
 
 inline void configuration::strong( PartitionConfig & partition_config ) {
         standard(partition_config);
-        partition_config.local_pq_enabled                       = false;
-        partition_config.threshold_delay                        = 0;
-        partition_config.max_delayed_nodes                      = 0;
-        partition_config.num_nodes_delayed                      = 0;
-        partition_config.total_nodes_loaded                     = 0;
 
         partition_config.matching_type                          = MATCHING_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_GOOD;
@@ -482,7 +477,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         // Delta Gains
         partition_config.use_delta_gains                   = false;
         partition_config.quotient_more_mem                 = false;
-        partition_config.ref_layer                         = NULL;
+        partition_config.ref_layer                         = nullptr;
         partition_config.use_bin_id                        = false;
         partition_config.use_compact_bin_id                = false;
 
@@ -500,18 +495,18 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.total_stream_nodecounter          = 0;
         partition_config.stream_assigned_nodes	           = 0;
         partition_config.stream_n_nodes		           = 0;
-        partition_config.stream_in                         = NULL;
-        partition_config.stream_nodes_assign               = NULL;
-        partition_config.stream_blocks_weight              = NULL;
+        partition_config.stream_in                         = nullptr;
+        partition_config.stream_nodes_assign               = nullptr;
+        partition_config.stream_blocks_weight              = nullptr;
         partition_config.nmbNodes                          = 0;
-        partition_config.degree_nodeBlock		   = NULL;
+        partition_config.degree_nodeBlock		   = nullptr;
         partition_config.one_pass_algorithm		   = ONEPASS_FENNEL;
         partition_config.stream_total_upperbound	   = 0;
         partition_config.fennel_gamma			   = 1.5;
         partition_config.fennel_alpha			   = 1;
         partition_config.fennel_alpha_gamma		   = partition_config.fennel_alpha * partition_config.fennel_gamma;
 	partition_config.use_fennel_objective		   = false;
-        partition_config.add_blocks_weight                 = NULL;
+        partition_config.add_blocks_weight                 = nullptr;
         partition_config.fennel_dynamics		   = FENNELADP_ORIGINAL;
         partition_config.ram_stream			   = false;
         partition_config.fennel_contraction		   = false;
@@ -524,9 +519,9 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 	partition_config.stream_global_epsilon		   = (partition_config.imbalance)/100.;
         partition_config.stream_output_progress            = false;
         partition_config.stream_allow_ghostnodes	   = false;
-        partition_config.ghostglobal_to_ghostkey           = NULL;
-        partition_config.ghostkey_to_node                  = NULL;
-        partition_config.ghostkey_to_edges                 = NULL;
+        partition_config.ghostglobal_to_ghostkey           = nullptr;
+        partition_config.ghostkey_to_node                  = nullptr;
+        partition_config.ghostkey_to_edges                 = nullptr;
         partition_config.stream_whole_adjacencies          = false;
         partition_config.ghost_nodes			   = 0;
         partition_config.ghost_nodes_procedure		   = GHOST_CONTRACT_ALL;
@@ -539,14 +534,22 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.use_fennel_edgecut_objectives	   = false;
 	partition_config.xxx				   = 4;
 	partition_config.double_non_ghost_edges		   = true;
-	partition_config.edge_block_nodes		   = NULL;
+	partition_config.edge_block_nodes		   = nullptr;
 
-        partition_config.t1				   = new double[1];
-        partition_config.t2				   = new double[1];
-        partition_config.t3				   = new double[1];
-        (*partition_config.t1)				   = 0;
-        (*partition_config.t2)				   = 0;
-        (*partition_config.t3)				   = 0;
+        partition_config.local_pq_enabled                       = false;
+        partition_config.threshold_delay                        = 0;
+        partition_config.max_delayed_nodes                      = 0;
+        partition_config.num_nodes_delayed                      = 0;
+        partition_config.total_nodes_loaded                     = 0;
+        partition_config.local_to_global_map                    = nullptr;
+        partition_config.node_in_current_block                  = nullptr;
+
+        // partition_config.t1				   = new double[1];
+        // partition_config.t2				   = new double[1];
+        // partition_config.t3				   = new double[1];
+        // (*partition_config.t1)				   = 0;
+        // (*partition_config.t2)				   = 0;
+        // (*partition_config.t3)				   = 0;
 
 
 	// Initial partitioning via growning multiple BFS trees around artificial nodes
@@ -714,6 +717,7 @@ inline void configuration::stream_partition( PartitionConfig & partition_config 
                 partition_config.adapt_bal				= true;
 		partition_config.xxx					= 4;
                 partition_config.restream_vcycle			= true;
+
 }
 
 #endif /* end of include guard: CONFIGURATION_3APG5V7Z */

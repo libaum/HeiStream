@@ -78,6 +78,9 @@ NodeID graph_io_stream::createModel (PartitionConfig & config, graph_access & G,
 
 	setupForGhostNeighbors(config);
 
+	if (config.local_to_global_map != nullptr) {
+		delete config.local_to_global_map;
+	}
 	config.local_to_global_map = new std::vector<NodeID>(config.nmbNodes, 0);
 
 	std::vector<NodeID> global_to_local_map(config.number_of_nodes, -1);
@@ -110,6 +113,7 @@ NodeID graph_io_stream::createModel (PartitionConfig & config, graph_access & G,
 				edge_weight = line_numbers[col_counter++];
 			}
 
+			assert(target-1 >= 0 && target-1 < config.node_in_current_block->size());
 			unsigned node_in_current_block = (*config.node_in_current_block)[target-1];
 			if (node_in_current_block > 0) { // edge to current batch
 				if (node_in_current_block == 2) { // edge to previous node
@@ -128,8 +132,9 @@ NodeID graph_io_stream::createModel (PartitionConfig & config, graph_access & G,
 		(*config.node_in_current_block)[global_node_id-1] = 2; // mark as processed
 		cursor++;
 	}
-	if (!config.ram_stream) {
+	if (!config.ram_stream && input != nullptr) {
 		delete input;
+		input = nullptr;
 	}
 
 	NodeID uncontracted_ghost_nodes = mapGhostKeysToNodesInBatch(config, all_edges, all_nodes, all_assigned_ghost_nodes, node_counter);
@@ -252,8 +257,9 @@ NodeID graph_io_stream::mapGhostKeysToNodesInBatch(PartitionConfig & config, std
 }
 
 NodeID graph_io_stream::restreamMapGhostKeysToNodes(PartitionConfig & config) {
-	if (config.ghostkey_to_node != NULL) {
+	if (config.ghostkey_to_node != nullptr) {
 		delete config.ghostkey_to_node;
+		config.ghostkey_to_node = nullptr;
 	}
 	config.ghostkey_to_node = new std::vector<NodeID>(config.ghost_nodes,0);
 	for(PartitionID targetPar = 0; targetPar<config.ghost_nodes; targetPar++) {
@@ -265,8 +271,10 @@ NodeID graph_io_stream::restreamMapGhostKeysToNodes(PartitionConfig & config) {
 
 NodeID graph_io_stream::greedyMapGhostKeysToNodes(PartitionConfig & config, std::vector<std::vector<std::pair<NodeID,EdgeWeight>>>& all_edges,
 						std::vector<NodeWeight>& all_nodes, std::vector<NodeWeight>& all_assigned_ghost_nodes, NodeID& node_counter) {
-	if (config.ghostkey_to_node != NULL)
+	if (config.ghostkey_to_node != nullptr) {
 		delete config.ghostkey_to_node;
+		config.ghostkey_to_node = nullptr;
+	}
 	config.ghostkey_to_node = new std::vector<NodeID>(config.ghost_nodes,0);
 	NodeID inserted_nodes =  MIN(config.ghost_nodes,config.ghost_nodes_threshold);
 	all_nodes.resize(config.nmbNodes + inserted_nodes + config.quotient_nodes);
@@ -385,10 +393,10 @@ EdgeID graph_io_stream::includeEdgeInBatch(std::vector<std::vector<std::pair<Nod
 
 void graph_io_stream::setupForGhostNeighbors(PartitionConfig & config) {
 	if (config.stream_allow_ghostnodes || config.restream_number) {
-		if (config.ghostglobal_to_ghostkey == NULL) {
+		if (config.ghostglobal_to_ghostkey == nullptr) {
 			config.ghostglobal_to_ghostkey = new buffered_map(config.stream_nodes_assign, config.restream_number);
 		}
-		if (config.ghostkey_to_edges != NULL)  {
+		if (config.ghostkey_to_edges != nullptr)  {
 			config.ghostkey_to_edges->clear();
 		} else {
 			config.ghostkey_to_edges = new std::vector<std::vector<std::pair<NodeID,ShortEdgeWeight>>>();
@@ -603,8 +611,9 @@ void graph_io_stream::writePartitionStream(PartitionConfig & config, const std::
 
 
 void graph_io_stream::readFirstLineStream(PartitionConfig & partition_config, std::string graph_filename, EdgeWeight& total_edge_cut) {
-	if (partition_config.stream_in != NULL) {
+	if (partition_config.stream_in != nullptr) {
 		delete partition_config.stream_in;
+		partition_config.stream_in = nullptr;
 	}
 	partition_config.stream_in = new std::ifstream(graph_filename.c_str());
 	if (!(*(partition_config.stream_in))) {
@@ -629,13 +638,13 @@ void graph_io_stream::readFirstLineStream(PartitionConfig & partition_config, st
 	partition_config.number_of_nodes = partition_config.remaining_stream_nodes;
 	partition_config.node_in_current_block = new std::vector<unsigned>(partition_config.remaining_stream_nodes, 0);
 
-	if (partition_config.stream_nodes_assign == NULL) {
+	if (partition_config.stream_nodes_assign == nullptr) {
 		partition_config.stream_nodes_assign  = new std::vector<PartitionID>(partition_config.remaining_stream_nodes, INVALID_PARTITION);
 	}
-	if (partition_config.stream_blocks_weight == NULL) {
+	if (partition_config.stream_blocks_weight == nullptr) {
 		partition_config.stream_blocks_weight = new std::vector<NodeWeight>(partition_config.k, 0);
 	}
-	if (partition_config.add_blocks_weight == NULL) {
+	if (partition_config.add_blocks_weight == nullptr) {
 		partition_config.add_blocks_weight = new std::vector<NodeWeight>(partition_config.k, 0);
 	}
 	partition_config.total_stream_nodeweight = 0;
@@ -787,7 +796,10 @@ void graph_io_stream::streamEvaluatePartition(PartitionConfig & config, const st
 			}
 		}
 		(*lines)[0].clear(); delete ss2;
-		delete input;
+		if (input != nullptr) {
+			delete input;
+			input = nullptr;
+		}
 		if(in.eof()) {
 			break;
 		}

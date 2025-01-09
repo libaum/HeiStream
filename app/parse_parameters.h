@@ -218,6 +218,41 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_end *end                                  = arg_end(100);
 
+
+        // Store ALL allocated arg structures
+        void* all_arguments[] = {
+                help, filename, user_seed, k, graph_weighted, imbalance, edge_rating_tiebreaking, matching_type, edge_rating,
+                rate_first_level_inner_outer, first_level_random_matching, aggressive_random_levels, gpa_grow_internal, match_islands,
+                stop_rule, num_vert_stop_factor, initial_partition, initial_partitioning_repetitions, disable_refined_bubbling,
+                bubbling_iterations, initial_partition_optimize, bipartition_post_fm_limit, bipartition_post_ml_limit, bipartition_tries,
+                bipartition_algorithm, permutation_quality, permutation_during_refinement, enforce_balance, refinement_scheduling_algorithm,
+                bank_account_factor, refinement_type, fm_search_limit, flow_region_factor, most_balanced_flows, toposort_iterations, kway_rounds,
+                kway_search_stop_rule, kway_fm_limits, kway_adaptive_limits_alpha, enable_corner_refinement, disable_qgraph_refinement,
+                local_multitry_fm_alpha, local_multitry_rounds, global_cycle_iterations, use_wcycles, wcycle_no_new_initial_partitioning,
+                use_fullmultigrid, use_vcycle, level_split, enable_convergence, compute_vertex_separator, suppress_output, input_partition,
+                preconfiguration, only_first_level, disable_max_vertex_weight_constraint, recursive_bipartitioning, use_bucket_queues, time_limit,
+                unsuccessful_reps, local_partitioning_repetitions, mh_pool_size, mh_plain_repetitions, mh_disable_nc_combine, mh_disable_cross_combine,
+                mh_enable_tournament_selection, mh_disable_combine, mh_enable_quickstart, mh_disable_diversify_islands, mh_flip_coin,
+                mh_initial_population_fraction, mh_print_log, mh_sequential_mode, mh_optimize_communication_volume, mh_enable_tabu_search,
+                mh_disable_diversify, mh_diversify_best, mh_cross_combine_original_k, disable_balance_singletons, initial_partition_optimize_fm_limits,
+                initial_partition_optimize_multitry_fm_alpha, initial_partition_optimize_multitry_rounds, enable_omp, amg_iterations,
+                kaba_neg_cycle_algorithm, kabaE_internal_bal, kaba_internal_no_aug_steps_aug, kaba_packing_iterations, kaba_flip_packings,
+                kaba_lsearch_p, kaffpa_perfectly_balanced_refinement, kaba_unsucc_iterations, kaba_disable_zero_weight_cycles, maxT, maxIter,
+                minipreps, mh_penalty_for_unconnected, mh_enable_kabapE, balance_edges, integrated_mapping, multisection, qap_label_propagation,
+                qap_blabel_propagation, qap_alabel_propagation, qap_multitry_fm, qap_bmultitry_fm, qap_kway_fm, qap_bkway_fm, qap_quotient_ref,
+                qap_bquotient_ref, qap_0quotient_ref, quotient_more_mem, disable_bipartition_gp_local_search, enable_mapping, hierarchy_parameter_string,
+                distance_parameter_string, online_distances, filename_output, map_construction_algorithm, skip_map_ls, delta_gains, use_bin_id,
+                use_compact_bin_id, full_matrix, enable_convergence_map, qap_label_iterations, adapt_bal, stream_buffer, use_fennel_objective,
+                fennel_contraction, ram_stream, stream_output_progress, fennel_dynamics, fennel_batch_order, ghost_nodes_procedure,
+                stream_initial_bisections, stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance,
+                initial_part_multi_bfs, initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len,
+                xxx, local_pq, max_delayed_nodes, threshold_delay, graph_translation_specs, no_relabel, input_header_absent, cluster_upperbound,
+                label_propagation_iterations, end, max_flow_improv_steps, max_initial_ns_tries, region_factor_node_separators, most_balanced_flows_node_sep,
+                sep_flows_disabled, sep_fm_disabled, sep_loc_fm_disabled, sep_greedy_disabled, sep_fm_unsucc_steps, sep_num_fm_reps, sep_loc_fm_unsucc_steps,
+                sep_num_loc_fm_reps, sep_loc_fm_no_snodes, sep_num_vert_stop, sep_full_boundary_ip, sep_edge_rating_during_ip, sep_faster_ns
+        };
+
+
         // Define argtable.
         void* argtable[] = {
                 help, filename, user_seed,
@@ -435,7 +470,7 @@ int parse_parameters(int argn, char **argv,
                 printf("Usage: %s", progname);
                 arg_print_syntax(stdout, argtable, "\n");
                 arg_print_glossary(stdout, argtable,"  %-40s %s\n");
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+                arg_freetable(all_arguments, sizeof(all_arguments) / sizeof(all_arguments[0]));
                 return 1;
         }
 
@@ -443,7 +478,7 @@ int parse_parameters(int argn, char **argv,
         if (nerrors > 0) {
                 arg_print_errors(stderr, end, progname);
                 printf("Try '%s --help' for more information.\n",progname);
-                arg_freetable(argtable, sizeof(argtable) / sizeof(argtable[0]));
+                arg_freetable(all_arguments, sizeof(all_arguments) / sizeof(all_arguments[0]));
                 return 1;
         }
 
@@ -1638,7 +1673,7 @@ int parse_parameters(int argn, char **argv,
                 partition_config.threshold_delay = threshold_delay->dval[0];
         }
 
-
+        arg_freetable(all_arguments, sizeof(all_arguments)/sizeof(all_arguments[0]));
         return 0;
 }
 

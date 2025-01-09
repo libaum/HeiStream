@@ -27,11 +27,12 @@ struct PartitionConfig
 
         bool local_pq_enabled;
         float threshold_delay;
-        int max_delayed_nodes;
+        LongNodeID max_delayed_nodes;
 
-	int num_nodes_delayed;
-        int total_nodes_loaded;
-        unsigned number_of_nodes;
+	LongNodeID num_nodes_delayed;
+        LongNodeID total_nodes_loaded;
+        LongNodeID number_of_nodes;
+
         std::vector<NodeID> *local_to_global_map;
         std::vector<unsigned> *node_in_current_block;
 
