@@ -46,7 +46,7 @@ int main(int argn, char **argv) {
 	double buffer_io_time = 0;
         quality_metrics qm;
 	balance_configuration bc;
-	std::vector<std::vector<LongNodeID>>* input = NULL;
+	std::vector<std::vector<LongNodeID>>* input = nullptr;
 
         bool is_graph_weighted = false;
         bool suppress_output   = false;
@@ -165,10 +165,31 @@ int main(int argn, char **argv) {
         }
 
 	delete G;
+	delete delayed_lines_queue;
 
-	if (partition_config.ghostkey_to_edges != NULL) {
+	if (partition_config.add_blocks_weight != nullptr) {
+		delete partition_config.add_blocks_weight;
+	}
+	if (partition_config.node_in_current_block != nullptr) {
+		delete partition_config.node_in_current_block;
+	}
+	if (partition_config.stream_nodes_assign != nullptr) {
+		delete partition_config.stream_nodes_assign;
+	}
+	if (partition_config.local_to_global_map != nullptr) {
+		delete partition_config.local_to_global_map;
+	}
+	if (partition_config.ghostkey_to_edges != nullptr) {
 		delete partition_config.ghostkey_to_edges;
 	}
+	if (partition_config.stream_blocks_weight != nullptr) {
+		delete partition_config.stream_blocks_weight;
+	}
+	if (partition_config.stream_in != nullptr) {
+		delete partition_config.stream_in;
+	}
+
+
 
 	return 0;
 }
