@@ -1,5 +1,5 @@
 /******************************************************************************
- * definitions.h 
+ * definitions.h
  *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -62,12 +62,12 @@ const int ROOT 			       = 0;
 //for the gpa algorithm
 struct edge_source_pair {
         EdgeID e;
-        NodeID source;       
+        NodeID source;
 };
 
 struct source_target_pair {
-        NodeID source;       
-        NodeID target;       
+        NodeID source;
+        NodeID target;
 };
 
 //matching array has size (no_of_nodes), so for entry in this table we get the matched neighbor
@@ -78,12 +78,12 @@ typedef std::vector<NodeID> NodePermutationMap;
 typedef double ImbalanceType;
 //Coarsening
 typedef enum {
-        EXPANSIONSTAR, 
-        EXPANSIONSTAR2, 
- 	WEIGHT, 
- 	REALWEIGHT, 
-	PSEUDOGEOM, 
-	EXPANSIONSTAR2ALGDIST, 
+        EXPANSIONSTAR,
+        EXPANSIONSTAR2,
+ 	WEIGHT,
+ 	REALWEIGHT,
+	PSEUDOGEOM,
+	EXPANSIONSTAR2ALGDIST,
         SEPARATOR_MULTX,
         SEPARATOR_ADDX,
         SEPARATOR_MAX,
@@ -99,79 +99,79 @@ typedef enum {
 } EdgeRating;
 
 typedef enum {
-        PERMUTATION_QUALITY_NONE, 
-	PERMUTATION_QUALITY_FAST,  
+        PERMUTATION_QUALITY_NONE,
+	PERMUTATION_QUALITY_FAST,
 	PERMUTATION_QUALITY_GOOD
 } PermutationQuality;
 
 typedef enum {
-        MATCHING_RANDOM, 
-	MATCHING_GPA, 
+        MATCHING_RANDOM,
+	MATCHING_GPA,
 	MATCHING_RANDOM_GPA,
         CLUSTER_COARSENING
 } MatchingType;
 
 typedef enum {
-	INITIAL_PARTITIONING_RECPARTITION, 
+	INITIAL_PARTITIONING_RECPARTITION,
 	INITIAL_PARTITIONING_BIPARTITION,
 	INITIAL_PARTITIONING_MULTIBFS,
 	INITIAL_PARTITIONING_FENNEL
 } InitialPartitioningType;
 
 typedef enum {
-        REFINEMENT_SCHEDULING_FAST, 
-	REFINEMENT_SCHEDULING_ACTIVE_BLOCKS, 
+        REFINEMENT_SCHEDULING_FAST,
+	REFINEMENT_SCHEDULING_ACTIVE_BLOCKS,
 	REFINEMENT_SCHEDULING_ACTIVE_BLOCKS_REF_KWAY
 } RefinementSchedulingAlgorithm;
 
 typedef enum {
-        REFINEMENT_TYPE_FM, 
-	REFINEMENT_TYPE_FM_FLOW, 
+        REFINEMENT_TYPE_FM,
+	REFINEMENT_TYPE_FM_FLOW,
 	REFINEMENT_TYPE_FLOW
 } RefinementType;
 
 typedef enum {
-        STOP_RULE_SIMPLE, 
-	STOP_RULE_MULTIPLE_K, 
+        STOP_RULE_SIMPLE,
+	STOP_RULE_MULTIPLE_K,
 	STOP_RULE_STRONG,
-        STOP_RULE_MULTIBFS 
+        STOP_RULE_MULTIBFS
 } StopRule;
 
 typedef enum {
-        BIPARTITION_BFS, 
+        BIPARTITION_BFS,
 	BIPARTITION_FM
 } BipartitionAlgorithm ;
 
 typedef enum {
-        KWAY_SIMPLE_STOP_RULE, 
+        KWAY_SIMPLE_STOP_RULE,
 	KWAY_ADAPTIVE_STOP_RULE
 } KWayStopRule;
 
 typedef enum {
-        COIN_RNDTIE, 
-	COIN_DIFFTIE, 
-	NOCOIN_RNDTIE, 
-	NOCOIN_DIFFTIE 
+        COIN_RNDTIE,
+	COIN_DIFFTIE,
+	NOCOIN_RNDTIE,
+	NOCOIN_DIFFTIE
 } MLSRule;
 
 typedef enum {
-        CYCLE_REFINEMENT_ALGORITHM_PLAYFIELD, 
-        CYCLE_REFINEMENT_ALGORITHM_ULTRA_MODEL, 
+        CYCLE_REFINEMENT_ALGORITHM_PLAYFIELD,
+        CYCLE_REFINEMENT_ALGORITHM_ULTRA_MODEL,
 	CYCLE_REFINEMENT_ALGORITHM_ULTRA_MODEL_PLUS
 } CycleRefinementAlgorithm;
 
 typedef enum {
-        RANDOM_NODEORDERING, 
+        RANDOM_NODEORDERING,
         DEGREE_NODEORDERING,
 	NATURAL_NODEORDERING
 } NodeOrderingType; typedef enum {
-        NSQUARE, 
-        NSQUAREPRUNED, 
+        NSQUARE,
+        NSQUAREPRUNED,
         COMMUNICATIONGRAPH
 } LsNeighborhoodType;
 
 typedef enum {
-        MAP_CONST_RANDOM, 
+        MAP_CONST_RANDOM,
         MAP_CONST_IDENTITY,
         MAP_CONST_OLDGROWING,
         MAP_CONST_OLDGROWING_FASTER,
@@ -181,14 +181,14 @@ typedef enum {
 } ConstructionAlgorithm;
 
 typedef enum {
-        DIST_CONST_RANDOM, 
+        DIST_CONST_RANDOM,
         DIST_CONST_IDENTITY,
         DIST_CONST_HIERARCHY,
         DIST_CONST_HIERARCHY_ONLINE
 } DistanceConstructionAlgorithm;
 
 typedef enum {
-        PRE_CONFIG_MAPPING_FAST, 
+        PRE_CONFIG_MAPPING_FAST,
         PRE_CONFIG_MAPPING_ECO,
         PRE_CONFIG_MAPPING_STRONG
 } PreConfigMapping;
@@ -201,22 +201,22 @@ typedef enum {
 
 // One-pass streaming algorithms
 typedef enum {
-        ONEPASS_BALANCED, 
-        ONEPASS_CHUNKING, 
+        ONEPASS_BALANCED,
+        ONEPASS_CHUNKING,
         ONEPASS_HASHING,
 	ONEPASS_GREEDY,
 	ONEPASS_LDG,
 	ONEPASS_FENNEL,
-	ONEPASS_FRACTIONAL_GREEDY 
+	ONEPASS_FRACTIONAL_GREEDY
 } OnePassStreamAlgorithm;
 
 // Dynamic modification of Fennel objective function within label propagation
 typedef enum {
-        FENNELADP_ORIGINAL, 
+        FENNELADP_ORIGINAL,
 	FENNELADP_DOUBLE,
-        FENNELADP_LINEAR, 
-        FENNELADP_QUADRATIC, 
-        FENNELADP_MID_LINEAR, 
+        FENNELADP_LINEAR,
+        FENNELADP_QUADRATIC,
+        FENNELADP_MID_LINEAR,
         FENNELADP_MID_QUADRATIC,
         FENNELADP_MID_CONSTANT,
 	FENNELADP_EDGE_CUT
@@ -224,14 +224,14 @@ typedef enum {
 
 // Order to compute Fennel initial solution inside each batch
 typedef enum {
-        FENN_ORDER_UNCHANGED, 
+        FENN_ORDER_UNCHANGED,
 	FENN_ORDER_ASC_DEGREE,
-        FENN_ORDER_DESC_DEGREE 
+        FENN_ORDER_DESC_DEGREE
 } FennelBatchOrder;
 
 // Procedure for ghost neighbors
 typedef enum {
-        GHOST_CONTRACT_ALL, 
+        GHOST_CONTRACT_ALL,
 	GHOST_KEEP_ALL,
         GHOST_KEEP_THRESHOLD_CONTRACT_REST
 } GhostNeighborsProcedure;
@@ -251,13 +251,13 @@ const LongEdgeID UNDEFINED_LONGEDGE = std::numeric_limits<LongEdgeID>::max();
 // Conversion of graphs
 typedef enum {
 	EDGE_STREAM_TO_METISEXTERNAL,
-        EDGE_STREAM_TO_METISBUFFERED, 
-        EDGE_STREAM_TO_METIS, 
+        EDGE_STREAM_TO_METISBUFFERED,
+        EDGE_STREAM_TO_METIS,
 	EDGE_STREAM_TO_HMETIS,
-        METIS_TO_HMETIS 
+        METIS_TO_HMETIS
 } GraphTranslateFormat;
 
- 
+
 //////////////////////////////////////////////////////
 ////////////////// Hashing Function //////////////////
 ////////////////////// (begin) ///////////////////////
