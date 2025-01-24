@@ -543,6 +543,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.total_nodes_loaded                     = 0;
         partition_config.local_to_global_map                    = nullptr;
         partition_config.node_in_current_block                  = nullptr;
+        partition_config.max_block_weight                       = 0;
 
         // partition_config.t1				   = new double[1];
         // partition_config.t2				   = new double[1];

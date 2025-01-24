@@ -25,6 +25,8 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
+        LongNodeID max_block_weight;
+
         bool local_pq_enabled;
         float threshold_delay;
         LongNodeID max_delayed_nodes;
