@@ -51,7 +51,7 @@ inline bucket_pq::bucket_pq( const EdgeWeight & gain_span_input ) {
         m_gain_span = gain_span_input;
         m_max_idx   = 0;
 
-        m_buckets.resize(2*m_gain_span+1);
+        m_buckets.resize(m_gain_span);
 }
 
 inline NodeID bucket_pq::size() {
@@ -59,7 +59,9 @@ inline NodeID bucket_pq::size() {
 }
 
 inline void bucket_pq::insert(NodeID node, Gain gain) {
-        unsigned address = gain + m_gain_span;
+        unsigned address = gain;
+        ASSERT_TRUE(0 <= address && address <= m_gain_span);
+
         if(address > m_max_idx) {
                 m_max_idx = address;
         }
@@ -76,7 +78,7 @@ inline bool bucket_pq::empty( ) {
 }
 
 inline Gain bucket_pq::maxValue( ) {
-        return m_max_idx - m_gain_span;
+        return m_max_idx;
 }
 
 inline NodeID bucket_pq::maxElement( ) {
@@ -107,6 +109,7 @@ inline void bucket_pq::decreaseKey(NodeID node, Gain new_gain) {
 }
 
 inline void bucket_pq::increaseKey(NodeID node, Gain new_gain) {
+        ASSERT_TRUE(0 <= new_gain && new_gain <= m_gain_span);
         changeKey( node, new_gain );
 }
 
@@ -123,7 +126,7 @@ inline void bucket_pq::deleteNode(NodeID node) {
         ASSERT_TRUE(m_queue_index.find(node) != m_queue_index.end());
         Count in_bucket_idx = m_queue_index[node].first;
         Gain  old_gain      = m_queue_index[node].second;
-        unsigned address    = old_gain + m_gain_span;
+        unsigned address    = old_gain;
 
         if( m_buckets[address].size() > 1 ) {
                 //swap current element with last element and pop_back
