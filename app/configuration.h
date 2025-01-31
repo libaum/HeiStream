@@ -537,12 +537,11 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 	partition_config.double_non_ghost_edges		   = true;
 	partition_config.edge_block_nodes		   = NULL;
 
-        partition_config.t1				   = new double[1];
-        partition_config.t2				   = new double[1];
-        partition_config.t3				   = new double[1];
-        (*partition_config.t1)				   = 0;
-        (*partition_config.t2)				   = 0;
-        (*partition_config.t3)				   = 0;
+
+        partition_config.total_nodes_loaded                     = 0;
+        partition_config.local_to_global_map                    = nullptr;
+        partition_config.node_in_current_block                  = nullptr;
+        partition_config.max_block_weight                       = 0;
 
     // Stream Edge Partition
     partition_config.remaining_stream_nodes_OG = UNDEFINED_LONGNODE;    // new

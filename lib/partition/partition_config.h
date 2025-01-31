@@ -29,6 +29,13 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
+        LongNodeID max_block_weight;
+
+        LongNodeID total_nodes_loaded;
+        unsigned number_of_nodes;
+
+        std::vector<NodeID> *local_to_global_map;
+        std::vector<unsigned> *node_in_current_block;
 
         //============================================================
         //=======================MATCHING=============================
@@ -532,10 +539,6 @@ struct PartitionConfig
 	bool restream_vcycle;
 
 	int xxx;
-	double* t1;
-	double* t2;
-	double* t3;
-
     //=======================================
     //======= Stream Edge Partition ========
     //=======================================
