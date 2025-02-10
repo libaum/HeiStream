@@ -133,6 +133,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         (*config.node_in_current_block)[global_node_id - 1] = 2; // mark as processed
         cursor++;
     }
+    std::fill(config.node_in_current_block->begin(), config.node_in_current_block->end(), 0);
     if (!config.ram_stream) {
         delete input;
     }
@@ -149,7 +150,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
     config.total_stream_nodecounter += config.nmbNodes;
     config.total_stream_nodeweight += total_nodeweight;
-    config.remaining_stream_nodes -= config.nmbNodes;
+    // config.remaining_stream_nodes -= config.nmbNodes;
     config.remaining_stream_edges -= used_edges;
 
     if (node_counter != (NodeID)config.nmbNodes + uncontracted_ghost_nodes + config.quotient_nodes) {
@@ -442,11 +443,9 @@ void graph_io_stream::recoverBlockAssignedToNode(PartitionConfig &config, graph_
     if (node >= node_counter - config.quotient_nodes) { // quotient nodes
         NodeID targetPar = node - (node_counter - config.quotient_nodes);
         G.setPartitionIndex(node, targetPar);
-    } else if (config.restream_number &&
-               (config.restream_vcycle || config.initial_partitioning_type == INITIAL_PARTITIONING_FENNEL)) {
-        if (node < config.nmbNodes) {  // regular nodes
-            // LongNodeID global_node = config.lower_global_node + (LongNodeID)node - 1;
-	 LongNodeID global_node = (*config.local_to_global_map)[node];
+    } else if (config.restream_number && (config.restream_vcycle || config.initial_partitioning_type == INITIAL_PARTITIONING_FENNEL)) {
+        if (node < config.nmbNodes) { // regular nodes
+            LongNodeID global_node = (*config.local_to_global_map)[node];
             PartitionID targetPar = (*config.stream_nodes_assign)[global_node - 1];
             G.setPartitionIndex(node, targetPar);
         } else { // ghost node. PS: there are no isolated ghost nodes in restream
@@ -459,7 +458,6 @@ void graph_io_stream::recoverBlockAssignedToNode(PartitionConfig &config, graph_
 void graph_io_stream::generalizeStreamPartition(PartitionConfig &config, graph_access &G_local) {
     for (NodeID node = 0, end = config.nmbNodes; node < end; node++) {
         PartitionID block = G_local.getPartitionIndex(node);
-        //LongNodeID global_node = (LongNodeID) node + config.lower_global_node - 1;
         LongNodeID global_node = (*config.local_to_global_map)[node];
         (*config.stream_nodes_assign)[global_node - 1] = block;
         (*config.stream_blocks_weight)[block] += G_local.getNodeWeight(node) - G_local.getImplicitGhostNodes(node);
@@ -486,8 +484,7 @@ void graph_io_stream::onePassPartition(PartitionConfig &config, std::vector<std:
 int graph_io_stream::onePassDecide(PartitionConfig &config, NodeID node, std::vector<EdgeWeight> &edges_i_real) {
     PartitionID decision;
     double best = std::numeric_limits<double>::lowest();
-    //LongNodeID global_node = (LongNodeID) node + config.lower_global_node - 1;
-   LongNodeID global_node = (*config.local_to_global_map)[node];
+    LongNodeID global_node = (*config.local_to_global_map)[node];
     double score = 0;
     double fennel_weight = getFennelWeight(config);
     int blocks = config.k;

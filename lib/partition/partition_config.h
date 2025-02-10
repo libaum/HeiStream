@@ -37,13 +37,18 @@ struct PartitionConfig
         std::vector<NodeID> *local_to_global_map;
         std::vector<unsigned> *node_in_current_block;
 
+        LongNodeID first_phase_buffer_len;
+        LongNodeID second_phase_buffer_len;
+        LongNodeID max_pq_size;
+        int bq_disc_factor;
+
         //============================================================
         //=======================MATCHING=============================
         //============================================================
         bool edge_rating_tiebreaking;
 
         EdgeRating edge_rating;
-        
+
         PermutationQuality permutation_quality;
 
         MatchingType matching_type;

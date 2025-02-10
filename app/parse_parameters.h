@@ -207,6 +207,12 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *automatic_buffer_len		     = arg_lit0(NULL, "automatic_buffer_len", "Automatically choose buffer size for fastest performance. (Default: disabled)");
         struct arg_int *xxx				     = arg_int0(NULL, "xxx", NULL, "tuning factor for size of coarsest graph. Default 4.");
 
+        struct arg_int *first_phase_buffer                    = arg_int0(NULL, "first_phase_buffer", NULL, "Buffer size (number of nodes) of first pass partitioning if priority queue is full. Default 1.");
+        struct arg_int *second_phase_buffer                   = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
+        struct arg_int *max_pq_size                          = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
+        struct arg_int *bq_disc_factor                       = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
+
+
         // Stream Edge Partition
         struct arg_lit *benchmark =
             arg_lit0(NULL, "benchmark",
@@ -292,8 +298,14 @@ int parse_parameters(int argn, char **argv,
                 stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
                 initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx, benchmark,
                 light_evaluator, label_propagation_iterations, label_propagation_iterations_refinement, graph_translation_specs, no_relabel,
-                input_header_absent, end
+                input_header_absent, end, first_phase_buffer, second_phase_buffer, max_pq_size, bq_disc_factor,
+                max_flow_improv_steps, max_initial_ns_tries, region_factor_node_separators,
+                most_balanced_flows_node_sep, sep_flows_disabled, sep_fm_disabled, sep_loc_fm_disabled, sep_greedy_disabled,
+                sep_fm_unsucc_steps, sep_num_fm_reps, sep_loc_fm_unsucc_steps, sep_num_loc_fm_reps, sep_loc_fm_no_snodes,
+                sep_num_vert_stop, sep_full_boundary_ip, sep_edge_rating_during_ip, sep_faster_ns, convert_direct, use_queue, dynamic_alpha, batch_alpha,
+                minimal_mode, include_weights, parallel_nodes, num_split_edges, past_subset_size, tau, reps, filename_output, cluster_upperbound
         };
+
 
         // Define argtable.
         void* argtable[] = {
@@ -354,6 +366,10 @@ int parse_parameters(int argn, char **argv,
                 label_propagation_iterations,
                 label_propagation_iterations_refinement,
                 xxx,
+                first_phase_buffer,
+                second_phase_buffer,
+                max_pq_size,
+                bq_disc_factor,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
                 preconfiguration,
@@ -1512,13 +1528,25 @@ int parse_parameters(int argn, char **argv,
                 partition_config.adapt_bal = true;
         }
 
-
-
-
         if(stream_buffer->count>0) {
                 partition_config.stream_buffer_len = (LongNodeID) stream_buffer->ival[0];
         }
 
+        if(first_phase_buffer->count > 0) {
+                partition_config.first_phase_buffer_len = (LongNodeID) first_phase_buffer->ival[0];
+        }
+
+        if(second_phase_buffer->count > 0) {
+                partition_config.second_phase_buffer_len = (LongNodeID) second_phase_buffer->ival[0];
+        }
+
+        if(max_pq_size->count > 0) {
+                partition_config.max_pq_size = max_pq_size->ival[0];
+        }
+
+        if(bq_disc_factor->count > 0) {
+                partition_config.bq_disc_factor = bq_disc_factor->ival[0];
+        }
 
         if(use_fennel_objective->count > 0) {
                 partition_config.use_fennel_objective = true;

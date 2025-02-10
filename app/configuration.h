@@ -543,6 +543,11 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.node_in_current_block                  = nullptr;
         partition_config.max_block_weight                       = 0;
 
+        partition_config.first_phase_buffer_len             = 1;
+        partition_config.second_phase_buffer_len            = 32768;
+        partition_config.max_pq_size                       = 1000000;
+        partition_config.bq_disc_factor                    = 100;
+
     // Stream Edge Partition
     partition_config.remaining_stream_nodes_OG = UNDEFINED_LONGNODE;    // new
     partition_config.remaining_stream_graph_nodes = UNDEFINED_LONGNODE; // new
