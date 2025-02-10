@@ -1,5 +1,5 @@
 /******************************************************************************
- * configuration.h 
+ * configuration.h
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -29,14 +29,14 @@ class configuration {
 
                 void fastsocial( PartitionConfig & config );
                 void ecosocial( PartitionConfig & config );
-                void strongsocial( PartitionConfig & config ); 
+                void strongsocial( PartitionConfig & config );
 
                 void integrated_mapping( PartitionConfig & partition_config );
                 void stream_partition( PartitionConfig & partition_config );
 
                 //void fastsocial_separator( PartitionConfig & config );
                 //void ecosocial_separator( PartitionConfig & config );
-                //void strongsocial_separator( PartitionConfig & config ); 
+                //void strongsocial_separator( PartitionConfig & config );
 
 };
 
@@ -58,7 +58,7 @@ inline void configuration::strong( PartitionConfig & partition_config ) {
         partition_config.kway_adaptive_limits_alpha             = 10;
         partition_config.kway_rounds                            = 10;
         partition_config.rate_first_level_inner_outer           = true;
-        partition_config.use_wcycles                            = false; 
+        partition_config.use_wcycles                            = false;
         partition_config.no_new_initial_partitioning            = true;
         partition_config.use_fullmultigrid                      = true;
         partition_config.most_balanced_minimum_cuts             = true;
@@ -66,12 +66,12 @@ inline void configuration::strong( PartitionConfig & partition_config ) {
         partition_config.local_multitry_rounds                  = 10;
 
         partition_config.mh_initial_population_fraction         = 10;
-        partition_config.mh_flip_coin                           = 1; 
+        partition_config.mh_flip_coin                           = 1;
 #ifndef MODE_NODESEP
-        partition_config.epsilon                                = 3; 
+        partition_config.epsilon                                = 3;
         partition_config.imbalance                              = 3;
 #else
-        partition_config.epsilon                                = 20; 
+        partition_config.epsilon                                = 20;
         partition_config.imbalance                              = 20;
 #endif
 
@@ -87,7 +87,7 @@ inline void configuration::eco( PartitionConfig & partition_config ) {
         standard(partition_config);
         partition_config.eco                      = true;
         partition_config.aggressive_random_levels = std::max(2, (int)(7 - log2(partition_config.k)));
-        
+
         partition_config.kway_rounds                            = std::min(5, (int)log2(partition_config.k));
         partition_config.matching_type                          = MATCHING_RANDOM_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_NONE;
@@ -100,7 +100,7 @@ inline void configuration::eco( PartitionConfig & partition_config ) {
         partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE;
         partition_config.kway_fm_search_limit                   = 1;
         partition_config.mh_initial_population_fraction         = 50;
-        partition_config.mh_flip_coin                           = 1; 
+        partition_config.mh_flip_coin                           = 1;
 
         partition_config.initial_partitioning_type              = INITIAL_PARTITIONING_RECPARTITION;
         partition_config.bipartition_tries                      = 4;
@@ -114,11 +114,11 @@ inline void configuration::fast( PartitionConfig & partition_config ) {
         partition_config.fast = true;
         if(partition_config.k > 8) {
                 partition_config.quotient_graph_refinement_disabled     = true;
-                partition_config.kway_fm_search_limit                   = 0; 
-                partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE; 
-                partition_config.corner_refinement_enabled              = true; 
+                partition_config.kway_fm_search_limit                   = 0;
+                partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE;
+                partition_config.corner_refinement_enabled              = true;
         } else {
-                partition_config.corner_refinement_enabled              = false; 
+                partition_config.corner_refinement_enabled              = false;
         }
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_FAST;
         partition_config.permutation_during_refinement          = PERMUTATION_QUALITY_NONE;
@@ -154,7 +154,7 @@ inline void configuration::strong_separator( PartitionConfig & partition_config 
         partition_config.kway_adaptive_limits_alpha             = 10;
         partition_config.kway_rounds                            = 10;
         partition_config.rate_first_level_inner_outer           = true;
-        partition_config.use_wcycles                            = false; 
+        partition_config.use_wcycles                            = false;
         partition_config.no_new_initial_partitioning            = true;
         partition_config.use_fullmultigrid                      = true;
         partition_config.most_balanced_minimum_cuts             = true;
@@ -163,13 +163,13 @@ inline void configuration::strong_separator( PartitionConfig & partition_config 
         partition_config.local_multitry_rounds                  = 10;
 
         partition_config.mh_initial_population_fraction         = 10;
-        partition_config.mh_flip_coin                           = 1; 
+        partition_config.mh_flip_coin                           = 1;
 
 #ifndef MODE_NODESEP
-        partition_config.epsilon                                = 3; 
+        partition_config.epsilon                                = 3;
         partition_config.imbalance                              = 3;
 #else
-        partition_config.epsilon                                = 20; 
+        partition_config.epsilon                                = 20;
         partition_config.imbalance                              = 20;
 #endif
 
@@ -192,7 +192,7 @@ inline void configuration::eco_separator( PartitionConfig & partition_config ) {
         standard(partition_config);
         partition_config.eco                      = true;
         partition_config.aggressive_random_levels = std::max(2, (int)(7 - log2(partition_config.k)));
-        
+
         partition_config.kway_rounds                            = std::min(5, (int)log2(partition_config.k));
         partition_config.matching_type                          = MATCHING_RANDOM_GPA;
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_NONE;
@@ -205,7 +205,7 @@ inline void configuration::eco_separator( PartitionConfig & partition_config ) {
         partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE;
         partition_config.kway_fm_search_limit                   = 1;
         partition_config.mh_initial_population_fraction         = 50;
-        partition_config.mh_flip_coin                           = 1; 
+        partition_config.mh_flip_coin                           = 1;
 
         partition_config.initial_partitioning_type              = INITIAL_PARTITIONING_RECPARTITION;
         partition_config.bipartition_tries                      = 4;
@@ -231,11 +231,11 @@ inline void configuration::fast_separator( PartitionConfig & partition_config ) 
         partition_config.fast = true;
         if(partition_config.k > 8) {
                 partition_config.quotient_graph_refinement_disabled     = true;
-                partition_config.kway_fm_search_limit                   = 0; 
-                partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE; 
-                partition_config.corner_refinement_enabled              = true; 
+                partition_config.kway_fm_search_limit                   = 0;
+                partition_config.kway_stop_rule                         = KWAY_SIMPLE_STOP_RULE;
+                partition_config.corner_refinement_enabled              = true;
         } else {
-                partition_config.corner_refinement_enabled              = false; 
+                partition_config.corner_refinement_enabled              = false;
         }
         partition_config.permutation_quality                    = PERMUTATION_QUALITY_FAST;
         partition_config.permutation_during_refinement          = PERMUTATION_QUALITY_NONE;
@@ -284,17 +284,17 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.enable_omp                             = false;
         partition_config.combine                                = false;
 #ifndef MODE_NODESEP
-        partition_config.epsilon                                = 3; 
+        partition_config.epsilon                                = 3;
         partition_config.imbalance                              = 3;
 #else
-        partition_config.epsilon                                = 20; 
+        partition_config.epsilon                                = 20;
         partition_config.imbalance                              = 20;
 #endif
 
         partition_config.buffoon                                = false;
         partition_config.balance_edges                          = false;
 
-        partition_config.time_limit 				= 0; 
+        partition_config.time_limit 				= 0;
         partition_config.mh_pool_size                           = 5;
         partition_config.mh_plain_repetitions                   = false;
         partition_config.no_unsuc_reps				= 10;
@@ -303,7 +303,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.mh_disable_nc_combine                  = false;
         partition_config.mh_disable_cross_combine               = false;
         partition_config.mh_disable_combine                     = false;
-        partition_config.mh_enable_quickstart                   = false; 
+        partition_config.mh_enable_quickstart                   = false;
         partition_config.mh_disable_diversify_islands           = false;
         partition_config.mh_diversify                           = true;
         partition_config.mh_diversify_best                      = false;
@@ -314,8 +314,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.mh_print_log                           = false;
         partition_config.mh_penalty_for_unconnected             = false;
         partition_config.mh_no_mh                               = false;
-        partition_config.mh_optimize_communication_volume       = false; 
-        partition_config.use_bucket_queues                      = true; 
+        partition_config.mh_optimize_communication_volume       = false;
+        partition_config.use_bucket_queues                      = true;
         partition_config.walshaw_mh_repetitions                 = 50;
         partition_config.scaleing_factor                        = 1;
         partition_config.scale_back                             = false;
@@ -325,7 +325,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         partition_config.suppress_partitioner_output		= false;
 
-        if( partition_config.k <= 4 ) { 
+        if( partition_config.k <= 4 ) {
                 partition_config.bipartition_post_fm_limits             = 30;
                 partition_config.bipartition_post_ml_limits             = 6;
         } else {
@@ -400,9 +400,9 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.maxIter                                = 500000;
 
         if( partition_config.k <= 8 ) {
-               partition_config.kaba_internal_no_aug_steps_aug = 15; 
+               partition_config.kaba_internal_no_aug_steps_aug = 15;
         } else {
-               partition_config.kaba_internal_no_aug_steps_aug = 7; 
+               partition_config.kaba_internal_no_aug_steps_aug = 7;
         }
 
         partition_config.kaba_unsucc_iterations = 6;
@@ -467,7 +467,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.qap_quotient_ref                  = false;
         partition_config.qap_bquotient_ref                 = false;
         partition_config.qap_0quotient_ref                 = false;
-        partition_config.bipartition_gp_local_search       = true; 
+        partition_config.bipartition_gp_local_search       = true;
         partition_config.skip_map_ls                       = false;
         partition_config.suppress_output                   = false;
         partition_config.full_matrix                       = false;
@@ -638,7 +638,7 @@ inline void configuration::standardsnw( PartitionConfig & partition_config ) {
                 partition_config.number_of_clusterings = 15;
         } else if(16 <= partition_config.k && partition_config.k <= 31) {
                 partition_config.number_of_clusterings = 7;
-        } else { 
+        } else {
                 partition_config.number_of_clusterings = 3;
         }
 
@@ -653,7 +653,7 @@ inline void configuration::standardsnw( PartitionConfig & partition_config ) {
 //inline void configuration::fastsocial_separator( PartitionConfig & partition_config ) {
         //eco(partition_config);
         //standardsnw(partition_config);
-        
+
         //partition_config.label_propagation_refinement = true;
         //partition_config.cluster_coarsening_during_ip = true;
         //partition_config.balance_factor               = 0;
@@ -675,7 +675,7 @@ inline void configuration::standardsnw( PartitionConfig & partition_config ) {
         //standardsnw(partition_config);
         //partition_config.label_propagation_refinement = false;
         //partition_config.global_cycle_iterations      = 3;
-        //partition_config.use_wcycles                  = false; 
+        //partition_config.use_wcycles                  = false;
         //partition_config.no_new_initial_partitioning  = true;
         //partition_config.balance_factor               = 0.016;
         //partition_config.cluster_coarsening_during_ip = true;
@@ -710,7 +710,7 @@ inline void configuration::ecosocial( PartitionConfig & partition_config ) {
         standardsnw(partition_config);
         partition_config.label_propagation_refinement = false;
         partition_config.global_cycle_iterations      = 3;
-        partition_config.use_wcycles                  = false; 
+        partition_config.use_wcycles                  = false;
         partition_config.no_new_initial_partitioning  = true;
         partition_config.balance_factor               = 0.016;
         partition_config.cluster_coarsening_during_ip = true;
@@ -728,8 +728,8 @@ inline void configuration::strongsocial( PartitionConfig & partition_config ) {
 
 inline void configuration::integrated_mapping( PartitionConfig & partition_config ) {
                 partition_config.fm_search_limit                        = 0;
-                // partition_config.kway_fm_search_limit                   = 0; 
-                partition_config.corner_refinement_enabled              = false; 
+                // partition_config.kway_fm_search_limit                   = 0;
+                partition_config.corner_refinement_enabled              = false;
                 partition_config.flow_region_factor                     = 0;
                 partition_config.local_multitry_rounds                  = 10;
                 partition_config.skip_delta_gains                       = false;
@@ -747,7 +747,7 @@ inline void configuration::stream_partition( PartitionConfig & partition_config 
                 partition_config.use_balance_singletons			= false;
                 partition_config.node_ordering				= NATURAL_NODEORDERING;
 		partition_config.stop_rule				= STOP_RULE_MULTIBFS;
-		partition_config.ghost_nodes_procedure			= GHOST_CONTRACT_ALL;         
+		partition_config.ghost_nodes_procedure			= GHOST_CONTRACT_ALL;
 		partition_config.ghost_nodes_threshold			= 0;
                 partition_config.use_fennel_objective			= true;
                 partition_config.adapt_bal				= true;
