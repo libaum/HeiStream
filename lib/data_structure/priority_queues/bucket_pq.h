@@ -60,7 +60,7 @@ inline NodeID bucket_pq::size() {
 
 inline void bucket_pq::insert(NodeID node, Gain gain) {
         unsigned address = gain;
-        ASSERT_TRUE(0 <= address && address <= m_gain_span);
+        assert(0 <= address && address <= m_gain_span);
 
         if(address > m_max_idx) {
                 m_max_idx = address;
@@ -109,7 +109,7 @@ inline void bucket_pq::decreaseKey(NodeID node, Gain new_gain) {
 }
 
 inline void bucket_pq::increaseKey(NodeID node, Gain new_gain) {
-        ASSERT_TRUE(0 <= new_gain && new_gain <= m_gain_span);
+        assert(0 <= new_gain && new_gain <= m_gain_span);
         changeKey( node, new_gain );
 }
 
@@ -123,7 +123,7 @@ inline void bucket_pq::changeKey(NodeID node, Gain new_gain) {
 }
 
 inline void bucket_pq::deleteNode(NodeID node) {
-        ASSERT_TRUE(m_queue_index.find(node) != m_queue_index.end());
+        assert(m_queue_index.find(node) != m_queue_index.end());
         Count in_bucket_idx = m_queue_index[node].first;
         Gain  old_gain      = m_queue_index[node].second;
         unsigned address    = old_gain;

@@ -1,3 +1,4 @@
+// current best: ex2_v1.2
 /******************************************************************************
  * streampartition.cpp
  * *
@@ -16,6 +17,7 @@
 #include <fstream>
 #include <sstream>
 #include <memory>
+#include <optional>
 
 #include "balance_configuration.h"
 #include "data_structure/graph_access.h"
@@ -47,20 +49,37 @@ const bool HEISTREAM_INTEGRATION_ENABLED = true;
 const float MAX_BUFFER_SCORE = 3.0f;
 const LongNodeID INVALID_NODE = std::numeric_limits<LongNodeID>::max();
 
-class buffer_item {
+class PQItem {
 public:
     float buffer_score;
-    std::vector<LongNodeID> line;
+    std::vector<LongNodeID>* line;
     int num_adj_partitioned;
 
-    buffer_item(std::vector<LongNodeID> line, float buffer_score, int num_adj_partitioned)
-        : line(line), buffer_score(buffer_score), num_adj_partitioned(num_adj_partitioned) {}
 
-    void clear() {
-        line.clear();
-        line.shrink_to_fit();
-        buffer_score = UNDEFINED_LONGNODE;
-        num_adj_partitioned = 0;
+    PQItem()
+        : buffer_score(0),
+        num_adj_partitioned(0),
+        line(nullptr) {}
+
+    PQItem(std::vector<LongNodeID> &l, float buffer_score, int num_adj_partitioned)
+        : buffer_score(buffer_score),
+        num_adj_partitioned(num_adj_partitioned),
+        line(new std::vector<LongNodeID>(l)) {}
+
+    ~PQItem() {
+        if (line != nullptr)
+            delete line;
+    }
+
+    void make_invalid() {
+        if (line != nullptr) {
+            delete line;
+            line = nullptr;
+        }
+    }
+
+    bool is_valid() const {
+        return line != nullptr;
     }
 };
 
@@ -70,8 +89,10 @@ static int discretize_score(PartitionConfig &partition_config, float score) {
 }
 
 
-void loadTopNodesToBatch(PartitionConfig &partition_config, bucket_pq &pq, std::vector<buffer_item> &node_id_to_buffer_item, std::vector<std::vector<LongNodeID>> *&input, LongNodeID batch_size);
+// void loadTopNodesToBatch(PartitionConfig &partition_config, bucket_pq &pq, std::vector<std::optional<PQItem>> &node_id_to_buffer_item, std::vector<std::vector<LongNodeID>> *&input, LongNodeID batch_size);
 void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::vector<LongNodeID>> *&input);
+
+
 
 void config_multibfs_initial_partitioning(PartitionConfig &partition_config);
 void partition_node(PartitionConfig &partition_config, std::vector<LongNodeID> &line);
@@ -85,7 +106,7 @@ float calc_buffer_score(PartitionConfig &partition_config,
         return 0;
     }
     // float cnt_adj_partitioned = 0;
-    ASSERT_TRUE(cnt_adj_partitioned == 0);
+    assert(cnt_adj_partitioned == 0);
     bool adj_is_partitioned;
     for (LongNodeID &global_adj_id : cur_line) {
         if (global_adj_id == global_node_id)
@@ -106,7 +127,7 @@ void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector
             continue;
         if ((*partition_config.stream_nodes_assign)[global_adj_id - 1] == INVALID_PARTITION) {
             if (all_should_be_partitioned) {
-                ASSERT_TRUE(false);
+                assert(false);
             }
 
             one_not_partitioned = true;
@@ -114,7 +135,7 @@ void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector
         }
     }
     if (!all_should_be_partitioned) {
-        ASSERT_TRUE(one_not_partitioned);
+        assert(one_not_partitioned);
     }
 }
 
@@ -122,47 +143,41 @@ void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector
 // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
 void update_neighbours_priority(PartitionConfig &partition_config,
                                 std::vector<LongNodeID> &line,
-                                std::vector<buffer_item> &node_id_to_buffer_item,
+                                std::vector<PQItem> &node_id_to_buffer_item,
                                 bucket_pq &pq, bool part_adj_directly=PARTITION_ADJ_DIRECTLY_ENABLED) {
 
-    // Ensure that the line contains at least the node id (and possibly neighbors).
-    if( line.size() == 0 || line.size() == 1) {
-        // std::cout << "Line is empty." << std::endl;
+
+    if (line.size() < 2) {
+        assert(line.size() != 0);
         return;
     }
-
     for (auto it = line.begin() + 1; it != line.end(); ++it) {
         LongNodeID adj_id = *it;
-        // Check if the neighbour is already partitioned (if MLP batch partitioning, node is only virutally partitioned and therefore line is empty)
-        // bool is_partitioned = ((*partition_config.stream_nodes_assign)[adj_id - 1] != INVALID_PARTITION)
-        //     || ((*partition_config.node_in_current_block)[adj_id - 1] == 1);
-
-        // if (pq.contains(adj_id)) {
-        bool is_partitioned = (*partition_config.stream_nodes_assign)[adj_id - 1] != INVALID_PARTITION; // || node_id_to_buffer_item[adj_id - 1].line.size() == 0;
-        auto &adj_buffer_item = node_id_to_buffer_item[adj_id - 1];
-        if (!is_partitioned && adj_buffer_item.buffer_score != UNDEFINED_LONGNODE) { // pq.contains(adj_id)) { // {
-            if (adj_buffer_item.line.size() < 2) {
+        bool is_partitioned = (*partition_config.stream_nodes_assign)[adj_id - 1] != INVALID_PARTITION;
+        // auto &adj_buffer_item = node_id_to_buffer_item2[adj_id];
+        if (!is_partitioned && node_id_to_buffer_item[adj_id - 1].is_valid()) { // pq.contains(adj_id)) { // {
+            auto &adj_buffer_item = node_id_to_buffer_item[adj_id - 1];
+            if (adj_buffer_item.line->size() < 2) {
                 continue;
             }
 
             adj_buffer_item.num_adj_partitioned++;
-            int adj_degree = adj_buffer_item.line.size() - 1;
+            int adj_degree = adj_buffer_item.line->size() - 1;
 
             // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
             if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned) {
                 // assert_neighbors_partitioned(partition_config, adj_buffer_item.line, true);
                 cnt_part_adj_directly++;
-
-                // std::cout << "Partitioning node " << adj_id << " directly, buffer score: " << adj_buffer_item.buffer_score + THETA / adj_degree << ", degree: " << adj_degree << std::endl;
-                // for (LongNodeID &adj_global_id : adj_buffer_item.line) {
-                //     std::cout << adj_global_id << " ";            }
-                // std::cout << std::endl;
                 pq.deleteNode(adj_id);
-                partition_node(partition_config, adj_buffer_item.line);
+                partition_node(partition_config, *adj_buffer_item.line);
 
                 // Update neighbors and clear buffer item
-                update_neighbours_priority(partition_config, adj_buffer_item.line, node_id_to_buffer_item, pq);
-                adj_buffer_item.clear();
+                update_neighbours_priority(partition_config,
+                                        *adj_buffer_item.line,
+                                        node_id_to_buffer_item,
+                                        pq);
+
+                node_id_to_buffer_item[adj_id - 1].make_invalid();
             } else {
                 // Update buffer score of neighbours
                 // assert_neighbors_partitioned(partition_config, adj_buffer_item.line, false);
@@ -225,6 +240,41 @@ void partition_node(PartitionConfig &partition_config, std::vector<LongNodeID> &
     }
 }
 
+// Select top partition_config.second_phase_buffer_len number of nodes from bucket queues and load into the batch (input)
+void loadTopNodesToBatch(PartitionConfig &partition_config,
+                        bucket_pq &pq,
+                        std::vector<PQItem> &node_id_to_buffer_item,
+                        std::vector<std::vector<LongNodeID>> *&input,
+                        LongNodeID batch_size) {
+
+    // Initialize the partition configuration
+    partition_config.nmbNodes = MIN(batch_size, pq.size());
+
+    input = new std::vector<std::vector<LongNodeID>>(partition_config.nmbNodes);
+
+    // 1. Extract the top batch_size nodes from the queue
+    int node_counter = 0;
+    while (node_counter < partition_config.nmbNodes && !pq.empty()) {
+        LongNodeID node_id = pq.deleteMax();
+        assert((*partition_config.stream_nodes_assign)[node_id - 1] == INVALID_PARTITION);
+
+        (*partition_config.node_in_current_block)[node_id - 1] = 1;
+
+        auto &buffer_item = node_id_to_buffer_item[node_id - 1];
+
+        // Update neighbors and clear buffer item
+        update_neighbours_priority(partition_config,
+                                  *buffer_item.line,
+                                  node_id_to_buffer_item,
+                                  pq,
+                                  false);
+
+        (*input)[node_counter] = std::move(*buffer_item.line);
+        node_id_to_buffer_item[node_id - 1].make_invalid();
+        node_counter++;
+    }
+}
+
 long getMaxRSS();
 
 std::string extractBaseFilename(const std::string &fullPath);
@@ -232,18 +282,18 @@ std::string extractBaseFilename(const std::string &fullPath);
 
 int main(int argn, char **argv) {
     /* std::cout << R"(
-██   ██ ███████ ██ ███████ ████████ ██████  ███████  █████  ███    ███
-██   ██ ██      ██ ██         ██    ██   ██ ██      ██   ██ ████  ████
-███████ █████   ██ ███████    ██    ██████  █████   ███████ ██ ████ ██
-██   ██ ██      ██      ██    ██    ██   ██ ██      ██   ██ ██  ██  ██
-██   ██ ███████ ██ ███████    ██    ██   ██ ███████ ██   ██ ██      ██
+    ██   ██ ███████ ██ ███████ ████████ ██████  ███████  █████  ███    ███
+    ██   ██ ██      ██ ██         ██    ██   ██ ██      ██   ██ ████  ████
+    ███████ █████   ██ ███████    ██    ██████  █████   ███████ ██ ████ ██
+    ██   ██ ██      ██      ██    ██    ██   ██ ██      ██   ██ ██  ██  ██
+    ██   ██ ███████ ██ ███████    ██    ██   ██ ███████ ██   ██ ██      ██
 
 
-███    ██  ██████  ██████  ███████
-████   ██ ██    ██ ██   ██ ██
-██ ██  ██ ██    ██ ██   ██ █████
-██  ██ ██ ██    ██ ██   ██ ██
-██   ████  ██████  ██████  ███████
+    ███    ██  ██████  ██████  ███████
+    ████   ██ ██    ██ ██   ██ ██
+    ██ ██  ██ ██    ██ ██   ██ █████
+    ██  ██ ██ ██    ██ ██   ██ ██
+    ██   ████  ██████  ██████  ███████
     )" << std::endl; */
     PartitionConfig partition_config;
     std::string graph_filename;
@@ -292,7 +342,7 @@ int main(int argn, char **argv) {
 
     int &passes = partition_config.num_streams_passes;
     for (partition_config.restream_number = 0;
-         partition_config.restream_number < passes; partition_config.restream_number++) {
+        partition_config.restream_number < passes; partition_config.restream_number++) {
 
         // ***************************** IO operations ***************************************
         io_t.restart();
@@ -304,7 +354,8 @@ int main(int argn, char **argv) {
         buffer_io_time += io_t.elapsed();
         bucket_pq pq(static_cast<int>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1);
 
-        std::vector<buffer_item> node_id_to_buffer_item(partition_config.number_of_nodes, buffer_item(std::vector<LongNodeID>(0), UNDEFINED_LONGEDGE, 0));
+        // ex2_v1
+        std::vector<PQItem> node_id_to_buffer_item(partition_config.number_of_nodes);
 
         LongNodeID node_counter = 0;
         std::unique_ptr<buffered_input> ss2 = nullptr;
@@ -322,7 +373,7 @@ int main(int argn, char **argv) {
             partition_config.remaining_stream_nodes--;
             LongNodeID global_node_id = ++partition_config.total_nodes_loaded;
 
-            ASSERT_TRUE(global_node_id <= partition_config.number_of_nodes);
+            assert(global_node_id <= partition_config.number_of_nodes);
 
             ss2 = std::make_unique<buffered_input>(lines.get());
             ss2->simple_scan_line(cur_line);
@@ -337,41 +388,52 @@ int main(int argn, char **argv) {
                 updating_adj_t.restart();
 
                 // Update neighbors and clear buffer item
-                update_neighbours_priority(partition_config, cur_line, node_id_to_buffer_item, pq);
+                update_neighbours_priority(partition_config,
+                                           cur_line,
+                                           node_id_to_buffer_item,
+                                           pq);
                 updating_adj_time += updating_adj_t.elapsed();
-                node_id_to_buffer_item[global_node_id - 1].clear();
+
                 continue;
             } else if (pq.size() >= partition_config.max_pq_size) {
                 // Make space by removing node from queue by popping
                 if (partition_config.first_phase_buffer_len == 1) {
                     LongNodeID node_id_to_remove = pq.deleteMax();
-                    ASSERT_TRUE((*partition_config.stream_nodes_assign)[node_id_to_remove - 1] == INVALID_PARTITION);
+                    assert((*partition_config.stream_nodes_assign)[node_id_to_remove - 1] == INVALID_PARTITION);
 
                     // Partition the node
                     partitioning_t.restart();
-                    partition_node(partition_config, node_id_to_buffer_item[node_id_to_remove - 1].line);
+                    auto &line = *node_id_to_buffer_item[node_id_to_remove - 1].line;
+                    partition_node(partition_config, line);
                     partitioning_time += partitioning_t.elapsed();
                     updating_adj_t.restart();
 
                     // Update neighbors and clear buffer item
-                    update_neighbours_priority(partition_config, node_id_to_buffer_item[node_id_to_remove - 1].line, node_id_to_buffer_item, pq);
+                    update_neighbours_priority(partition_config,
+                                               line,
+                                               node_id_to_buffer_item,
+                                               pq);
                     updating_adj_time += updating_adj_t.elapsed();
-                    node_id_to_buffer_item[node_id_to_remove - 1].clear();
+                    node_id_to_buffer_item[node_id_to_remove - 1].make_invalid();
                 } else {
-                    loadTopNodesToBatch(partition_config, pq, node_id_to_buffer_item, input, partition_config.first_phase_buffer_len);
+                    loadTopNodesToBatch(partition_config,
+                                        pq,
+                                        node_id_to_buffer_item,
+                                        input,
+                                        partition_config.first_phase_buffer_len);
                     perform_mlp_on_batch(partition_config, input);
                 }
             }
 
             // Calculate priority of the node and push into BucketQueue
-            calc_buffer_score_t.restart();
-
+            // int num_adj_partitioned = 0;
             float buffer_score = calc_buffer_score(partition_config, cur_line, node_id_to_buffer_item[global_node_id - 1].num_adj_partitioned);
 
-            calc_buffer_score_time += calc_buffer_score_t.elapsed();
             pq.insert(global_node_id, discretize_score(partition_config, buffer_score));
-            node_id_to_buffer_item[global_node_id - 1].line = cur_line;
+
+            node_id_to_buffer_item[global_node_id - 1].line = new std::vector<LongNodeID>(cur_line);
             node_id_to_buffer_item[global_node_id - 1].buffer_score = buffer_score;
+
         }
         cur_line.clear();
         first_pass_time += first_pass_t.elapsed();
@@ -380,12 +442,15 @@ int main(int argn, char **argv) {
         second_pass_t.restart();
         while (!pq.empty()) {
             if (HEISTREAM_INTEGRATION_ENABLED) {
-                loadTopNodesToBatch(partition_config, pq, node_id_to_buffer_item, input, partition_config.second_phase_buffer_len);
-                // loadTopNodesAboveThresholdToBatch(partition_config, pq, node_id_to_buffer_item, input);
+                loadTopNodesToBatch(partition_config,
+                                    pq,
+                                    node_id_to_buffer_item,
+                                    input,
+                                    partition_config.second_phase_buffer_len);
                 perform_mlp_on_batch(partition_config, input);
             } else {
                 LongNodeID node_id_to_partition = pq.deleteMax();
-                ASSERT_TRUE((*partition_config.stream_nodes_assign)[node_id_to_partition - 1] == INVALID_PARTITION);
+                assert((*partition_config.stream_nodes_assign)[node_id_to_partition - 1] == INVALID_PARTITION);
 
                 bool is_already_partitioned = (*partition_config.stream_nodes_assign)[node_id_to_partition - 1] != INVALID_PARTITION;
                 if (is_already_partitioned) {
@@ -395,14 +460,17 @@ int main(int argn, char **argv) {
                 // Partition the node
                 partitioning_t.restart();
                 auto &buffer_item_to_be_partitioned = node_id_to_buffer_item[node_id_to_partition - 1];
-                partition_node(partition_config, buffer_item_to_be_partitioned.line);
+                partition_node(partition_config, *buffer_item_to_be_partitioned.line);
                 partitioning_time += partitioning_t.elapsed();
 
                 // Update neighbors and clear buffer item
                 updating_adj_t.restart();
-                update_neighbours_priority(partition_config, buffer_item_to_be_partitioned.line, node_id_to_buffer_item, pq);
+                update_neighbours_priority(partition_config,
+                                           *buffer_item_to_be_partitioned.line,
+                                           node_id_to_buffer_item,
+                                           pq);
                 updating_adj_time += updating_adj_t.elapsed();
-                buffer_item_to_be_partitioned.clear();
+                node_id_to_buffer_item[node_id_to_partition - 1].make_invalid();
             }
         }
         second_pass_time += second_pass_t.elapsed();
@@ -417,12 +485,12 @@ int main(int argn, char **argv) {
     FlatBufferWriter fb_writer;
 
     // Check if all nodes are assigned
-    for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] != INVALID_PARTITION);
-        // if ((*partition_config.stream_nodes_assign)[i] == INVALID_PARTITION) {
-        // 	std::cout << "Node " << i << " is not assigned." << std::endl;
-        // }
-    }
+    // for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
+    //     assert((*partition_config.stream_nodes_assign)[i] != INVALID_PARTITION);
+    //     // if ((*partition_config.stream_nodes_assign)[i] == INVALID_PARTITION) {
+    //     // 	std::cout << "Node " << i << " is not assigned." << std::endl;
+    //     // }
+    // }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
     fb_writer.updateVertexPartitionResults(total_edge_cut, qm.balance_full_stream(*partition_config.stream_blocks_weight));
@@ -507,41 +575,7 @@ std::string extractBaseFilename(const std::string &fullPath) {
     }
 }
 
-// Select top partition_config.second_phase_buffer_len number of nodes from bucket queues and load into the batch (input)
-void loadTopNodesToBatch(PartitionConfig &partition_config,
-                       bucket_pq &pq,
-                       std::vector<buffer_item> &node_id_to_buffer_item,
-                       std::vector<std::vector<LongNodeID>> *&input,
-                       LongNodeID batch_size) {
 
-    // Initialize the partition configuration
-    partition_config.nmbNodes = MIN(batch_size, pq.size());
-    // std::fill(partition_config.node_in_current_block->begin(), partition_config.node_in_current_block->end(), 0);
-
-    input = new std::vector<std::vector<LongNodeID>>(partition_config.nmbNodes);
-
-    // 1. Extract the top batch_size nodes from the queue
-    int node_counter = 0;
-    // std::cout << "##################### -------- LOADING NEW BATCH -------- #####################" << std::endl;
-    while (node_counter < partition_config.nmbNodes && !pq.empty()) {
-        LongNodeID node_id = pq.deleteMax();
-        ASSERT_TRUE((*partition_config.stream_nodes_assign)[node_id - 1] == INVALID_PARTITION);
-
-        (*partition_config.node_in_current_block)[node_id - 1] = 1;
-
-        auto &buffer_item = node_id_to_buffer_item[node_id - 1];
-
-        (*input)[node_counter] = buffer_item.line;
-
-        // Update neighbors and clear buffer item
-        update_neighbours_priority(partition_config, buffer_item.line, node_id_to_buffer_item, pq, false);
-
-        buffer_item.clear();
-
-        node_counter++;
-    }
-    // std::cout << std::endl;
-}
 
 // A function to do multi-level partitioning the nodes in the batch (input)
 void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::vector<LongNodeID>> *&input) {
