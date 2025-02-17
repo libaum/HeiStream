@@ -14,9 +14,51 @@
 
 #include "priority_queue_interface.h"
 
+const Count INVALID_POS = std::numeric_limits<Count>::max();
+const float INVALID_SCORE = std::numeric_limits<float>::max();
+
+class PQItem {
+        public:
+            float buffer_score;
+            std::vector<LongNodeID>* line;
+            int num_adj_partitioned;
+
+
+            PQItem()
+                : buffer_score(INVALID_SCORE),
+                num_adj_partitioned(0),
+                line(nullptr) {}
+
+            PQItem(std::vector<LongNodeID> &l, float buffer_score, int num_adj_partitioned)
+                : buffer_score(buffer_score),
+                num_adj_partitioned(num_adj_partitioned),
+                line(new std::vector<LongNodeID>(l)) {}
+
+            ~PQItem() {
+                if (line != nullptr)
+                    delete line;
+            }
+
+            void make_invalid() {
+                buffer_score = INVALID_SCORE;
+            }
+
+            bool is_valid() const {
+                return buffer_score != INVALID_SCORE;
+                // return line != nullptr;
+            }
+
+            void clean() {
+                if (line != nullptr) {
+                        delete line;
+                        line = nullptr;
+                }
+            }
+        };
+
 class bucket_pq : public priority_queue_interface {
         public:
-                bucket_pq( const EdgeWeight & gain_span );
+                bucket_pq( const EdgeWeight & gain_span, NodeID max_node_id );
 
                 ~bucket_pq() override = default;
 
@@ -42,11 +84,12 @@ class bucket_pq : public priority_queue_interface {
                 EdgeWeight m_gain_span;
                 unsigned   m_max_idx; //points to the non-empty bucket with the largest gain
 
-                std::unordered_map<NodeID, std::pair<Count, Gain> > m_queue_index;
+                // std::unordered_map<NodeID, std::pair<Count, Gain> > m_queue_index;
+                std::vector<std::pair<Count, Gain> > m_queue_index;
                 std::vector< std::vector<NodeID> >             m_buckets;
 };
 
-inline bucket_pq::bucket_pq( const EdgeWeight & gain_span_input ) {
+inline bucket_pq::bucket_pq( const EdgeWeight & gain_span_input, NodeID max_node_id ): m_queue_index(max_node_id, std::make_pair(INVALID_POS, 0)) {
         m_elements  = 0;
         m_gain_span = gain_span_input;
         m_max_idx   = 0;
@@ -88,7 +131,8 @@ inline NodeID bucket_pq::maxElement( ) {
 inline NodeID bucket_pq::deleteMax() {
        NodeID node = m_buckets[m_max_idx].back();
        m_buckets[m_max_idx].pop_back();
-       m_queue_index.erase(node);
+//        m_queue_index.erase(node);
+       m_queue_index[node].first = INVALID_POS;
 
        if( m_buckets[m_max_idx].size() == 0 ) {
              //update max_idx
@@ -123,7 +167,8 @@ inline void bucket_pq::changeKey(NodeID node, Gain new_gain) {
 }
 
 inline void bucket_pq::deleteNode(NodeID node) {
-        assert(m_queue_index.find(node) != m_queue_index.end());
+        // assert(m_queue_index.find(node) != m_queue_index.end());
+        assert(m_queue_index[node].first != INVALID_POS);
         Count in_bucket_idx = m_queue_index[node].first;
         Gain  old_gain      = m_queue_index[node].second;
         unsigned address    = old_gain;
@@ -149,11 +194,13 @@ inline void bucket_pq::deleteNode(NodeID node) {
         }
 
         m_elements--;
-        m_queue_index.erase(node);
+        // m_queue_index.erase(node);
+        m_queue_index[node].first = INVALID_POS;
 }
 
 inline bool bucket_pq::contains(NodeID node) {
-        return m_queue_index.find(node) != m_queue_index.end();
+        return m_queue_index[node].first != INVALID_POS;
+        // return m_queue_index.find(node) != m_queue_index.end();
 }
 
 

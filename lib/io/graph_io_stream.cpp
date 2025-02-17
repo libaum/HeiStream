@@ -6,6 +6,7 @@
  *****************************************************************************/
 
 #include "graph_io_stream.h"
+#include "data_structure/priority_queues/bucket_pq.h"
 #include "definitions.h"
 #include "timer.h"
 #include <chrono>
@@ -24,7 +25,7 @@ graph_io_stream::~graph_io_stream() {
 }
 
 NodeID
-graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<std::vector<LongNodeID>> *&input) {
+graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, std::vector<PQItem> &node_id_to_buffer_item) {
     NodeWeight total_nodeweight = 0;
     NodeID node_counter = 0;
     EdgeID edge_counter = 0;
@@ -48,7 +49,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     config.curr_batch++;
 
     if (config.ram_stream) {
-        cursor = input->size() - config.remaining_stream_nodes;
+        cursor = input_idxs->size() - config.remaining_stream_nodes;
     }
 
     if (nmbEdges > std::numeric_limits<EdgeWeight>::max() || config.nmbNodes > std::numeric_limits<LongNodeID>::max()) {
@@ -79,20 +80,15 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
     setupForGhostNeighbors(config);
 
-    if (config.local_to_global_map != nullptr) {
-        delete config.local_to_global_map;
-    }
-    config.local_to_global_map = new std::vector<NodeID>(config.nmbNodes, 0);
-    std::vector<NodeID> global_to_local_map(config.number_of_nodes, -1);
-    for (node_counter = 0; node_counter < config.nmbNodes; node_counter++) {
-        std::vector<LongNodeID> &line_numbers = (*input)[cursor];
-        if (line_numbers.size() == 0) {
-            cursor;
-        }
+    std::vector<NodeID> global_to_local_map(config.number_of_nodes, UNDEFINED_NODE);
+
+    std::vector<LongNodeID>& vec = *input_idxs;
+    for (LongNodeID global_node_id : vec) {
+        std::vector<LongNodeID> &line_numbers = *(node_id_to_buffer_item[global_node_id - 1].line);
+
         LongNodeID col_counter = 0;
         node = (NodeID)node_counter;
 
-        LongNodeID global_node_id = line_numbers[col_counter++];
         (*config.local_to_global_map)[node] = global_node_id;
         global_to_local_map[global_node_id - 1] = node;
 
@@ -132,10 +128,12 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
         (*config.node_in_current_block)[global_node_id - 1] = 2; // mark as processed
         cursor++;
+        node_counter++;
+        node_id_to_buffer_item[global_node_id - 1].clean();
     }
     std::fill(config.node_in_current_block->begin(), config.node_in_current_block->end(), 0);
     if (!config.ram_stream) {
-        delete input;
+        delete input_idxs;
     }
 
     NodeID uncontracted_ghost_nodes = mapGhostKeysToNodesInBatch(config, all_edges, all_nodes, all_assigned_ghost_nodes, node_counter);
