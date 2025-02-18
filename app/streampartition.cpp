@@ -235,6 +235,28 @@ void loadTopNodesToBatch(PartitionConfig &partition_config,
     }
 }
 
+void partition_top_node(PartitionConfig &partition_config, bucket_pq &pq, std::vector<PQItem> &node_id_to_buffer_item) {
+    LongNodeID node_id = pq.deleteMax();
+    assert((*partition_config.stream_nodes_assign)[node_id - 1] == INVALID_PARTITION);
+
+    // Partition the node
+    // partitioning_t.restart();
+    auto &line = *node_id_to_buffer_item[node_id - 1].line;
+    partition_node(partition_config, node_id, line);
+    // partitioning_time += partitioning_t.elapsed();
+
+    // Update neighbors and clear buffer item
+    // updating_adj_t.restart();
+    update_neighbours_priority(partition_config,
+                            line,
+                            node_id_to_buffer_item,
+                            pq);
+    // updating_adj_time += updating_adj_t.elapsed();
+
+    node_id_to_buffer_item[node_id - 1].make_invalid();
+    node_id_to_buffer_item[node_id - 1].clean();
+}
+
 long getMaxRSS();
 
 std::string extractBaseFilename(const std::string &fullPath);
@@ -314,7 +336,7 @@ int main(int argn, char **argv) {
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
 
         buffer_io_time += io_t.elapsed();
-        bucket_pq pq(static_cast<int>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1, partition_config.number_of_nodes);
+        bucket_pq pq(static_cast<int64_t>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1, partition_config.number_of_nodes);
 
         std::vector<PQItem> node_id_to_buffer_item(partition_config.number_of_nodes); // ex2_v1
 
@@ -327,6 +349,7 @@ int main(int argn, char **argv) {
         first_phase_t.restart();
 
         bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
+        // bool use_mlp = partition_config.stream_buffer_len != 1;
         while (partition_config.remaining_stream_nodes) {
 
             // Load a line from the stream
@@ -367,24 +390,7 @@ int main(int argn, char **argv) {
                                         partition_config.first_phase_buffer_len);
                     perform_mlp_on_batch(partition_config, input_idxs, node_id_to_buffer_item);
                 } else {
-                    LongNodeID node_id_to_remove = pq.deleteMax();
-                    assert((*partition_config.stream_nodes_assign)[node_id_to_remove - 1] == INVALID_PARTITION);
-
-                    // Partition the node
-                    partitioning_t.restart();
-                    auto &line = *node_id_to_buffer_item[node_id_to_remove - 1].line;
-                    partition_node(partition_config, node_id_to_remove, line);
-                    partitioning_time += partitioning_t.elapsed();
-                    updating_adj_t.restart();
-
-                    // Update neighbors and clear buffer item
-                    update_neighbours_priority(partition_config,
-                                            line,
-                                            node_id_to_buffer_item,
-                                            pq);
-                    updating_adj_time += updating_adj_t.elapsed();
-                    node_id_to_buffer_item[node_id_to_remove - 1].make_invalid();
-                    node_id_to_buffer_item[node_id_to_remove - 1].clean();
+                    partition_top_node(partition_config, pq, node_id_to_buffer_item);
                 }
             }
 
@@ -404,39 +410,18 @@ int main(int argn, char **argv) {
 
         second_phase_t.restart();
         bool useSecondPhaseBuffer = partition_config.second_phase_buffer_len != 1;
-        while (!pq.empty()) {
-            if ( useSecondPhaseBuffer ) {
+        if ( useSecondPhaseBuffer ) {
+            while (!pq.empty()) {
                 loadTopNodesToBatch(partition_config,
                                     pq,
                                     node_id_to_buffer_item,
                                     input_idxs,
                                     partition_config.second_phase_buffer_len);
                 perform_mlp_on_batch(partition_config, input_idxs, node_id_to_buffer_item);
-            } else {
-                LongNodeID node_id_to_partition = pq.deleteMax();
-                assert((*partition_config.stream_nodes_assign)[node_id_to_partition - 1] == INVALID_PARTITION);
-
-                bool is_already_partitioned = (*partition_config.stream_nodes_assign)[node_id_to_partition - 1] != INVALID_PARTITION;
-                if (is_already_partitioned) {
-                    continue;
-                }
-
-                // Partition the node
-                partitioning_t.restart();
-                auto &buffer_item_to_be_partitioned = node_id_to_buffer_item[node_id_to_partition - 1];
-                partition_node(partition_config, node_id_to_partition, *buffer_item_to_be_partitioned.line);
-                partitioning_time += partitioning_t.elapsed();
-
-                // Update neighbors and clear buffer item
-                updating_adj_t.restart();
-                update_neighbours_priority(partition_config,
-                                           *buffer_item_to_be_partitioned.line,
-                                           node_id_to_buffer_item,
-                                           pq);
-                updating_adj_time += updating_adj_t.elapsed();
-
-                node_id_to_buffer_item[node_id_to_partition - 1].make_invalid();
-                node_id_to_buffer_item[node_id_to_partition - 1].clean();
+            }
+        } else {
+            while (!pq.empty()) {
+                partition_top_node(partition_config, pq, node_id_to_buffer_item);
             }
         }
         second_phase_time += second_phase_t.elapsed();
