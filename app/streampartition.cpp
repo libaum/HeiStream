@@ -45,7 +45,7 @@ const int D_MAX = 1000;
 const bool PARTITION_ADJ_DIRECTLY_ENABLED = true;
 
 // Constants  for bucket queue
-const float MAX_BUFFER_SCORE = 3.0f;
+const float MAX_BUFFER_SCORE = 1 + THETA;
 
 
 
@@ -104,6 +104,7 @@ void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector
         assert(one_not_partitioned);
     }
 }
+
 
 
 // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
@@ -336,7 +337,7 @@ int main(int argn, char **argv) {
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
 
         buffer_io_time += io_t.elapsed();
-        bucket_pq pq(static_cast<int64_t>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1, partition_config.number_of_nodes);
+        bucket_pq pq(static_cast<int>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1, partition_config.number_of_nodes);
 
         std::vector<PQItem> node_id_to_buffer_item(partition_config.number_of_nodes); // ex2_v1
 
@@ -348,8 +349,8 @@ int main(int argn, char **argv) {
 
         first_phase_t.restart();
 
-        bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
-        // bool use_mlp = partition_config.stream_buffer_len != 1;
+        // bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
+        bool use_mlp = partition_config.stream_buffer_len != 1;
         while (partition_config.remaining_stream_nodes) {
 
             // Load a line from the stream
@@ -382,12 +383,12 @@ int main(int argn, char **argv) {
                 continue;
             } else if (pq.size() >= partition_config.max_pq_size) {
                 // Make space by removing node from queue by popping
-                if (useFirstPhaseBuffer) {
+                if (use_mlp) {
                     loadTopNodesToBatch(partition_config,
                                         pq,
                                         node_id_to_buffer_item,
                                         input_idxs,
-                                        partition_config.first_phase_buffer_len);
+                                        partition_config.stream_buffer_len);
                     perform_mlp_on_batch(partition_config, input_idxs, node_id_to_buffer_item);
                 } else {
                     partition_top_node(partition_config, pq, node_id_to_buffer_item);
@@ -409,14 +410,14 @@ int main(int argn, char **argv) {
 
 
         second_phase_t.restart();
-        bool useSecondPhaseBuffer = partition_config.second_phase_buffer_len != 1;
-        if ( useSecondPhaseBuffer ) {
+        // bool useSecondPhaseBuffer = partition_config.second_phase_buffer_len != 1;
+        if ( use_mlp ) {
             while (!pq.empty()) {
                 loadTopNodesToBatch(partition_config,
                                     pq,
                                     node_id_to_buffer_item,
                                     input_idxs,
-                                    partition_config.second_phase_buffer_len);
+                                    partition_config.stream_buffer_len);
                 perform_mlp_on_batch(partition_config, input_idxs, node_id_to_buffer_item);
             }
         } else {

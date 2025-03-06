@@ -28,11 +28,6 @@
            num_adj_partitioned(0),
            line(nullptr) {}
 
- //     PQItem(std::vector<LongNodeID> &l, float buffer_score, int num_adj_partitioned)
- //         : buffer_score(buffer_score),
- //           num_adj_partitioned(num_adj_partitioned),
- //           line(new std::vector<LongNodeID>(l)) {}
-
      ~PQItem() {
          if (line != nullptr)
              delete line;
@@ -94,6 +89,7 @@
 
  inline bucket_pq::bucket_pq(const EdgeWeight &gain_span_input, NodeID num_nodes)
      : m_elements(0), m_gain_span(gain_span_input), m_max_idx(0) {
+
 
      use_vector = (num_nodes < VECTOR_THRESHOLD);
 
