@@ -5,6 +5,7 @@
  * Christian Schulz <christian.schulz.phone@gmail.com>
  *****************************************************************************/
 
+ #include "data_structure/buffer.h"
 #include "graph_io_stream.h"
 #include "data_structure/priority_queues/bucket_pq.h"
 #include "definitions.h"
@@ -25,7 +26,7 @@ graph_io_stream::~graph_io_stream() {
 }
 
 NodeID
-graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, std::vector<PQItem> &node_id_to_buffer_item) {
+graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
     NodeWeight total_nodeweight = 0;
     NodeID node_counter = 0;
     EdgeID edge_counter = 0;
@@ -84,7 +85,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
     std::vector<LongNodeID>& vec = *input_idxs;
     for (LongNodeID global_node_id : vec) {
-        std::vector<LongNodeID> &line_numbers = *(node_id_to_buffer_item[global_node_id - 1].line);
+        std::vector<LongNodeID> &line_numbers = buffer.getLine(global_node_id);
 
         LongNodeID col_counter = 0;
         node = (NodeID)node_counter;
@@ -129,7 +130,8 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         (*config.node_in_current_block)[global_node_id - 1] = 2; // mark as processed
         cursor++;
         node_counter++;
-        node_id_to_buffer_item[global_node_id - 1].clean();
+        buffer.cleanLine(global_node_id);
+
     }
     std::fill(config.node_in_current_block->begin(), config.node_in_current_block->end(), 0);
     if (!config.ram_stream) {

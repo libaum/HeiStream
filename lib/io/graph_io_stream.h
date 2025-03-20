@@ -24,6 +24,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "data_structure/buffer.h"
 #include "data_structure/priority_queues/bucket_pq.h"
 #include "data_structure/buffered_map.h"
 #include "data_structure/graph_access.h"
@@ -42,7 +43,7 @@ public:
 
     virtual ~graph_io_stream();
 
-    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, std::vector<PQItem> &node_id_to_buffer_item);
+    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, Buffer &buffer);
 
     static void processNodeWeight(PartitionConfig &config, std::vector<NodeWeight> &all_nodes, NodeID node, NodeWeight weight, LongNodeID global_node);
 
