@@ -130,7 +130,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         (*config.node_in_current_block)[global_node_id - 1] = 2; // mark as processed
         cursor++;
         node_counter++;
-        buffer.cleanLine(global_node_id);
+        buffer.removeNode(global_node_id);
 
     }
     std::fill(config.node_in_current_block->begin(), config.node_in_current_block->end(), 0);
