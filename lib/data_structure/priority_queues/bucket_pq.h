@@ -21,42 +21,29 @@ class PQItem {
 public:
     float buffer_score;
     int num_adj_partitioned;
-    std::shared_ptr<std::vector<LongNodeID>> line; // Verwende shared_ptr statt raw pointer
-    //  std::vector<LongNodeID> *line;
+     std::vector<LongNodeID> line;
 
-    PQItem() : buffer_score(INVALID_SCORE), line(nullptr), num_adj_partitioned(0) {}
+    PQItem() : buffer_score(INVALID_SCORE) {}
 
     PQItem(float score, const std::vector<LongNodeID> &l, int adj_part)
-        : buffer_score(score), num_adj_partitioned(adj_part) {
-        line = std::make_shared<std::vector<LongNodeID>>(l); // Kopie erstellen und shared_ptr verwenden
+        : buffer_score(score), num_adj_partitioned(adj_part), line(l) {
     }
-
-    // PQItem(float buffer_score, std::vector<LongNodeID> &line, int num_adj_partitioned)
-    //     : buffer_score(buffer_score), num_adj_partitioned(num_adj_partitioned), line(new std::vector<LongNodeID>(line)) {}
-
-    //  PQItem()
-    //      : buffer_score(INVALID_SCORE),
-    //        num_adj_partitioned(0),
-    //        line(nullptr) {}
 
     //  ~PQItem() {
     //      if (line != nullptr)
     //          delete line;
     //  }
-    bool is_valid() const { return buffer_score != INVALID_SCORE; }
-    void make_invalid() {
-        // valid = false;
-        buffer_score = INVALID_SCORE;
+    bool is_valid() const {
+        return buffer_score != INVALID_SCORE;
     }
 
-    //  void make_invalid() {
-    //      buffer_score = INVALID_SCORE;
-    //  }
+    std::vector<LongNodeID> &get_line() {
+        return line;
+    }
 
-    //  bool is_valid() const {
-    //      return buffer_score != INVALID_SCORE;
-    //      // return line != nullptr;
-    //  }
+    void make_invalid() {
+        buffer_score = INVALID_SCORE;
+    }
 
     // void clean() { line.reset(); valid = false; }
 
@@ -106,8 +93,8 @@ private:
     std::vector<std::vector<LongNodeID>> m_buckets;
 };
 
-inline bucket_pq::bucket_pq(const EdgeWeight &gain_span_input, LongNodeID num_nodes)
-    : m_elements(0), m_gain_span(gain_span_input), m_max_idx(0) {
+inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes)
+    : m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0) {
 
     use_vector = (num_nodes < VECTOR_THRESHOLD);
 

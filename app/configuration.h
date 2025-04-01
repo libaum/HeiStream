@@ -486,7 +486,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         // Stream Partition
         partition_config.stream_input                      = false;
-        partition_config.stream_buffer_len                 = 32768;
+        partition_config.stream_buffer_len                 = 8192; //32768;
         partition_config.remaining_stream_nodes            = UNDEFINED_LONGNODE;
         partition_config.remaining_stream_edges            = UNDEFINED_LONGEDGE;
         partition_config.remaining_stream_ew               = 0;
@@ -542,11 +542,23 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.local_to_global_map                    = nullptr;
         partition_config.node_in_current_block                  = nullptr;
         partition_config.max_block_weight                       = 0;
+        partition_config.buffer_score_type                      = BUFFER_SCORE_CBS;
 
-        partition_config.first_phase_buffer_len             = 1;
-        partition_config.second_phase_buffer_len            = 32768;
-        partition_config.max_pq_size                       = 1000000;
-        partition_config.bq_disc_factor                    = 100;
+        partition_config.haa_hub_mode                           = HAA_NONADAPTIVE;
+        partition_config.haa_beta                       = 1.5;
+        partition_config.haa_beta_min                   = 1.0;
+        partition_config.haa_beta_max                   = 2.0;
+        partition_config.haa_tau                        = 50;
+        partition_config.haa_theta                      = 1.0;
+
+        partition_config.d_direct                       = 1000;
+
+        partition_config.first_phase_buffer_len         = 1;
+        partition_config.second_phase_buffer_len        = 8192; // 32768
+        partition_config.max_pq_size                    = 65536;
+        partition_config.bq_disc_factor                 = 100;
+        partition_config.gts_alpha                      = 0.1;
+        partition_config.d_max                          = 1000;
 
     // Stream Edge Partition
     partition_config.remaining_stream_nodes_OG = UNDEFINED_LONGNODE;    // new

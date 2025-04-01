@@ -18,6 +18,7 @@
 #include <sstream>
 #include <memory>
 #include <optional>
+#include <cmath>
 
 #include "balance_configuration.h"
 #include "data_structure/graph_access.h"
@@ -131,8 +132,12 @@ int main(int argn, char **argv) {
     double calc_buffer_score_time = 0;
 
     int &passes = partition_config.num_streams_passes;
+    partition_config.count_misc1 = 0;
+    partition_config.count_misc2 = 0;
     for (partition_config.restream_number = 0;
         partition_config.restream_number < passes; partition_config.restream_number++) {
+
+
 
         // ***************************** IO operations ***************************************
         io_t.restart();
@@ -175,16 +180,37 @@ int main(int argn, char **argv) {
             ss2->simple_scan_line(cur_line);
 
             int degree = cur_line.size();
-            if (degree > D_MAX || degree == 0) {
-                // Partition node directly if degree is too high or 0
-                partitioning_t.restart();
-                partition_single_node(partition_config, global_node_id, cur_line);
-                partitioning_time += partitioning_t.elapsed();
-                updating_adj_t.restart();
+            int d_max = partition_config.d_max * pow(((double) partition_config.remaining_stream_nodes / partition_config.number_of_nodes),  0.2);
 
-                // Update neighbors
-                buffer.update_neighbours_priority(cur_line);
-                updating_adj_time += updating_adj_t.elapsed();
+            int max_value = std::max(d_max, 500);
+            if (degree > partition_config.d_max || degree == 0) { //
+                // Partition node directly if degree is too high or 0
+                if (degree == 0) {
+                    // Put node into partition with lowest weight
+                    PartitionID best_partition = 0;
+                    LongNodeID min_weight = partition_config.max_block_weight;
+                    for (PartitionID i = 0; i < partition_config.k; i++) {
+                        if ((*partition_config.stream_blocks_weight)[i] < min_weight) {
+                            min_weight = (*partition_config.stream_blocks_weight)[i];
+                            best_partition = i;
+                        }
+                    }
+                    (*partition_config.stream_nodes_assign)[global_node_id - 1] = best_partition;
+                    (*partition_config.stream_blocks_weight)[best_partition]++;
+                } else {
+                    // Partition node directly
+                    partition_config.count_misc1++;
+                    partitioning_t.restart();
+                    partition_single_node(partition_config, global_node_id, cur_line, true);
+                    partitioning_time += partitioning_t.elapsed();
+                    updating_adj_t.restart();
+
+                    // Update neighbors
+                    buffer.update_neighbours_priority(cur_line);
+                    updating_adj_time += updating_adj_t.elapsed();
+                }
+
+
                 continue;
             } else if (buffer.size() >= partition_config.max_pq_size) {
                 // Make space by removing node from queue by popping
@@ -239,7 +265,8 @@ int main(int argn, char **argv) {
 
     double total_time_rounded = std::round(total_time * 100.0) / 100.0;
     std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << std::endl; // << " " << cnt_part_adj_directly << std::endl;
-
+    // std::cout << "Count Dmax part: " << partition_config.count_misc1 << std::endl;
+    // std::cout << "count total single part: " << partition_config.count_misc2 << std::endl;
     // write the partition to the disc
     std::stringstream filename;
     if (!partition_config.filename_output.compare("")) {

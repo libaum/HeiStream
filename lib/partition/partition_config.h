@@ -29,10 +29,29 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
+        int count_misc1;
+        int count_misc2;
+
+
+        BufferScoreType buffer_score_type;
+        double gts_alpha;
+        unsigned d_max;
+
+        HAAHubMode haa_hub_mode; // (nonadaptive|incforhubs|decforhubs)
+        float haa_beta; // starting beta value for haa
+        float haa_beta_min; // only relevant for incforhubs and decforhubs
+        float haa_beta_max; // only relevant for incforhubs and decforhubs
+        float haa_theta;
+        int haa_tau;
+
+        int d_direct;
+
+        float avg_degree;
+
         LongNodeID max_block_weight;
 
         LongNodeID total_nodes_loaded;
-        unsigned number_of_nodes;
+        LongNodeID number_of_nodes;
 
         std::vector<NodeID> *local_to_global_map;
         std::vector<unsigned> *node_in_current_block;
@@ -41,6 +60,7 @@ struct PartitionConfig
         LongNodeID second_phase_buffer_len;
         LongNodeID max_pq_size;
         int bq_disc_factor;
+
 
         //============================================================
         //=======================MATCHING=============================

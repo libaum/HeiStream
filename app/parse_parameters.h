@@ -207,10 +207,22 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *automatic_buffer_len		     = arg_lit0(NULL, "automatic_buffer_len", "Automatically choose buffer size for fastest performance. (Default: disabled)");
         struct arg_int *xxx				     = arg_int0(NULL, "xxx", NULL, "tuning factor for size of coarsest graph. Default 4.");
 
-        struct arg_int *first_phase_buffer                    = arg_int0(NULL, "first_phase_buffer", NULL, "Buffer size (number of nodes) of first pass partitioning if priority queue is full. Default 1.");
-        struct arg_int *second_phase_buffer                   = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
-        struct arg_int *max_pq_size                          = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
-        struct arg_int *bq_disc_factor                       = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
+        struct arg_int *first_phase_buffer              = arg_int0(NULL, "first_phase_buffer", NULL, "Buffer size (number of nodes) of first pass partitioning if priority queue is full. Default 1.");
+        struct arg_int *second_phase_buffer             = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
+        struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
+        struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
+        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|cbs3|anc|cms|nss|gts). Default: cbs" );
+        struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
+
+        struct arg_str *haa_hub_mode                    = arg_str0(NULL, "haa_hub_mode", NULL, "Mode for HAA (nonadaptive|incforhubs|decforhubs). Default: nonadaptive" );
+        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 1.5.");
+        struct arg_dbl *haa_beta_min                    = arg_dbl0(NULL, "haa_beta_min", NULL, "Min beta parameter for haa buffer score. Default 1.0.");
+        struct arg_dbl *haa_beta_max                    = arg_dbl0(NULL, "haa_beta_max", NULL, "Max beta parameter for haa buffer score. Default 2.0.");
+        struct arg_int *haa_tau                         = arg_int0(NULL, "haa_tau", NULL, "Tau value for HAA: Default 50.");
+        struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "haa_theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
+
+        struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
+        struct arg_int *d_max                           = arg_int0(NULL, "d_max", NULL, "Maximum degree to be inserted into queue. Default 1000.");
 
 
         // Stream Edge Partition
@@ -298,12 +310,24 @@ int parse_parameters(int argn, char **argv,
                 stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
                 initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx, benchmark,
                 light_evaluator, label_propagation_iterations, label_propagation_iterations_refinement, graph_translation_specs, no_relabel,
-                input_header_absent, end, first_phase_buffer, second_phase_buffer, max_pq_size, bq_disc_factor,
+                input_header_absent, end, first_phase_buffer, second_phase_buffer,
                 max_flow_improv_steps, max_initial_ns_tries, region_factor_node_separators,
                 most_balanced_flows_node_sep, sep_flows_disabled, sep_fm_disabled, sep_loc_fm_disabled, sep_greedy_disabled,
                 sep_fm_unsucc_steps, sep_num_fm_reps, sep_loc_fm_unsucc_steps, sep_num_loc_fm_reps, sep_loc_fm_no_snodes,
                 sep_num_vert_stop, sep_full_boundary_ip, sep_edge_rating_during_ip, sep_faster_ns, convert_direct, use_queue, dynamic_alpha, batch_alpha,
-                minimal_mode, include_weights, parallel_nodes, num_split_edges, past_subset_size, tau, reps, filename_output, cluster_upperbound
+                minimal_mode, include_weights, parallel_nodes, num_split_edges, past_subset_size, tau, reps, filename_output, cluster_upperbound,
+                max_pq_size,
+                bq_disc_factor,
+                buffer_score,
+                haa_hub_mode,
+                gts_alpha,
+                d_max,
+                haa_beta,
+                haa_beta_min,
+                haa_beta_max,
+                haa_tau,
+                d_direct,
+                haa_theta
         };
 
 
@@ -370,6 +394,16 @@ int parse_parameters(int argn, char **argv,
                 second_phase_buffer,
                 max_pq_size,
                 bq_disc_factor,
+                buffer_score,
+                haa_hub_mode,
+                gts_alpha,
+                haa_beta,
+                haa_beta_min,
+                haa_beta_max,
+                haa_tau,
+                d_direct,
+                haa_theta,
+                d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
                 preconfiguration,
@@ -1547,6 +1581,79 @@ int parse_parameters(int argn, char **argv,
         if(bq_disc_factor->count > 0) {
                 partition_config.bq_disc_factor = bq_disc_factor->ival[0];
         }
+
+        if(gts_alpha->count > 0) {
+                partition_config.gts_alpha = gts_alpha->dval[0];
+        }
+
+        if(haa_beta->count > 0) {
+                partition_config.haa_beta = haa_beta->dval[0];
+        }
+
+        if(haa_beta_min->count > 0) {
+                partition_config.haa_beta_min = haa_beta_min->dval[0];
+        }
+
+        if(haa_beta_max->count > 0) {
+                partition_config.haa_beta_max = haa_beta_max->dval[0];
+        }
+
+        if(haa_theta->count > 0) {
+                partition_config.haa_theta = haa_theta->dval[0];
+        }
+
+        if(haa_tau->count > 0) {
+                partition_config.haa_tau = haa_tau->ival[0];
+        }
+
+        if(d_direct->count > 0) {
+                partition_config.d_direct = d_direct->ival[0];
+        }
+
+
+        if (haa_hub_mode->count > 0) {
+                if(strcmp("nonadaptive", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_NONADAPTIVE;
+                } else if (strcmp("incforhubs", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_INC_FOR_HUBS;
+                } else if (strcmp("decforhubs", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_DEC_FOR_HUBS;
+                } else {
+                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        exit(0);
+                }
+        }
+
+        if(d_max->count > 0) {
+                partition_config.d_max = d_max->ival[0];
+        }
+
+        if (buffer_score->count > 0) {
+                if(strcmp("cbs", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_CBS;
+                } else if (strcmp("cbs2", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_CBS2;
+                } else if (strcmp("cbs3", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_CBS3;
+                } else if (strcmp("anc", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_ANC;
+                } else if (strcmp("anc2", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_ANC2;
+                } else if (strcmp("haa", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_HAA;
+                } else if (strcmp("cms", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_CMS;
+                } else if (strcmp("nss", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_NSS;
+                } else if (strcmp("gts", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_GTS;
+                } else {
+                        fprintf(stderr, "Invalid buffer score variant: \"%s\"\n", buffer_score->sval[0]);
+                        exit(0);
+                }
+        }
+
+
 
         if(use_fennel_objective->count > 0) {
                 partition_config.use_fennel_objective = true;
