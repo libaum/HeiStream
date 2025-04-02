@@ -288,9 +288,6 @@ int main(int argn, char **argv) {
     if (partition_config.add_blocks_weight != NULL) {
         delete partition_config.add_blocks_weight;
     }
-    if (partition_config.node_in_current_block != nullptr) {
-        delete partition_config.node_in_current_block;
-    }
     if (partition_config.stream_nodes_assign != NULL) {
         delete partition_config.stream_nodes_assign;
     }

@@ -442,6 +442,10 @@ public:
         config.nmbNodes = MIN(batch_size, pq.size());
         input_idxs = new std::vector<LongNodeID>(config.nmbNodes);
 
+        config.node_in_current_block_set = new google::dense_hash_set<LongNodeID>();
+        config.node_in_current_block_set->set_empty_key(UNDEFINED_LONGNODE);
+        config.node_in_current_block_set->resize(config.nmbNodes);
+
         // Extract the top batch_size number of nodes from the queue
         int node_counter = 0;
         while (node_counter < config.nmbNodes && !pq.empty()) {
@@ -464,7 +468,6 @@ public:
 
             }
 
-            (*config.node_in_current_block)[node_id - 1] = 1;
 
             // Update neighbors and make buffer item invalid
             update_neighbours_priority(buffer_item.get_line(), false);
@@ -472,7 +475,7 @@ public:
 
             // Add the node to the batch
             (*input_idxs)[node_counter] = node_id;
-            // node_id_to_buffer_item[node_id - 1].make_invalid();
+            config.node_in_current_block_set->insert(node_id);
             node_counter++;
         }
 

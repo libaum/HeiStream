@@ -54,7 +54,7 @@ struct PartitionConfig
         LongNodeID number_of_nodes;
 
         std::vector<NodeID> *local_to_global_map;
-        std::vector<unsigned> *node_in_current_block;
+        google::dense_hash_set<LongNodeID> *node_in_current_block_set;
 
         LongNodeID first_phase_buffer_len;
         LongNodeID second_phase_buffer_len;
