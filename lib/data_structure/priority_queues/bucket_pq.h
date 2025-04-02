@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "definitions.h"
 #include "priority_queue_interface.h"
 
 const unsigned INVALID_POS = std::numeric_limits<unsigned>::max();
@@ -57,7 +58,7 @@ public:
 
 class bucket_pq {
 public:
-    bucket_pq(const EdgeWeight &gain_span, LongNodeID max_node_id);
+    bucket_pq(const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size);
 
     ~bucket_pq() = default;
 
@@ -89,17 +90,19 @@ private:
     // Hybrid data structure
     std::vector<std::pair<NodeID, unsigned>> m_queue_index_vec;
     std::unordered_map<LongNodeID, std::pair<NodeID, unsigned>> m_queue_index_map;
-    //  std::unordered_map<LongNodeID, std::pair<unsigned, unsigned>> m_queue_index_map;
     std::vector<std::vector<LongNodeID>> m_buckets;
 };
 
-inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes)
+inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size)
     : m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0) {
 
     use_vector = (num_nodes < VECTOR_THRESHOLD);
 
     if (use_vector) {
         m_queue_index_vec.resize(num_nodes, std::make_pair(INVALID_POS, 0));
+    } else {
+        m_queue_index_map.reserve(max_pq_size);
+        m_queue_index_map.max_load_factor(0.7f);
     }
     m_buckets.resize(m_gain_span);
 }
@@ -121,8 +124,9 @@ inline void bucket_pq::insert(LongNodeID node, unsigned buffer_score) {
         m_queue_index_vec[node].first = m_buckets[address].size() - 1; // store position
         m_queue_index_vec[node].second = buffer_score;
     } else {
-        m_queue_index_map[node].first = m_buckets[address].size() - 1; // store position
-        m_queue_index_map[node].second = buffer_score;
+        m_queue_index_map.insert(
+            std::make_pair(node, std::make_pair(m_buckets[address].size() - 1, buffer_score))
+        );
     }
 
     m_elements++;
@@ -168,7 +172,7 @@ inline void bucket_pq::decreaseKey(LongNodeID node, unsigned new_buffer_score) {
 }
 
 inline void bucket_pq::increaseKey(LongNodeID node, unsigned new_buffer_score) {
-    assert(0 <= new_buffer_score && new_buffer_score <= m_gain_span);
+    assert(0 <= new_buffer_score && new_buffer_score < m_gain_span);
     changeKey(node, new_buffer_score);
 }
 

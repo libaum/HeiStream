@@ -123,7 +123,7 @@ public:
     Buffer(PartitionConfig &partition_config)
         :   config(partition_config),
             pq(static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
-                partition_config.number_of_nodes) {
+                partition_config.number_of_nodes, partition_config.max_pq_size) {
           // node_id_to_buffer_item(partition_config.number_of_nodes),
         // node_id_to_buffer_item2.set_deleted_key("");
         // node_id_to_buffer_item2.set_empty_key(-1);
