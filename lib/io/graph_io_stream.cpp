@@ -90,7 +90,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
     std::vector<LongNodeID>& vec = *input_idxs;
     for (LongNodeID global_node_id : vec) {
-        std::vector<LongNodeID> &line_numbers = buffer.getLine(global_node_id);
+        std::vector<LongNodeID> &line_numbers = buffer.get_adjacents(global_node_id);
 
         LongNodeID col_counter = 0;
         node = (NodeID)node_counter;
@@ -135,7 +135,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
         // cursor++;
         node_counter++;
-        buffer.removeNode(global_node_id);
+        buffer.completely_remove_node(global_node_id);
     }
 
     if (!config.ram_stream) {

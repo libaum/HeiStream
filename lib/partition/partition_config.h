@@ -59,7 +59,7 @@ struct PartitionConfig
         LongNodeID first_phase_buffer_len;
         LongNodeID second_phase_buffer_len;
         LongNodeID max_pq_size;
-        int bq_disc_factor;
+        unsigned bq_disc_factor;
 
 
         //============================================================
