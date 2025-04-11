@@ -1,5 +1,5 @@
 /******************************************************************************
- * graph_hierarchy.cpp 
+ * graph_hierarchy.cpp
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -9,7 +9,7 @@
 #include<map>
 #include<vector>
 
-graph_hierarchy::graph_hierarchy() : m_current_coarser_graph(NULL), 
+graph_hierarchy::graph_hierarchy() : m_current_coarser_graph(NULL),
                                      m_current_coarse_mapping(NULL){
 
 }
@@ -37,17 +37,17 @@ graph_access* graph_hierarchy::pop_finer_and_project(PartitionConfig & config, b
         graph_access* finer = pop_coarsest();
 
         CoarseMapping* coarse_mapping = m_the_mappings.top(); // mapps finer to coarser nodes
-        m_the_mappings.pop(); 
+        m_the_mappings.pop();
 
         if(finer == m_coarsest_graph) {
                 m_current_coarser_graph = finer;
                 finer = pop_coarsest();
                 finer->set_partition_count(m_current_coarser_graph->get_partition_count());
-               
-                coarse_mapping = m_the_mappings.top(); 
+
+                coarse_mapping = m_the_mappings.top();
                 m_the_mappings.pop();
         }
-        
+
         ASSERT_EQ(m_the_graph_hierarchy.size(), m_the_mappings.size());
 
         //perform projection
@@ -65,24 +65,24 @@ graph_access* graph_hierarchy::pop_finer_and_project(PartitionConfig & config, b
         finer->set_partition_count(m_current_coarser_graph->get_partition_count());
         m_current_coarser_graph = finer;
 
-        return finer;                
+        return finer;
 }
 
 graph_access* graph_hierarchy::pop_finer_and_project_ns( PartialBoundary & separator ) {
         graph_access* finer = pop_coarsest();
 
         CoarseMapping* coarse_mapping = m_the_mappings.top(); // mapps finer to coarser nodes
-        m_the_mappings.pop(); 
+        m_the_mappings.pop();
 
         if(finer == m_coarsest_graph) {
                 m_current_coarser_graph = finer;
                 finer = pop_coarsest();
                 finer->set_partition_count(m_current_coarser_graph->get_partition_count());
-               
-                coarse_mapping = m_the_mappings.top(); 
+
+                coarse_mapping = m_the_mappings.top();
                 m_the_mappings.pop();
         }
-        
+
         ASSERT_EQ(m_the_graph_hierarchy.size(), m_the_mappings.size());
 
 	separator.clear();
@@ -100,28 +100,28 @@ graph_access* graph_hierarchy::pop_finer_and_project_ns( PartialBoundary & separ
         finer->set_partition_count(m_current_coarser_graph->get_partition_count());
         m_current_coarser_graph = finer;
 
-        return finer;                
+        return finer;
 }
 
 CoarseMapping * graph_hierarchy::get_mapping_of_current_finer() {
-        return m_current_coarse_mapping; 
+        return m_current_coarse_mapping;
 }
 
 graph_access* graph_hierarchy::get_coarsest( ) {
-        return m_coarsest_graph;                
+        return m_coarsest_graph;
 }
 
 graph_access* graph_hierarchy::pop_coarsest( ) {
-        graph_access* current_coarsest = m_the_graph_hierarchy.top(); 
+        graph_access* current_coarsest = m_the_graph_hierarchy.top();
         m_the_graph_hierarchy.pop();
-        return current_coarsest;                
+        return current_coarsest;
 }
 
 bool graph_hierarchy::isEmpty( ) {
         ASSERT_EQ(m_the_graph_hierarchy.size(), m_the_mappings.size());
-        return m_the_graph_hierarchy.empty();        
+        return m_the_graph_hierarchy.empty();
 }
 
 unsigned int graph_hierarchy::size() {
-        return m_the_graph_hierarchy.size();        
+        return m_the_graph_hierarchy.size();
 }

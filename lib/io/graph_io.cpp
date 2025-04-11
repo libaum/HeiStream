@@ -132,7 +132,7 @@ int graph_io::readEdgeStreamToGraph(graph_access & G, const std::string & filena
 				std::cerr <<  "Nodes need to be relabeled for this input."  << std::endl;
 				exit(0);
 			}
-		}	
+		}
 
 //std::cout << x << " " << y << "\n";
 		if (neighbors[real_x].find(real_y) == neighbors[real_x].end()) {
@@ -143,17 +143,17 @@ int graph_io::readEdgeStreamToGraph(graph_access & G, const std::string & filena
 			neighbors[real_y].insert(real_x);
 			num_edges++;
 		}
-	} 
+	}
 
 	nmbEdges = num_edges;
         if( nmbEdges > std::numeric_limits<int>::max() || nmbNodes > std::numeric_limits<int>::max() ) {
                 std::cerr <<  "The graph is too large. Currently only 32bit supported!"  << std::endl;
                 exit(0);
         }
-	
+
 	G.start_construction(nmbNodes, nmbEdges);
 	for( i = 0 ; i < nmbNodes ; i++) {
-                NodeID node = G.new_node(); 
+                NodeID node = G.new_node();
                 G.setPartitionIndex(node, 0);
                 NodeWeight weight = 1;
                 G.setNodeWeight(node, weight);
@@ -222,17 +222,17 @@ int graph_io::readMatrixToGraph(PartitionConfig & config, graph_access & G, cons
 		x = config.matrix_nnz + colindices[i];
 		neighbors[i].push_back(x);
 		neighbors[x].push_back(i);
-		
+
 		y = config.matrix_nnz + config.matrix_n + rowindices[i];
 		neighbors[i].push_back(y);
 		neighbors[y].push_back(i);
-	} 
+	}
 
 	nmbNodes = config.matrix_nnz + config.matrix_m + config.matrix_n;
 	nmbEdges = 4*config.matrix_nnz;
 	G.start_construction(nmbNodes, nmbEdges);
 	for( i = 0 ; i < nmbNodes ; i++) {
-                NodeID node = G.new_node(); 
+                NodeID node = G.new_node();
                 G.setPartitionIndex(node, 0);
                 NodeWeight weight = 1;
                 G.setNodeWeight(node, weight);
@@ -243,7 +243,7 @@ int graph_io::readMatrixToGraph(PartitionConfig & config, graph_access & G, cons
                         G.setEdgeWeight(e, edge_weight);
                 }
         }
-	
+
 	free(rowindices);
 	free(colindices);
 	return;
@@ -414,7 +414,7 @@ void graph_io::writeSpMxVPartition(PartitionConfig & config, graph_access & G, c
         std::cout << "writing partition to " << filename << "NZ" << " ... " << std::endl;
 	while (node < config.matrix_nnz) {
                 f1 << G.getPartitionIndex(node++) <<  "\n";
-        } 
+        }
         f1.close();
 
         std::ofstream f2(filename+"IN");

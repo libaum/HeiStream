@@ -1,5 +1,5 @@
 /******************************************************************************
- * complete_boundary.cpp 
+ * complete_boundary.cpp
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -22,7 +22,7 @@ complete_boundary::complete_boundary(graph_access * G) {
 complete_boundary::~complete_boundary() {
 }
 
-void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair * pair, 
+void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair * pair,
                                                      bool update_edge_cuts, bool update_all_boundaries) {
 
         graph_access & G = *m_graph_ref;
@@ -37,7 +37,7 @@ void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair 
                 PartitionID targetPartition = G.getPartitionIndex(target);
 
                 if(update_all_boundaries || targetPartition != to ) {
-                        //delete 
+                        //delete
                         boundary_pair delete_bp;
                         delete_bp.k   = m_graph_ref->get_partition_count();
                         delete_bp.lhs = from;
@@ -50,10 +50,10 @@ void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair 
                                 bool target_is_still_incident = false;
                                 //this should only be delete if there is other incident partition
                                 forall_out_edges(G, t_e, target) {
-                                        NodeID targets_target = G.getEdgeTarget(t_e); 
-                                        NodeID targets_target_partition = G.getPartitionIndex(targets_target); 
+                                        NodeID targets_target = G.getEdgeTarget(t_e);
+                                        NodeID targets_target_partition = G.getPartitionIndex(targets_target);
                                         if(targets_target_partition == from) {
-                                                //since partition index of node is to it cant be node, and this edge is 
+                                                //since partition index of node is to it cant be node, and this edge is
                                                 //a widness that target can remain in this boundary
                                                 target_is_still_incident = true;
                                                 break;
@@ -64,7 +64,7 @@ void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair 
                                         deleteNode(target, targetPartition, &delete_bp);
 
                                 if(update_edge_cuts) {
-                                        m_pairs[delete_bp].edge_cut -= edge_weight;    
+                                        m_pairs[delete_bp].edge_cut -= edge_weight;
                                 }
                         }
 
@@ -76,15 +76,15 @@ void complete_boundary::postMovedBoundaryNodeUpdates(NodeID node, boundary_pair 
                                 insert_bp.rhs = targetPartition;
 
                                 insert(node, to, &insert_bp);
-                                insert(target, targetPartition, &insert_bp); 
+                                insert(target, targetPartition, &insert_bp);
 
                                 if(update_edge_cuts) {
-                                        m_pairs[insert_bp].edge_cut += edge_weight;    
+                                        m_pairs[insert_bp].edge_cut += edge_weight;
                                 }
                         }
-                } 
+                }
         } endfor
-}      
+}
 
 void complete_boundary::balance_singletons(const PartitionConfig & config, graph_access & G) {
         for( unsigned i = 0; i < m_singletons.size(); i++) {
@@ -129,7 +129,7 @@ void complete_boundary::balance_singletons_het_bal(const PartitionConfig & confi
 			continue;
 		}
 
-                if( m_block_infos[p].block_weight + G.getNodeWeight(node) <= config.target_weights[p]) {
+                if( m_block_infos[p].block_weight + G.getNodeWeight(node) <= (unsigned) config.target_weights[p]) {
                         m_block_infos[G.getPartitionIndex(node)].block_weight -= G.getNodeWeight(node);
                         m_block_infos[p].block_weight += G.getNodeWeight(node);
                         G.setPartitionIndex(node, p);

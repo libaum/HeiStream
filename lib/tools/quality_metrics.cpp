@@ -1,5 +1,5 @@
 /******************************************************************************
- * quality_metrics.cpp 
+ * quality_metrics.cpp
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -69,7 +69,7 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
         EdgeWeight interiorEdges = 0;
 	int k = G.get_partition_count();
 	std::vector<int> weights(k,0);
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = partition_map[n];
 		weights[partitionIDSource] = G.getNodeWeight(n);
                 forall_out_edges(G, e, n) {
@@ -79,7 +79,7 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
                         if (partitionIDSource == partitionIDTarget) {
                                 interiorEdges += G.getEdgeWeight(e);
                         }
-                } endfor 
+                } endfor
         } endfor
 	double alpha_gamma = fennel_gamma * fennel_alpha;
         double objective = 0;
@@ -95,7 +95,7 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
         EdgeWeight interiorEdges = 0;
 	int k = G.get_partition_count();
 	std::vector<int> weights(k,0);
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = G.getPartitionIndex(n);
 		weights[partitionIDSource] = G.getNodeWeight(n);
                 forall_out_edges(G, e, n) {
@@ -105,7 +105,7 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
                         if (partitionIDSource == partitionIDTarget) {
                                 interiorEdges += G.getEdgeWeight(e);
                         }
-                } endfor 
+                } endfor
         } endfor
 	double alpha_gamma = fennel_gamma * fennel_alpha;
         double objective = 0;
@@ -133,7 +133,7 @@ EdgeWeight quality_metrics::ghost_edge_cut(const PartitionConfig & config, graph
 
 EdgeWeight quality_metrics::edge_cut(graph_access & G) {
         EdgeWeight edgeCut = 0;
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = G.getPartitionIndex(n);
                 forall_out_edges(G, e, n) {
                         NodeID targetNode = G.getEdgeTarget(e);
@@ -142,17 +142,17 @@ EdgeWeight quality_metrics::edge_cut(graph_access & G) {
                         if (partitionIDSource != partitionIDTarget) {
                                 edgeCut += G.getEdgeWeight(e);
                         }
-                } endfor 
+                } endfor
         } endfor
         return edgeCut/2;
 }
 
-EdgeWeight quality_metrics::edge_cut_full_stream(const PartitionConfig & config, graph_access & G, 
+EdgeWeight quality_metrics::edge_cut_full_stream(const PartitionConfig & config, graph_access & G,
 						std::vector<std::vector<EdgeWeight>> & edges_virtualReal) {
 	PartitionID partitionIDSource = 0;
         EdgeWeight edgeCut = 0;
 	int blocks = edges_virtualReal[0].size();
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
 		if (n >= config.nmbNodes) {
 			break;
 		}
@@ -168,7 +168,7 @@ EdgeWeight quality_metrics::edge_cut_full_stream(const PartitionConfig & config,
 
 EdgeWeight quality_metrics::edge_cut(graph_access & G, int * partition_map) {
         EdgeWeight edgeCut = 0;
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = partition_map[n];
                 forall_out_edges(G, e, n) {
                         NodeID targetNode = G.getEdgeTarget(e);
@@ -177,14 +177,14 @@ EdgeWeight quality_metrics::edge_cut(graph_access & G, int * partition_map) {
                         if (partitionIDSource != partitionIDTarget) {
                                 edgeCut += G.getEdgeWeight(e);
                         }
-                } endfor 
+                } endfor
         } endfor
         return edgeCut/2;
 }
 
 EdgeWeight quality_metrics::edge_cut(graph_access & G, PartitionID lhs, PartitionID rhs) {
         EdgeWeight edgeCut = 0;
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = G.getPartitionIndex(n);
                 if(partitionIDSource != lhs) continue;
                 forall_out_edges(G, e, n) {
@@ -194,7 +194,7 @@ EdgeWeight quality_metrics::edge_cut(graph_access & G, PartitionID lhs, Partitio
                         if(partitionIDTarget == rhs) {
                                 edgeCut += G.getEdgeWeight(e);
                         }
-                } endfor 
+                } endfor
         } endfor
         return edgeCut;
 }
@@ -202,7 +202,7 @@ EdgeWeight quality_metrics::edge_cut(graph_access & G, PartitionID lhs, Partitio
 EdgeWeight quality_metrics::edge_cut_connected(graph_access & G, int * partition_map) {
         EdgeWeight edgeCut = 0;
         EdgeWeight sumEW = 0;
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = partition_map[n];
                 forall_out_edges(G, e, n) {
                         NodeID targetNode = G.getEdgeTarget(e);
@@ -212,14 +212,14 @@ EdgeWeight quality_metrics::edge_cut_connected(graph_access & G, int * partition
                                 edgeCut += G.getEdgeWeight(e);
                         }
                         sumEW+=G.getEdgeWeight(e);
-                } endfor 
+                } endfor
         } endfor
         union_find uf(G.number_of_nodes());
         forall_nodes(G, node) {
                 forall_out_edges(G, e, node) {
                         NodeID target = G.getEdgeTarget(e);
                         if(partition_map[node] == partition_map[target]) {
-                                uf.Union(node, target); 
+                                uf.Union(node, target);
                         }
                 } endfor
         } endfor
@@ -337,7 +337,7 @@ EdgeWeight quality_metrics::total_communication_volume(graph_access & G) {
 
 int quality_metrics::boundary_nodes(graph_access& G) {
         int no_of_boundary_nodes = 0;
-        forall_nodes(G, n) { 
+        forall_nodes(G, n) {
                 PartitionID partitionIDSource = G.getPartitionIndex(n);
 
                 forall_out_edges(G, e, n) {
@@ -346,9 +346,9 @@ int quality_metrics::boundary_nodes(graph_access& G) {
 
                         if (partitionIDSource != partitionIDTarget) {
                                 no_of_boundary_nodes++;
-                                break; 
+                                break;
                         }
-                } endfor 
+                } endfor
         }       endfor
         return no_of_boundary_nodes;
 }
