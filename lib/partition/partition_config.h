@@ -51,7 +51,7 @@ struct PartitionConfig
 
         bool parallel_mlp;
 
-        int d_direct;
+        unsigned d_direct;
 
         int param_int1;
         int param_int2;

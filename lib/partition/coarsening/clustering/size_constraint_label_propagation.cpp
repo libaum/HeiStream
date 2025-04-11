@@ -264,7 +264,7 @@ void size_constraint_label_propagation::cluster_isolated_nodes(const PartitionCo
 			continue;
 		}
 		combined[it] = true;
-		for (int it2 = it+1; it2 < isolated_nodes.size(); it2++) {
+		for (unsigned it2 = it+1; it2 < isolated_nodes.size(); it2++) {
 			target = isolated_nodes[it2];
 			if (combined[it2]) {
 				continue;

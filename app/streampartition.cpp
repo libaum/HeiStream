@@ -61,6 +61,9 @@ void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector
         }
     }
     if (!all_should_be_partitioned) {
+        if (one_not_partitioned) {
+            std::cout << "Node " << line[0] << " has neighbors that are not partitioned" << std::endl;
+        }
         assert(one_not_partitioned);
     }
 }
@@ -90,7 +93,7 @@ int main(int argn, char **argv) {
     timer t, processing_t, io_t, model_t;
     EdgeWeight total_edge_cut = 0;
     double global_mapping_time = 0;
-    double buffer_mapping_time = 0;
+    // double buffer_mapping_time = 0;
     double buffer_io_time = 0;
     double model_construction_time = 0;
     quality_metrics qm;
@@ -128,7 +131,7 @@ int main(int argn, char **argv) {
     double second_phase_time = 0;
     double updating_adj_time = 0;
     double partitioning_time = 0;
-    double calc_buffer_score_time = 0;
+    // double calc_buffer_score_time = 0;
     double time_mlp = 0;
 
 
@@ -151,7 +154,6 @@ int main(int argn, char **argv) {
 
         Buffer buffer(partition_config);
 
-        LongNodeID node_counter = 0;
         std::unique_ptr<buffered_input> ss2 = nullptr;
         std::vector<LongNodeID> cur_line;
 
@@ -180,7 +182,7 @@ int main(int argn, char **argv) {
             ss2 = std::make_unique<buffered_input>(lines.get());
             ss2->simple_scan_line(cur_line);
 
-            int degree = cur_line.size();
+            unsigned degree = cur_line.size();
             // int d_max = partition_config.d_max * pow(((double) partition_config.remaining_stream_nodes / partition_config.number_of_nodes),  0.2);
             // int max_value = std::max(d_max, 500);
             if (degree > partition_config.d_max || degree == 0) { //

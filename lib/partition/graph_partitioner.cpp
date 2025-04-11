@@ -25,7 +25,7 @@ graph_partitioner::~graph_partitioner() {
 }
 
 
-void graph_partitioner::perform_recursive_partitioning(PartitionConfig & config, graph_access & G, int ismultisec=0) {
+void graph_partitioner::perform_recursive_partitioning(PartitionConfig & config, graph_access & G, int ismultisec) {
         m_global_k = config.k;
         m_global_upper_bound = config.upper_bound_partition;
         m_rnd_bal = random_functions::nextDouble(1,2);
@@ -36,7 +36,7 @@ void graph_partitioner::perform_recursive_partitioning_internal(PartitionConfig 
                                                                 graph_access & G,
                                                                 PartitionID lb,
                                                                 PartitionID ub,
-                                                                int ismultisec=0) {
+                                                                int ismultisec) {
 
         G.set_partition_count(2);
 

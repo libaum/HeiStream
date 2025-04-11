@@ -246,7 +246,7 @@ int graph_io::readMatrixToGraph(PartitionConfig & config, graph_access & G, cons
 
 	free(rowindices);
 	free(colindices);
-	return;
+	return 0;
 }
 
 

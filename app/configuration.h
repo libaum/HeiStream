@@ -601,7 +601,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
     partition_config.evaluate_mode = false;
     partition_config.include_weights = false;
     partition_config.parallel_nodes = 1;
-    partition_config.num_split_edges = -1;
+    partition_config.num_split_edges = UNDEFINED_NODE;
     partition_config.past_subset_size = -1;
     partition_config.tau = 0;
     partition_config.nodes_on_edge_conv = NULL; // new

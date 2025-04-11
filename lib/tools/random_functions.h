@@ -11,6 +11,7 @@
 #include <iostream>
 #include <random>
 #include <vector>
+#include <cstring>
 
 #include "definitions.h"
 #include "partition_config.h"
@@ -172,17 +173,19 @@ class random_functions {
 				U m_rand = 1;
 		};
 
-		static double approx_invsqrt( double number ) {
-			double y = number;
-			double x2 = y * 0.5;
-			std::int64_t i = *(std::int64_t *) &y;
-			// The magic number is for doubles is from https://cs.uwaterloo.ca/~m32rober/rsqrt.pdf
-			i = 0x5fe6eb50c7b537a9 - (i >> 1);
-			y = *(double *) &i;
-			y = y * (1.5 - (x2 * y * y));   // 1st iteration
-			//      y  = y * ( 1.5 - ( x2 * y * y ) );   // 2nd iteration, this can be removed
-			return y;
-		}
+                static double approx_invsqrt( double number ) {
+                        double y = number;
+                        double x2 = y * 0.5;
+                        std::int64_t i;
+                        // Use std::memcpy instead of type punning to avoid strict-aliasing violations
+                        std::memcpy(&i, &y, sizeof(i));
+                        // The magic number is for doubles is from https://cs.uwaterloo.ca/~m32rober/rsqrt.pdf
+                        i = 0x5fe6eb50c7b537a9 - (i >> 1);
+                        std::memcpy(&y, &i, sizeof(y));
+                        y = y * (1.5 - (x2 * y * y));   // 1st iteration
+                        //      y  = y * ( 1.5 - ( x2 * y * y ) );   // 2nd iteration, this can be removed
+                        return y;
+                }
 
 		static double approx_sqrt( double number ) {
 			return 1/approx_invsqrt(number);

@@ -83,7 +83,7 @@ public:
 
     static void processQuotientEdgeInBatch(PartitionConfig &config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight);
 
-    static EdgeID graph_io_stream::insertRegularEdgeInBatch(PartitionConfig &config, std::vector<std::vector<std::pair<NodeID, EdgeWeight>>> &all_edges, NodeID node, NodeID target, EdgeWeight edge_weight);
+    static EdgeID insertRegularEdgeInBatch(PartitionConfig &config, std::vector<std::vector<std::pair<NodeID, EdgeWeight>>> &all_edges, NodeID node, NodeID target, EdgeWeight edge_weight);
 
     static NodeID mapGhostKeysToNodesInBatch(PartitionConfig &config, std::vector<std::vector<std::pair<NodeID, EdgeWeight>>> &all_edges,
                                              std::vector<NodeWeight> &all_nodes, std::vector<NodeWeight> &all_assigned_ghost_nodes,

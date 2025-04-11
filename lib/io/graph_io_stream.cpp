@@ -5,7 +5,6 @@
  * Christian Schulz <christian.schulz.phone@gmail.com>
  *****************************************************************************/
 
- #include "data_structure/buffer.h"
 #include "graph_io_stream.h"
 #include "data_structure/priority_queues/bucket_pq.h"
 #include "definitions.h"
@@ -479,7 +478,7 @@ void graph_io_stream::onePassPartition(PartitionConfig &config, std::vector<std:
 }
 
 int graph_io_stream::onePassDecide(PartitionConfig &config, NodeID node, std::vector<EdgeWeight> &edges_i_real) {
-    PartitionID decision;
+    PartitionID decision = 0;
     double best = std::numeric_limits<double>::lowest();
     LongNodeID global_node = (*config.local_to_global_map)[node];
     double score = 0;
@@ -487,59 +486,59 @@ int graph_io_stream::onePassDecide(PartitionConfig &config, NodeID node, std::ve
     int blocks = config.k;
     EdgeWeight block_weight;
     switch (config.one_pass_algorithm) {
-    case ONEPASS_HASHING:
-        decision = fnv1a(global_node - 1) % config.k;
-        break;
-    case ONEPASS_GREEDY:
-        for (int j = 0; j < blocks; j++) {
-            if ((double)edges_i_real[j] > best) {
-                decision = j;
-                best = (double)edges_i_real[j];
+        case ONEPASS_HASHING:
+            decision = fnv1a(global_node - 1) % config.k;
+            break;
+        case ONEPASS_GREEDY:
+            for (int j = 0; j < blocks; j++) {
+                if ((double)edges_i_real[j] > best) {
+                    decision = j;
+                    best = (double)edges_i_real[j];
+                }
             }
-        }
-        break;
-    case ONEPASS_LDG:
-        for (int j = 0; j < blocks; j++) {
-            block_weight = (*config.stream_blocks_weight)[j] + (*config.add_blocks_weight)[j];
-            if (block_weight >= (EdgeWeight)config.stream_total_upperbound) {
-                continue;
+            break;
+        case ONEPASS_LDG:
+            for (int j = 0; j < blocks; j++) {
+                block_weight = (*config.stream_blocks_weight)[j] + (*config.add_blocks_weight)[j];
+                if (block_weight >= (EdgeWeight)config.stream_total_upperbound) {
+                    continue;
+                }
+                score = (0.1 + edges_i_real[j]) * (config.stream_total_upperbound - block_weight) /
+                        (double)config.stream_total_upperbound;
+                if (score > best) {
+                    decision = j;
+                    best = score;
+                }
             }
-            score = (0.1 + edges_i_real[j]) * (config.stream_total_upperbound - block_weight) /
-                    (double)config.stream_total_upperbound;
-            if (score > best) {
-                decision = j;
-                best = score;
+            break;
+        case ONEPASS_FENNEL:
+            for (int j = 0; j < blocks; j++) {
+                block_weight = (*config.stream_blocks_weight)[j] + (*config.add_blocks_weight)[j];
+                if (block_weight >= (EdgeWeight)config.stream_total_upperbound) {
+                    continue;
+                }
+                score = (0.1 + edges_i_real[j]) -
+                        fennel_weight * (config.fennel_alpha_gamma * std::pow(block_weight, config.fennel_gamma - 1));
+                if (score > best) {
+                    decision = j;
+                    best = score;
+                }
             }
-        }
-        break;
-    case ONEPASS_FENNEL:
-        for (int j = 0; j < blocks; j++) {
-            block_weight = (*config.stream_blocks_weight)[j] + (*config.add_blocks_weight)[j];
-            if (block_weight >= (EdgeWeight)config.stream_total_upperbound) {
-                continue;
+            break;
+        case ONEPASS_CHUNKING:
+            decision = (global_node - 1) % config.k;
+            break;
+        case ONEPASS_FRACTIONAL_GREEDY:
+            for (int j = 0; j < blocks; j++) {
+                score = (0.1 + edges_i_real[j]) - (double)config.stream_total_upperbound /
+                                                    (config.stream_total_upperbound - (*config.stream_blocks_weight)[j] -
+                                                    (*config.add_blocks_weight)[j]);
+                if (score > best) {
+                    decision = j;
+                    best = score;
+                }
             }
-            score = (0.1 + edges_i_real[j]) -
-                    fennel_weight * (config.fennel_alpha_gamma * std::pow(block_weight, config.fennel_gamma - 1));
-            if (score > best) {
-                decision = j;
-                best = score;
-            }
-        }
-        break;
-    case ONEPASS_CHUNKING:
-        decision = (global_node - 1) % config.k;
-        break;
-    case ONEPASS_FRACTIONAL_GREEDY:
-        for (int j = 0; j < blocks; j++) {
-            score = (0.1 + edges_i_real[j]) - (double)config.stream_total_upperbound /
-                                                  (config.stream_total_upperbound - (*config.stream_blocks_weight)[j] -
-                                                   (*config.add_blocks_weight)[j]);
-            if (score > best) {
-                decision = j;
-                best = score;
-            }
-        }
-        break;
+            break;
     }
     return decision;
 }
@@ -894,7 +893,7 @@ void graph_io_stream::readFirstLineStreamEdge(PartitionConfig &partition_config,
     // when using minimal mode, store blocks incident on nodes of input graph in 1D vector
     if (partition_config.blocks_on_node_minimal == NULL && partition_config.minimal_mode) {
         partition_config.blocks_on_node_minimal = new std::vector<NodeID>(partition_config.remaining_stream_nodes_OG,
-                                                                          -1);
+                                                                          UNDEFINED_NODE);
     }
 
     if (partition_config.stream_blocks_weight == NULL) {
@@ -923,7 +922,7 @@ void graph_io_stream::readFirstLineStreamEdge(PartitionConfig &partition_config,
     } else {
         partition_config.fennel_edges = 5 * partition_config.remaining_stream_edges;
     }
-    if (partition_config.num_split_edges == -1) {
+    if (partition_config.num_split_edges == UNDEFINED_NODE) {
         partition_config.fennel_alpha =
             partition_config.fennel_edges * std::pow(partition_config.k, partition_config.fennel_gamma - 1) /
             (std::pow(partition_config.remaining_stream_nodes, partition_config.fennel_gamma));
@@ -1183,7 +1182,7 @@ void graph_io_stream::createGraphForBatchEdge(PartitionConfig &config, graph_acc
 void graph_io_stream::addEdgesToIncidentBlock(PartitionConfig &partition_config, NodeID node, NodeID target,
                                               EdgeWeight edge_weight, LongEdgeID &used_edges) {
     if (partition_config.minimal_mode) {
-        if ((*partition_config.blocks_on_node_minimal)[(*partition_config.nodes_on_edge_conv)[node][0]] != -1) {
+        if ((*partition_config.blocks_on_node_minimal)[(*partition_config.nodes_on_edge_conv)[node][0]] != UNDEFINED_NODE) {
             // std::cout << "Here for node " << node << " with target " << target << std::endl;
             used_edges++;
             target = (*partition_config.blocks_on_node_minimal)[(*partition_config.nodes_on_edge_conv)[node][0]];
@@ -1195,7 +1194,7 @@ void graph_io_stream::addEdgesToIncidentBlock(PartitionConfig &partition_config,
         if (!(*partition_config.blocks_on_node)[(*partition_config.nodes_on_edge_conv)[node][0]].empty()) {
             if (partition_config.past_subset_size == -1 || (partition_config.past_subset_size != 0 &&
                                                             (*partition_config.blocks_on_node)[(*partition_config.nodes_on_edge_conv)[node][0]].size() <=
-                                                                partition_config.past_subset_size)) {
+                                                               (unsigned) partition_config.past_subset_size)) {
                 // if all blocks incident are allowed to be treated as quotient nodes or
                 // if number of blocks is less than specified past subset size
                 for (google::dense_hash_set<PartitionID>::const_iterator it = (*partition_config.blocks_on_node)[(*partition_config.nodes_on_edge_conv)[node][0]].begin();
@@ -1212,7 +1211,7 @@ void graph_io_stream::addEdgesToIncidentBlock(PartitionConfig &partition_config,
             } else if (partition_config.past_subset_size != 0 && partition_config.past_subset_size != -1) {
                 // otherwise, random subset of blocks to be considered as quotient nodes
                 std::vector<PartitionID> in;
-                int curr_idx = 0;
+                // int curr_idx = 0;
                 for (google::dense_hash_set<PartitionID>::const_iterator it = (*partition_config.blocks_on_node)[(*partition_config.nodes_on_edge_conv)[node][0]].begin();
                      it !=
                      (*partition_config.blocks_on_node)[(*partition_config.nodes_on_edge_conv)[node][0]].end();
@@ -1224,12 +1223,12 @@ void graph_io_stream::addEdgesToIncidentBlock(PartitionConfig &partition_config,
                 std::random_device rd;
                 std::mt19937_64 gen(rd());
                 for (size_t i = 0; i < in.size(); ++i) {
-                    if (reservoir.size() < partition_config.past_subset_size) {
+                    if (reservoir.size() < (unsigned) partition_config.past_subset_size) {
                         reservoir.push_back(in[i]);
                     } else {
                         std::uniform_int_distribution<size_t> dis(0, i);
                         size_t j = dis(gen);
-                        if (j < partition_config.past_subset_size) {
+                        if (j < (unsigned) partition_config.past_subset_size) {
                             reservoir[j] = in[i];
                         }
                     }
@@ -1264,7 +1263,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
             filebin.read((char *)(&buffer[0]), 3 * sizeof(unsigned long long));
         }
 
-        unsigned long long version = buffer[0];
+        // unsigned long long version = buffer[0];
         nmbNodes = static_cast<NodeID>(buffer[1]);
         nmbEdges = static_cast<NodeID>(buffer[2]) / 2;
 
@@ -1333,7 +1332,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
         NodeID target;
         NodeWeight total_nodeweight = 0;
         EdgeWeight total_edgeweight = 0;
-        EdgeID edge = 0;
+        // EdgeID edge = 0;
 
         G_temp.start_construction(nmbNodes, nmbEdges * 2);
 
@@ -1388,9 +1387,9 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
         std::string line;
         std::ifstream part_file(config.filename_output);
         if (!part_file) {
-            std::cerr << "Error opening partition ID file." << filename << std::endl;
-            exit;
-        }
+                std::cerr << "Error opening partition ID file." << filename << std::endl;
+                exit(1);
+            }
         for (int i = 0; i < nmbEdges; i++) {
             // fetch current line
             std::getline(part_file, line);
@@ -1431,7 +1430,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
     NodeID batchSize = MIN(config.stream_buffer_len, remaining_nodes);
     NodeID lower_node = 0;
     NodeID upper_node = lower_node + batchSize;
-    NodeID incremental_edge_ID = 0;
+    // NodeID incremental_edge_ID = 0;
 
     while (remaining_nodes != 0) {
         for (NodeID u = lower_node; u < upper_node; u++) {
@@ -1488,7 +1487,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
     double sum = 0;
     double max = -1;
     double total_weight = 0;
-    for (int i = 0; i < v_ei.size(); i++) {
+    for (unsigned i = 0; i < v_ei.size(); i++) {
         sum += v_ei[i];
         if (block_weights[i] > max) {
             max = block_weights[i];
@@ -1518,7 +1517,7 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
         if ((*in)) {
             (*in).read((char *)(&buffer[0]), 3 * sizeof(unsigned long long));
         }
-        unsigned long long version = buffer[0];
+        // unsigned long long version = buffer[0];
         nmbNodes = static_cast<NodeID>(buffer[1]);
         nmbEdges = static_cast<NodeID>(buffer[2]) / 2;
 
@@ -1559,9 +1558,9 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
         std::ifstream part_file(config.filename_output);
         if (!part_file) {
             std::cerr << "Error opening partition ID file." << filename << std::endl;
-            exit;
+            exit(1);
         }
-        for (int i = 0; i < nmbEdges; i++) {
+        for (unsigned i = 0; i < nmbEdges; i++) {
             // fetch current line
             std::getline(part_file, line);
             if (line[0] == '%') { // Comment
@@ -1711,7 +1710,7 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
     double sum = 0;
     double max = -1;
     double total_weight = 0;
-    for (int i = 0; i < v_ei.size(); i++) {
+    for (unsigned i = 0; i < v_ei.size(); i++) {
         sum += v_ei[i];
         if (block_weights[i] / 2 > max) {
             max = block_weights[i] / 2;
@@ -1749,7 +1748,7 @@ void graph_io_stream::buildGraphModel(graph_access &G, PartitionConfig &partitio
     NodeID node_counter = 0;
     EdgeID edge_counter = 0;
     NodeID node = 0;
-    LongNodeID target;
+    LongNodeID target = 0;
     NodeWeight total_nodeweight = 0;
     LongEdgeID used_edges = 0;
     LongEdgeID nmbEdges = 2 * partition_config.remaining_stream_edges;

@@ -151,7 +151,7 @@ EdgeWeight quality_metrics::edge_cut_full_stream(const PartitionConfig & config,
 						std::vector<std::vector<EdgeWeight>> & edges_virtualReal) {
 	PartitionID partitionIDSource = 0;
         EdgeWeight edgeCut = 0;
-	int blocks = edges_virtualReal[0].size();
+	unsigned blocks = edges_virtualReal[0].size();
         forall_nodes(G, n) {
 		if (n >= config.nmbNodes) {
 			break;

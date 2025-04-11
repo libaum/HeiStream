@@ -38,6 +38,10 @@ void initial_partitioning::perform_initial_partitioning(PartitionConfig & config
                 case INITIAL_PARTITIONING_FENNEL:
                         partition = new init_fennel();
                         break;
+                case INITIAL_PARTITIONING_RECPARTITION:
+                case INITIAL_PARTITIONING_MULTIBFS:
+                case INITIAL_PARTITIONING_BIPARTITION:
+                        break;
         }
 
         quality_metrics qm;

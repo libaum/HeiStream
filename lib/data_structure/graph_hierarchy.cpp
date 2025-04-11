@@ -33,7 +33,7 @@ void graph_hierarchy::push_back(graph_access * G, CoarseMapping * coarse_mapping
         m_coarsest_graph = G;
 }
 
-graph_access* graph_hierarchy::pop_finer_and_project(PartitionConfig & config, bool delta_gains=false) {
+graph_access* graph_hierarchy::pop_finer_and_project(PartitionConfig & config, bool delta_gains) {
         graph_access* finer = pop_coarsest();
 
         CoarseMapping* coarse_mapping = m_the_mappings.top(); // mapps finer to coarser nodes

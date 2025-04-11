@@ -109,8 +109,8 @@ inline float fast_pow_specialized(float base, float exponent) {
 
 class Buffer {
 private:
-    bucket_pq pq;
     PartitionConfig &config;
+    bucket_pq pq;
 
     LongNodeID total_degree_sum;
     LongNodeID node_counter;
@@ -121,10 +121,6 @@ public:
         :   config(partition_config),
             pq(static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, partition_config.max_pq_size) {
-
-        size_t expected_size = config.max_pq_size;
-        float max_load_factor = 0.7f; // Standard ist 1.0
-        size_t bucket_count = std::ceil(expected_size / max_load_factor);
 
         current_beta = config.haa_beta;
         total_degree_sum = 0;
@@ -217,7 +213,7 @@ public:
             case BUFFER_SCORE_CMS: // Community - Majority Score
             {
                 std::vector<int> hash_map(config.k, 0);
-                int cnt_future_neighbors = 0;
+                // int cnt_future_neighbors = 0;
                 int most_common_partition_count = 0;
                 for (LongNodeID adj_id : adjacents) {
                     PartitionID adj_part = (*config.stream_nodes_assign)[adj_id - 1];
@@ -369,6 +365,8 @@ public:
             case HAA_DEC_FOR_HUBS:
                 current_beta =  config.haa_beta_min - (config.haa_beta_max - config.haa_beta_min) * std::exp(-avg_degree / config.haa_tau);
                 break;
+            case HAA_NONADAPTIVE:
+                break;
         }
         // std::cout << "Updated beta: " << current_beta << std::endl;
     }
@@ -435,9 +433,9 @@ public:
         config.nmbNodes = MIN(batch_size, pq.size());
         batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
 
-        unsigned min_batch_size = MIN(config.nmbNodes, 1000);
+        LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
         // Extract the top batch_size number of nodes from the queue
-        int local_node_counter = 0;
+        LongNodeID local_node_counter = 0;
         while (local_node_counter < config.nmbNodes && !pq.empty()) {
             if (config.bs_cutoff != 0.0f) {
                 if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
@@ -494,7 +492,7 @@ public:
                 if (pq.contains(adj_id)) {
                     PQItem& adj_buffer_item = pq.getBufferItem(adj_id);
                     auto &adj_adjacents = adj_buffer_item.get_adjacents();
-                    int adj_degree = adj_adjacents.size();
+                    unsigned adj_degree = adj_adjacents.size();
                     adj_buffer_item.num_adj_partitioned++;
 
                     // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour

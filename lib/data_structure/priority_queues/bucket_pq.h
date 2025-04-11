@@ -168,13 +168,13 @@ public:
 
     ~bucket_pq() = default;
 
-    LongNodeID size();
+    LongNodeID size() const;
     void update_insert(LongNodeID node, float buffer_score);
     void insert(LongNodeID node, PQItem&& item);
     void insert(LongNodeID node, float buffer_score,  std::vector<LongNodeID>& adjacents, unsigned num_adj_partitioned);
-    bool empty();
+    bool empty() const;
 
-    unsigned maxValue();
+    unsigned maxValue() const;
     LongNodeID maxElement();
     LongNodeID deleteMax();
 
@@ -206,7 +206,7 @@ inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeI
     m_buckets.resize(m_gain_span);
 }
 
-inline LongNodeID bucket_pq::size() {
+inline LongNodeID bucket_pq::size() const {
     return m_elements;
 }
 
@@ -259,11 +259,11 @@ inline void bucket_pq::insert(LongNodeID node, float buffer_score,  std::vector<
     m_elements++;
 }
 
-inline bool bucket_pq::empty() {
+inline bool bucket_pq::empty() const {
     return m_elements == 0;
 }
 
-inline unsigned bucket_pq::maxValue() {
+inline unsigned bucket_pq::maxValue() const {
     return m_max_idx;
 }
 
