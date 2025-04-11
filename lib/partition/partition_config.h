@@ -44,7 +44,24 @@ struct PartitionConfig
         float haa_theta;
         int haa_tau;
 
+        float cbs_theta;
+
+        float bs_cutoff;
+        float threshold_start_mlp;
+
+        bool parallel_mlp;
+
         int d_direct;
+
+        int param_int1;
+        int param_int2;
+        int param_int3;
+        float param_dbl1;
+        float param_dbl2;
+        float param_dbl3;
+        bool param_enbld1;
+        bool param_enbld2;
+        bool param_enbld3;
 
         float avg_degree;
 
@@ -54,7 +71,7 @@ struct PartitionConfig
         LongNodeID number_of_nodes;
 
         std::vector<NodeID> *local_to_global_map;
-        google::dense_hash_set<LongNodeID> *node_in_current_block_set;
+        // google::dense_hash_set<LongNodeID> *node_in_current_block_set;
 
         LongNodeID first_phase_buffer_len;
         LongNodeID second_phase_buffer_len;

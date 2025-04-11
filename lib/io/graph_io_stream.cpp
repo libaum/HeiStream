@@ -27,7 +27,8 @@ graph_io_stream::~graph_io_stream() {
 }
 
 NodeID
-graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
+graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes) {
+
     NodeWeight total_nodeweight = 0;
     NodeID node_counter = 0;
     EdgeID edge_counter = 0;
@@ -43,15 +44,11 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     std::vector<NodeWeight> all_assigned_ghost_nodes(config.nmbNodes + config.quotient_nodes, 0);
     all_edges.resize(config.nmbNodes + config.quotient_nodes);
     all_nodes.resize(config.nmbNodes + config.quotient_nodes);
-    //    config.lower_global_node = config.total_stream_nodecounter + 1; // Bounds below start from 1 instead of 0
-    //    config.upper_global_node = config.total_stream_nodecounter + config.nmbNodes;
-    // LongNodeID cursor = 0;
     NodeID node = 0;
 
     config.curr_batch++;
 
     if (config.ram_stream) {
-        // cursor = input_idxs->size() - config.remaining_stream_nodes;
     }
 
     if (nmbEdges > std::numeric_limits<EdgeWeight>::max() || config.nmbNodes > std::numeric_limits<LongNodeID>::max()) {
@@ -88,10 +85,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     processed_nodes.set_empty_key(UNDEFINED_LONGNODE);
     processed_nodes.resize(config.stream_buffer_len);
 
-    std::vector<LongNodeID>& vec = *input_idxs;
-    for (LongNodeID global_node_id : vec) {
-        std::vector<LongNodeID> &line_numbers = buffer.get_adjacents(global_node_id);
-
+    for (auto& [global_node_id, line_numbers] : *batch_nodes) {
         LongNodeID col_counter = 0;
         node = (NodeID)node_counter;
 
@@ -117,7 +111,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                 edge_weight = line_numbers[col_counter++];
             }
 
-            if(config.node_in_current_block_set->find(target) != config.node_in_current_block_set->end()) {
+            if ((*config.stream_nodes_assign)[target - 1] == TO_BE_PARTITIONED) {
                 if (processed_nodes.find(target) != processed_nodes.end()) {
                     used_edges++;                 // used_edges only counts arcs to previus nodes
                     NodeID local_target = global_to_local_map[target - 1];
@@ -133,14 +127,11 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
         processed_nodes.insert(global_node_id); // mark as processed
 
-        // cursor++;
         node_counter++;
-        buffer.completely_remove_node(global_node_id);
     }
 
     if (!config.ram_stream) {
-        delete input_idxs;
-        delete config.node_in_current_block_set;
+        delete batch_nodes;
     }
 
 

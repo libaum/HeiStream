@@ -56,6 +56,7 @@ const NodeID UNDEFINED_NODE            = std::numeric_limits<NodeID>::max();
 const NodeID UNASSIGNED                = std::numeric_limits<NodeID>::max();
 const NodeID ASSIGNED                  = std::numeric_limits<NodeID>::max()-1;
 const PartitionID INVALID_PARTITION    = std::numeric_limits<PartitionID>::max();
+const PartitionID TO_BE_PARTITIONED    = std::numeric_limits<PartitionID>::max()-1;
 const PartitionID BOUNDARY_STRIPE_NODE = std::numeric_limits<PartitionID>::max();
 const int NOTINQUEUE 		       = std::numeric_limits<int>::max();
 const int ROOT 			       = 0;

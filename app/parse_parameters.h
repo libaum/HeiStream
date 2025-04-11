@@ -211,15 +211,32 @@ int parse_parameters(int argn, char **argv,
         struct arg_int *second_phase_buffer             = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
         struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
         struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
-        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|cbs3|anc|cms|nss|gts). Default: cbs" );
+        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anc|cms|nss|gts). Default: cbs" );
         struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
+        struct arg_dbl *threshold_start_mlp             = arg_dbl0(NULL, "th_mlp", NULL, "Threshold for the start of the multilevel partitioning. Default 0.0.");
+
+        struct arg_dbl *cbs_theta                       = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
 
         struct arg_str *haa_hub_mode                    = arg_str0(NULL, "haa_hub_mode", NULL, "Mode for HAA (nonadaptive|incforhubs|decforhubs). Default: nonadaptive" );
-        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 1.5.");
+        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 2.0.");
         struct arg_dbl *haa_beta_min                    = arg_dbl0(NULL, "haa_beta_min", NULL, "Min beta parameter for haa buffer score. Default 1.0.");
         struct arg_dbl *haa_beta_max                    = arg_dbl0(NULL, "haa_beta_max", NULL, "Max beta parameter for haa buffer score. Default 2.0.");
         struct arg_int *haa_tau                         = arg_int0(NULL, "haa_tau", NULL, "Tau value for HAA: Default 50.");
         struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "haa_theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
+        struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
+
+        struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
+
+        struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
+        struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
+        struct arg_int *param_int3                      = arg_int0(NULL, "param_int3", NULL, "");
+        struct arg_dbl *param_dbl1                      = arg_dbl0(NULL, "param_dbl1", NULL, "");
+        struct arg_dbl *param_dbl2                      = arg_dbl0(NULL, "param_dbl2", NULL, "");
+        struct arg_dbl *param_dbl3                      = arg_dbl0(NULL, "param_dbl3", NULL, "");
+        struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+
 
         struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
         struct arg_int *d_max                           = arg_int0(NULL, "d_max", NULL, "Maximum degree to be inserted into queue. Default 1000.");
@@ -321,13 +338,26 @@ int parse_parameters(int argn, char **argv,
                 buffer_score,
                 haa_hub_mode,
                 gts_alpha,
+                threshold_start_mlp,
                 d_max,
                 haa_beta,
                 haa_beta_min,
                 haa_beta_max,
                 haa_tau,
                 d_direct,
-                haa_theta
+                haa_theta,
+                cbs_theta,
+                bs_cutoff,
+                param_int1,
+                param_int2,
+                param_int3,
+                param_dbl1,
+                param_dbl2,
+                param_dbl3,
+                param_enbld1,
+                param_enbld2,
+                param_enbld3,
+                parallel_mlp
         };
 
 
@@ -397,12 +427,25 @@ int parse_parameters(int argn, char **argv,
                 buffer_score,
                 haa_hub_mode,
                 gts_alpha,
+                threshold_start_mlp,
+                parallel_mlp,
                 haa_beta,
                 haa_beta_min,
                 haa_beta_max,
                 haa_tau,
                 d_direct,
                 haa_theta,
+                cbs_theta,
+                bs_cutoff,
+                param_int1,
+                param_int2,
+                param_int3,
+                param_dbl1,
+                param_dbl2,
+                param_dbl3,
+                param_enbld1,
+                param_enbld2,
+                param_enbld3,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
@@ -1586,6 +1629,10 @@ int parse_parameters(int argn, char **argv,
                 partition_config.gts_alpha = gts_alpha->dval[0];
         }
 
+        if(threshold_start_mlp->count > 0) {
+                partition_config.threshold_start_mlp = threshold_start_mlp->dval[0];
+        }
+
         if(haa_beta->count > 0) {
                 partition_config.haa_beta = haa_beta->dval[0];
         }
@@ -1602,9 +1649,51 @@ int parse_parameters(int argn, char **argv,
                 partition_config.haa_theta = haa_theta->dval[0];
         }
 
+
+        if(cbs_theta->count > 0) {
+                partition_config.cbs_theta = cbs_theta->dval[0];
+        }
+
         if(haa_tau->count > 0) {
                 partition_config.haa_tau = haa_tau->ival[0];
         }
+
+        if(bs_cutoff->count > 0) {
+                partition_config.bs_cutoff = bs_cutoff->dval[0];
+        }
+
+        if (param_int1->count > 0) {
+                partition_config.param_int1 = param_int1->ival[0];
+        }
+        if (param_int2->count > 0) {
+                partition_config.param_int2 = param_int2->ival[0];
+        }
+        if (param_int3->count > 0) {
+                partition_config.param_int3 = param_int3->ival[0];
+        }
+
+        if (param_dbl1->count > 0) {
+                partition_config.param_dbl1 = param_dbl1->dval[0];
+        }
+        if (param_dbl2->count > 0) {
+                partition_config.param_dbl2 = param_dbl2->dval[0];
+        }
+        if (param_dbl3->count > 0) {
+                partition_config.param_dbl3 = param_dbl3->dval[0];
+        }
+
+
+        if(param_enbld1->count > 0) {
+                partition_config.param_enbld1 = true;
+        }
+        if(param_enbld2->count > 0) {
+                partition_config.param_enbld2 = true;
+        }
+        if(param_enbld3->count > 0) {
+                partition_config.param_enbld3 = true;
+        }
+
+
 
         if(d_direct->count > 0) {
                 partition_config.d_direct = d_direct->ival[0];
@@ -1653,6 +1742,9 @@ int parse_parameters(int argn, char **argv,
                 }
         }
 
+        if(parallel_mlp->count > 0) {
+                partition_config.parallel_mlp = true;
+        }
 
 
         if(use_fennel_objective->count > 0) {

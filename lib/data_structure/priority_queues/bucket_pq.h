@@ -19,7 +19,7 @@
 
 const float INVALID_SCORE = std::numeric_limits<float>::max();
 const unsigned INVALID_POS = std::numeric_limits<unsigned>::max();
-const unsigned INVALID_POS_CACHED = std::numeric_limits<unsigned>::max() - 1;
+// const unsigned INVALID_POS_CACHED = std::numeric_limits<unsigned>::max() - 1;
 
 inline unsigned discretize_score(float score) {
     // Use round instead of floor to handle precision better
@@ -143,13 +143,13 @@ public:
     //     return pos_in_bucket == INVALID_POS_CACHED;
     // }
 
-    bool is_valid() const {
-        return pos_in_bucket != INVALID_POS_CACHED;
-    }
+    // bool is_valid() const {
+    //     return pos_in_bucket != INVALID_POS_CACHED;
+    // }
 
-    void set_cached() {
-        pos_in_bucket = INVALID_POS_CACHED;
-    }
+    // void set_cached() {
+    //     pos_in_bucket = INVALID_POS_CACHED;
+    // }
 
 
     // void clean() { adjacents.reset(); valid = false; }
@@ -186,13 +186,8 @@ public:
     void deleteNode(LongNodeID node);
 
     bool contains(LongNodeID node);
-    bool contains_in_bucket(LongNodeID node);
     PQItem& getBufferItem(LongNodeID node);
     void completely_remove_node(LongNodeID node);
-
-
-
-    // bool contains(LongNodeID node);
 
 private:
     LongNodeID m_elements;
@@ -220,14 +215,6 @@ inline bool bucket_pq::contains(LongNodeID node) {
     return m_queue_index_map.find(node) != m_queue_index_map.end();
 }
 
-inline bool bucket_pq::contains_in_bucket(LongNodeID node) {
-    auto it = m_queue_index_map.find(node);
-    if (it == m_queue_index_map.end()) {
-        return false;
-    }
-    // Check if the node is in the bucket
-    return it->second.is_valid(); // For map node cannot be invalid
-}
 
 inline PQItem& bucket_pq::getBufferItem(LongNodeID node) {
     return m_queue_index_map[node];
@@ -254,43 +241,10 @@ inline void bucket_pq::update_insert(LongNodeID node, float buffer_score) {
     m_elements++;
 }
 
-// inline void bucket_pq::insert(LongNodeID node, PQItem&& item) {
-
-//     unsigned address = item.address;
-//     assert(0 <= address && address < m_gain_span);
-
-//     if (address > m_max_idx) {
-//         m_max_idx = address;
-//     }
-
-//     m_buckets[address].push_back(node);
-//     unsigned pos_in_bucket = m_buckets[address].size() - 1;
-
-//     // Aktualisiere die Position im Bucket
-//     item.set_pos_in_bucket(pos_in_bucket);
-//     m_queue_index_map.emplace(node, std::move(item));
-
-//     // if (use_vector) {
-//     //     m_queue_index_vec[node - 1] = PQItem(buffer_score, std::move(adjacents), num_adj_partitioned, m_buckets[address].size() - 1, address);
-//     //     // m_queue_index_vec[node - 1].first = m_buckets[address].size() - 1; // store position
-//     //     // m_queue_index_vec[node - 1].second = buffer_score;
-//     // } else {
-//     //     // m_queue_index_map.insert(
-//     //     //     std::make_pair(node, std::make_pair(m_buckets[address].size() - 1, buffer_score))
-//     //     // );
-//     //     m_queue_index_map.emplace(
-//     //         node,
-//     //         PQItem(buffer_score, std::move(adjacents), num_adj_partitioned, m_buckets[address].size() - 1, address)
-//     //     );
-//     // }
-
-//     m_elements++;
-// }
 
 inline void bucket_pq::insert(LongNodeID node, float buffer_score,  std::vector<LongNodeID>& adjacents, unsigned num_adj_partitioned) {
 
     unsigned address = discretize_score(buffer_score);
-    assert(0 <= address && address < m_gain_span);
 
     if (address > m_max_idx) {
         m_max_idx = address;
@@ -301,7 +255,6 @@ inline void bucket_pq::insert(LongNodeID node, float buffer_score,  std::vector<
         node,
         PQItem(buffer_score, adjacents, num_adj_partitioned, m_buckets[address].size() - 1, address)
     );
-    // m_queue_index_map[node] = PQItem(buffer_score, adjacents, num_adj_partitioned, m_buckets[address].size() - 1, address);
 
     m_elements++;
 }
@@ -332,7 +285,6 @@ inline LongNodeID bucket_pq::deleteMax() {
         }
     }
 
-    m_queue_index_map[node].set_cached();
     m_elements--;
 
     return node;
@@ -343,8 +295,6 @@ inline void bucket_pq::decreaseKey(LongNodeID node, unsigned new_buffer_score) {
 }
 
 inline void bucket_pq::increaseKey(LongNodeID node, float new_buffer_score) {
-    assert(0 <= new_buffer_score && new_buffer_score < m_gain_span);
-
     changeKey(node, new_buffer_score);
 }
 
@@ -383,7 +333,7 @@ inline void bucket_pq::deleteNode(LongNodeID node) {
     }
 
     m_elements--;
-    buffer_item.set_cached();
+    // buffer_item.set_cached();
 }
 
 #endif /* end of include guard: BUCKET_PQ_EM8YJPA9 */

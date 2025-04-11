@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <vector>
+#include <list>
 #include <fstream>
 #include <sstream>
 #include <memory>
@@ -35,15 +36,15 @@
 #include "partition/uncoarsening/refinement/mixed_refinement.h"
 #include "partition/uncoarsening/refinement/label_propagation_refinement/label_propagation_refinement.h"
 #include "tools/flat_buffer_writer.h"
+#include "mlp_thread_manager.cpp"
 
 
 
 long getMaxRSS();
 
 // void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::vector<LongNodeID>> *&input);
-void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<LongNodeID> *&input_idxs, Buffer &buffer);
+// void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes);
 
-void config_multibfs_initial_partitioning(PartitionConfig &partition_config);
 
 void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector<LongNodeID> &line, bool all_should_be_partitioned) {
     bool one_not_partitioned = false;
@@ -94,9 +95,7 @@ int main(int argn, char **argv) {
     double model_construction_time = 0;
     quality_metrics qm;
     balance_configuration bc;
-    // std::vector <std::vector<LongNodeID>> *input = NULL;
-    std::vector<LongNodeID> *input_idxs = NULL;
-
+    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes;
 
     bool is_graph_weighted = false;
     bool suppress_output = false;
@@ -130,6 +129,8 @@ int main(int argn, char **argv) {
     double updating_adj_time = 0;
     double partitioning_time = 0;
     double calc_buffer_score_time = 0;
+    double time_mlp = 0;
+
 
     int &passes = partition_config.num_streams_passes;
     partition_config.count_misc1 = 0;
@@ -137,7 +138,7 @@ int main(int argn, char **argv) {
     for (partition_config.restream_number = 0;
         partition_config.restream_number < passes; partition_config.restream_number++) {
 
-
+        MLPThreadManager mlp_thread_manager;
 
         // ***************************** IO operations ***************************************
         io_t.restart();
@@ -148,10 +149,6 @@ int main(int argn, char **argv) {
 
         buffer_io_time += io_t.elapsed();
 
-        // bucket_pq pq(static_cast<int>(std::floor(MAX_BUFFER_SCORE * partition_config.bq_disc_factor)) + 1, partition_config.number_of_nodes);
-        // std::vector<PQItem> node_id_to_buffer_item(partition_config.number_of_nodes); // ex2_v1
-        // std::unordered_map<LongNodeID, PQItem> node_id_to_buffer_item2; // = std::unordered_map<LongNodeID, PQItem>(0);
-
         Buffer buffer(partition_config);
 
         LongNodeID node_counter = 0;
@@ -160,7 +157,11 @@ int main(int argn, char **argv) {
 
         auto lines = std::make_unique<std::vector<std::string>>(1);
 
+        timer t_mlp;
         first_phase_t.restart();
+
+        // std::vector<std::vector<LongNodeID>> high_deg_nodes;
+        // Buffer high_deg_nodes_buffer(partition_config, 0);
 
         // bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
         bool use_mlp = partition_config.stream_buffer_len != 1;
@@ -180,9 +181,8 @@ int main(int argn, char **argv) {
             ss2->simple_scan_line(cur_line);
 
             int degree = cur_line.size();
-            int d_max = partition_config.d_max * pow(((double) partition_config.remaining_stream_nodes / partition_config.number_of_nodes),  0.2);
-
-            int max_value = std::max(d_max, 500);
+            // int d_max = partition_config.d_max * pow(((double) partition_config.remaining_stream_nodes / partition_config.number_of_nodes),  0.2);
+            // int max_value = std::max(d_max, 500);
             if (degree > partition_config.d_max || degree == 0) { //
                 // Partition node directly if degree is too high or 0
                 if (degree == 0) {
@@ -208,6 +208,17 @@ int main(int argn, char **argv) {
                     // Update neighbors
                     buffer.update_neighbours_priority(cur_line);
                     updating_adj_time += updating_adj_t.elapsed();
+
+                    // if (false) {
+                    //     // Experimented with delaying high degree nodes completely
+                    //     // cur_line.push_back(global_node_id);
+                    //     // high_deg_nodes.push_back(cur_line);
+
+                    // } else {
+
+                    // }
+
+
                 }
 
 
@@ -215,8 +226,30 @@ int main(int argn, char **argv) {
             } else if (buffer.size() >= partition_config.max_pq_size) {
                 // Make space by removing node from queue by popping
                 if (use_mlp) {
-                    buffer.loadTopNodesToBatch(input_idxs, partition_config.stream_buffer_len);
-                    perform_mlp_on_batch(partition_config, input_idxs, buffer);
+                    // && !buffer.max_value_below_cutoff() && buffer.max_value_above_1()) {
+                // if (partition_config.stream_buffer_len > 1) { // && buffer.max_value_above_1(partition_config.bs_cutoff)) {
+
+                    // if ((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes < partition_config.threshold_start_mlp) {
+                    //     partition_config.stream_buffer_len = 1;
+                    // } else {
+                    //     // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
+                    //     partition_config.stream_buffer_len = max_batch_size;
+                    // }
+                    // if (partition_config.stream_buffer_len > 1 && !buffer.max_value_below_cutoff()) {
+                    if (partition_config.parallel_mlp) {
+                        mlp_thread_manager.wait_completion();
+                        buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                        mlp_thread_manager.execute(partition_config, batch_nodes);
+                    } else {
+                        t_mlp.restart();
+                        buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                        perform_mlp_on_batch(partition_config, batch_nodes);
+                        time_mlp += t_mlp.elapsed();
+                    }
+
+                    // } else {
+                    //     buffer.partitionTopNode();
+                    // }
                 } else {
                     buffer.partitionTopNode();
                 }
@@ -231,17 +264,77 @@ int main(int argn, char **argv) {
 
         second_phase_t.restart();
         // bool useSecondPhaseBuffer = partition_config.second_phase_buffer_len != 1;
+        // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
+
         if ( use_mlp ) {
             while (!buffer.isEmpty()) {
-                buffer.loadTopNodesToBatch(input_idxs, partition_config.stream_buffer_len);
-                perform_mlp_on_batch(partition_config, input_idxs, buffer);
+
+                if (partition_config.parallel_mlp) {
+                    mlp_thread_manager.wait_completion();
+                    buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                    mlp_thread_manager.execute(partition_config, batch_nodes);
+                } else {
+                    t_mlp.restart();
+                    buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                    perform_mlp_on_batch(partition_config, batch_nodes);
+                    time_mlp += t_mlp.elapsed();
+                }
+
+                // if ((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes < partition_config.threshold_start_mlp) {
+                //     partition_config.stream_buffer_len = 1;
+                // } else {
+                //     // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
+                //     partition_config.stream_buffer_len = max_batch_size;
+                // }
+                // if (buffer.max_value_above_1(partition_config.bs_cutoff)) {
+                // // if (partition_config.stream_buffer_len > 1 && !buffer.max_value_below_cutoff() && buffer.max_value_above_1()) {
+
+                //     if (partition_config.parallel_mlp) {
+                //         mlp_thread_manager.wait_completion();
+                //         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                //         mlp_thread_manager.execute(partition_config, batch_nodes);
+                //     } else {
+                //         t_mlp.restart();
+                //         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                //         perform_mlp_on_batch(partition_config, batch_nodes);
+                //         time_mlp += t_mlp.elapsed();
+                //     }
+
+                // } else {
+                //     buffer.partitionTopNode();
+                // }
             }
         } else {
             while (!buffer.isEmpty()) {
                 buffer.partitionTopNode();
             }
         }
+        if (partition_config.parallel_mlp) {
+            mlp_thread_manager.wait_completion();
+        }
         second_phase_time += second_phase_t.elapsed();
+
+
+        // if (false) {
+        //     Buffer high_deg_nodes_buffer(partition_config, 0);
+        //     for (auto &neigbhors : high_deg_nodes) {
+        //         LongNodeID global_node_id = neigbhors[neigbhors.size() - 1];
+        //         neigbhors.pop_back();
+        //         high_deg_nodes_buffer.addNode(global_node_id, neigbhors);
+        //     }
+        //     while (!high_deg_nodes_buffer.isEmpty()) {
+        //         high_deg_nodes_buffer.partitionTopNode();
+        //     }
+
+
+        //     for (auto &neigbhors : high_deg_nodes) {
+        //         // partitioning_t.restart();
+        //         LongNodeID global_node_id = neigbhors[neigbhors.size() - 1];
+        //         neigbhors.pop_back();
+        //         partition_single_node(partition_config, global_node_id, neigbhors, true);
+        //         // partitioning_time += partitioning_t.elapsed();
+        //     }
+        // }
     }
     // std::cout << "First phase time: " << first_phase_time << std::endl;
     // std::cout << "Second phase time: " << second_phase_time << std::endl;
@@ -254,10 +347,7 @@ int main(int argn, char **argv) {
 
     // Check if all nodes are assigned
     for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] != INVALID_PARTITION);
-        // if ((*partition_config.stream_nodes_assign)[i] == INVALID_PARTITION) {
-        // 	std::cout << "Node " << i << " is not assigned." << std::endl;
-        // }
+        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED);
     }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
@@ -265,6 +355,7 @@ int main(int argn, char **argv) {
 
     double total_time_rounded = std::round(total_time * 100.0) / 100.0;
     std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << std::endl; // << " " << cnt_part_adj_directly << std::endl;
+    // std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << " " << time_mlp << std::endl; // << " " << cnt_part_adj_directly << std::endl;
     // std::cout << "Count Dmax part: " << partition_config.count_misc1 << std::endl;
     // std::cout << "count total single part: " << partition_config.count_misc2 << std::endl;
     // write the partition to the disc
@@ -305,11 +396,7 @@ int main(int argn, char **argv) {
 }
 
 
-void config_multibfs_initial_partitioning(PartitionConfig &partition_config) {
-    if (partition_config.initial_part_multi_bfs && partition_config.curr_batch >= 2) {
-        partition_config.initial_partitioning_type = INITIAL_PARTITIONING_MULTIBFS;
-    }
-}
+
 
 long getMaxRSS() {
     struct rusage usage;
@@ -340,30 +427,3 @@ std::string extractBaseFilename(const std::string &fullPath) {
 
 
 
-// A function to do multi-level partitioning the nodes in the batch (input)
-void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
-    // Initialize the partition configuration
-    graph_access *G = new graph_access();
-    quality_metrics qm;
-    balance_configuration bc;
-
-    // ***************************** build model ***************************************
-    G->set_partition_count(partition_config.k);
-    partition_config.local_to_global_map = new std::vector<NodeID>(partition_config.nmbNodes, 0);
-    graph_io_stream::createModel(partition_config, *G, input_idxs, buffer);
-    graph_io_stream::countAssignedNodes(partition_config);
-    graph_io_stream::prescribeBufferInbalance(partition_config);
-    bool already_fully_partitioned = (partition_config.restream_vcycle && partition_config.restream_number);
-    bc.configurate_balance(partition_config, *G, already_fully_partitioned || !partition_config.stream_initial_bisections);
-    config_multibfs_initial_partitioning(partition_config);
-
-    // ***************************** perform partitioning ***************************************
-    graph_partitioner partitioner;
-    partitioner.perform_partitioning(partition_config, *G);
-
-    // ***************************** permanent assignment ***************************************
-    graph_io_stream::generalizeStreamPartition(partition_config, *G);
-
-    delete partition_config.local_to_global_map;
-    delete G;
-}

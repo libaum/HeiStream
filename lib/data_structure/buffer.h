@@ -18,7 +18,7 @@
 
 // CUTTANA HYPERPARAMETERS
 const double THETA = 2;
-const int D_MAX = 1000;
+// const int D_MAX = 1000;
 const bool PARTITION_ADJ_DIRECTLY_ENABLED = true;
 
 
@@ -29,7 +29,7 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     int cnt_future_neighbors = 0;
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
-        if (adj_part != INVALID_PARTITION) {
+        if (adj_part < TO_BE_PARTITIONED) {
             hash_map[adj_part]++;
         } else {
             cnt_future_neighbors++;
@@ -42,10 +42,10 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     bool feasible_partition_found = false;
 
     float f = 1; // Balance-Penalty-Faktor for Hubs
-    if (is_hub) {
-        // f -= ((float) cnt_future_neighbors /  adjacents.size());
-        // std::cout << "Node " << global_node_id << " is a hub. f = " << f << std::endl;
-    }
+    // if (is_hub) {
+    //     // f -= ((float) cnt_future_neighbors /  adjacents.size());
+    //     // std::cout << "Node " << global_node_id << " is a hub. f = " << f << std::endl;
+    // }
     for (PartitionID cur_partition = 0; cur_partition < partition_config.k; ++cur_partition) {
         NodeWeight current_block_weight = (*partition_config.stream_blocks_weight)[cur_partition];
         // Skip or penalize partitions that are already "full"
@@ -110,50 +110,27 @@ inline float fast_pow_specialized(float base, float exponent) {
 class Buffer {
 private:
     bucket_pq pq;
-    // std::vector<PQItem> node_id_to_buffer_item;
-    // google::dense_hash_map<LongNodeID, PQItem> node_id_to_buffer_item2;
-    // std::unordered_map<LongNodeID, PQItem> node_id_to_buffer_item2;
     PartitionConfig &config;
 
     LongNodeID total_degree_sum;
     LongNodeID node_counter;
     float current_beta;
-    // std::unordered_map<LongNodeID, PQItem, UInt64Hash> node_id_to_buffer_item2;
-    // int cnt_part_adj_directly;
 
 public:
     Buffer(PartitionConfig &partition_config)
         :   config(partition_config),
             pq(static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, partition_config.max_pq_size) {
-          // node_id_to_buffer_item(partition_config.number_of_nodes),
-        // node_id_to_buffer_item2.set_deleted_key("");
-        // node_id_to_buffer_item2.set_empty_key(-1);
 
         size_t expected_size = config.max_pq_size;
         float max_load_factor = 0.7f; // Standard ist 1.0
         size_t bucket_count = std::ceil(expected_size / max_load_factor);
 
-        // node_id_to_buffer_item2.reserve(expected_size);
-        // node_id_to_buffer_item2.max_load_factor(max_load_factor);
-
         current_beta = config.haa_beta;
         total_degree_sum = 0;
         node_counter = 0;
-        // node_id_to_buffer_item2.rehash(bucket_count);
     }
 
-    // cnt_part_adj_directly(0)
-
-    ~Buffer() {
-        // Cleanup - Delete line pointers
-        // for (auto& item : node_id_to_buffer_item) {
-        //     if (item.is_valid() && item.line != nullptr) {
-        //         delete item.line;
-        //         item.line = nullptr;
-        //     }
-        // }
-    }
 
     static float get_max_buffer_score(const PartitionConfig& cfg) {
         switch (cfg.buffer_score_type) {
@@ -169,8 +146,10 @@ public:
                 return 1;
             case BUFFER_SCORE_GTS:
                 return 1;
+
             case BUFFER_SCORE_CBS:
             case BUFFER_SCORE_CBS2:
+            case BUFFER_SCORE_CBS3:
             default:
                 return 3;
         }
@@ -242,7 +221,7 @@ public:
                 int most_common_partition_count = 0;
                 for (LongNodeID adj_id : adjacents) {
                     PartitionID adj_part = (*config.stream_nodes_assign)[adj_id - 1];
-                    if (adj_part != INVALID_PARTITION) {
+                    if (adj_part < TO_BE_PARTITIONED) {
                         cnt_adj_partitioned++;
                         hash_map[adj_part]++;
                         if (hash_map[adj_part] > most_common_partition_count) {
@@ -264,7 +243,6 @@ public:
                     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
                         cnt_adj_partitioned++;
                     } else if (pq.contains(global_adj_id)) {
-                    // } else if (node_id_to_buffer_item2.count(global_adj_id)) {
                         cnt_adj_in_buffer++;
                     }
                 }
@@ -283,47 +261,41 @@ public:
                 buffer_score = (float) degree / config.d_max;
                 break;
             }
-            case BUFFER_SCORE_CBS3: // Cuttana buffer score 2
+
+            case BUFFER_SCORE_CBS3: // Cuttana buffer score 3
             {
-                bool adj_is_partitioned;
                 unsigned cnt_adj_in_buffer = 0;
                 for (const LongNodeID& global_adj_id : adjacents) {
                     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
                         cnt_adj_partitioned++;
-
                     } else if (pq.contains(global_adj_id)) {
-                    // } else if (node_id_to_buffer_item2.count(global_adj_id)) {
+
                         cnt_adj_in_buffer++;
                     }
                 }
-                // NOTE: on update: how to deal with cnt_adj_in_buffer?
-                buffer_score = (float) degree / config.d_max + THETA * (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+                buffer_score = (float) degree / config.d_max + THETA * (float) cnt_adj_partitioned /  degree + (float) cnt_adj_in_buffer/ degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
                 break;
             }
+
             case BUFFER_SCORE_CBS2: // Cuttana buffer score 2
             {
-                bool adj_is_partitioned;
                 unsigned cnt_adj_in_buffer = 0;
                 for (const LongNodeID& global_adj_id : adjacents) {
                     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
                         cnt_adj_partitioned++;
                     } else if (pq.contains(global_adj_id)) {
 
-                    // } else if (node_id_to_buffer_item2.count(global_adj_id)) {
                         cnt_adj_in_buffer++;
                     }
                 }
-                // NOTE: on update: how to deal with cnt_adj_in_buffer?
                 buffer_score = (float) degree / config.d_max + THETA * (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
                 break;
             }
             case BUFFER_SCORE_CBS: // Cuttana buffer score
             default: // Default to classic buffer score
             {
-                bool adj_is_partitioned;
                 for (const LongNodeID& global_adj_id : adjacents) {
-                    adj_is_partitioned = (*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION;
-                    if (adj_is_partitioned) {
+                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
                         cnt_adj_partitioned++;
                     }
                 }
@@ -362,9 +334,16 @@ public:
                 return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
             case BUFFER_SCORE_GTS:
                 return MIN(buffer_item.buffer_score + config.gts_alpha, get_max_buffer_score(config));
-            case BUFFER_SCORE_CBS2:
-                buffer_item.num_adj_partitioned = 0;
+
+            case BUFFER_SCORE_CBS3:
                 // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
+                buffer_item.num_adj_partitioned = 0;
+                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+
+            case BUFFER_SCORE_CBS2:
+                // return buffer_item.buffer_score + (float) THETA / degree;
+                // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
+                buffer_item.num_adj_partitioned = 0;
                 return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
             case BUFFER_SCORE_CBS:
             default:
@@ -397,79 +376,77 @@ public:
     // Adds a node to the buffer
     void addNode(LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
         if (config.haa_hub_mode != HAA_NONADAPTIVE) {
-            total_degree_sum += adjacents.size();
             node_counter++;
+            total_degree_sum += adjacents.size();
             if (node_counter == 1000) { // && node_counter % 100 == 0) {
                 update_beta();
             }
         }
 
-        // float buffer_score = calc_buffer_score(global_node_id, adjacents, node_id_to_buffer_item[global_node_id - 1].num_adj_partitioned);
         unsigned num_adj_partitioned = 0;
         float buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
 
+        // if (false && adjacents.size() > config.d_max) {
+        //     for (const LongNodeID &global_adj_id : adjacents) {
+        //         if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
+        //             num_adj_partitioned++;
+        //         }
+        //     }
+        //     buffer_score = num_adj_partitioned /  adjacents.size();
 
-        // node_id_to_buffer_item2[global_node_id] = PQItem(buffer_score, adjacents, num_adj_partitioned);
-        // node_id_to_buffer_item2.emplace(
-        //     global_node_id,
-        //     PQItem(buffer_score, adjacents, num_adj_partitioned)
-        // );
-        // pq.insert(global_node_id,  discretize_score(buffer_score));
-
-        // PQItem item(buffer_score, adjacents, num_adj_partitioned, 0, discretize_score(buffer_score));
+        // } else {
+        //     buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
+        // }
 
         pq.insert(global_node_id, buffer_score, adjacents, num_adj_partitioned);
-        // pq.insert(global_node_id, std::move(item));
 
-
-        // node_id_to_buffer_item[global_node_id - 1].adjacents = new std::vector<LongNodeID>(adjacents);
-        // node_id_to_buffer_item[global_node_id - 1].buffer_score = buffer_score;
+        if (config.buffer_score_type == BUFFER_SCORE_CBS2 || config.buffer_score_type == BUFFER_SCORE_CBS3) {
+            // We need to update the buffer score of the neighbors of the node that was just added, because if node is contained in the buffer is relevant for buffer score
+            update_neighbours_priority(adjacents, false);
+        }
     }
 
     // Removes and partitions the node with the highest priority
     void partitionTopNode() {
         LongNodeID node_id = pq.deleteMax();
-        auto &buffer_item = pq.getBufferItem(node_id);
-
-        assert((*config.stream_nodes_assign)[node_id - 1] == INVALID_PARTITION);
 
         // Partition the node
-        // auto &adjacents = *node_id_to_buffer_item[node_id - 1].adjacents;
-        // auto &adjacents = node_id_to_buffer_item2[node_id].get_adjacents();
-        auto &adjacents = buffer_item.get_adjacents();
-        // pq.getKey(node_id);
+        auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
         partition_single_node(config, node_id, adjacents);
 
         // Update neighbors and clear buffer item
         update_neighbours_priority(adjacents);
-
-        // node_id_to_buffer_item[node_id - 1].make_invalid();
-        // node_id_to_buffer_item[node_id - 1].clean();
-        // node_id_to_buffer_item2[node_id].make_invalid();
         completely_remove_node(node_id);
     }
 
+    bool max_value_below_cutoff() {
+            // std::cout << "Max value: " << pq.maxValue() << " " << pq.maxValue() / 100.0f  << " " << config.bs_cutoff << std::endl;
+        return pq.maxValue() / (float) config.bq_disc_factor < config.bs_cutoff;
+    }
+
+    bool max_value_above_1 (float val=0.0f) {
+        return pq.maxValue() > val * config.bq_disc_factor;
+    }
+
     // Loads the top nodes into a batch for MLP processing
-    void loadTopNodesToBatch(std::vector<LongNodeID> *&input_idxs, LongNodeID batch_size) {
+    // void loadTopNodesToBatch(std::vector<LongNodeID> *&input_idxs, LongNodeID batch_size) {
+    void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size) {
         // Initialize the partition configuration
         config.nmbNodes = MIN(batch_size, pq.size());
-        input_idxs = new std::vector<LongNodeID>(config.nmbNodes);
+        batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
 
-        config.node_in_current_block_set = new google::dense_hash_set<LongNodeID>();
-        config.node_in_current_block_set->set_empty_key(UNDEFINED_LONGNODE);
-        config.node_in_current_block_set->resize(config.nmbNodes);
-
+        unsigned min_batch_size = MIN(config.nmbNodes, 1000);
         // Extract the top batch_size number of nodes from the queue
-        int node_counter = 0;
-        while (node_counter < config.nmbNodes && !pq.empty()) {
-            LongNodeID node_id = pq.deleteMax();
-            assert((*config.stream_nodes_assign)[node_id - 1] == INVALID_PARTITION);
+        int local_node_counter = 0;
+        while (local_node_counter < config.nmbNodes && !pq.empty()) {
+            if (config.bs_cutoff != 0.0f) {
+                if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
+                    break;
+                }
+            }
 
-            auto &buffer_item = pq.getBufferItem(node_id);
-            auto &adjacents = buffer_item.get_adjacents();
-            // auto &buffer_item = node_id_to_buffer_item2[node_id];
-            // pq.getKey(node_id);
-            //  auto &buffer_item = node_id_to_buffer_item[node_id - 1];
+            LongNodeID node_id = pq.deleteMax();
+            auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
 
             // Partition the node directly if it has a high degree
             if (adjacents.size() > config.d_direct) {
@@ -481,19 +458,21 @@ public:
                 continue;
             }
 
-            // Update neighbors and make buffer item invalid
+            (*config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
             update_neighbours_priority(adjacents, false);
 
-            // Add the node to the batch
-            (*input_idxs)[node_counter] = node_id;
-            config.node_in_current_block_set->insert(node_id);
-            node_counter++;
+            (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
+            completely_remove_node(node_id);
+
+            local_node_counter++;
+
+
+
         }
 
-        if (node_counter < config.nmbNodes) {
-            config.nmbNodes = node_counter;
-            input_idxs->resize(node_counter);
-
+        if (local_node_counter < config.nmbNodes) {
+            config.nmbNodes = local_node_counter;
+            batch_nodes->resize(local_node_counter);
         }
 
         if (config.haa_hub_mode != HAA_NONADAPTIVE) {
@@ -511,45 +490,26 @@ public:
         }
 
         for (LongNodeID adj_id : adjacents) {
-            bool is_partitioned = (*config.stream_nodes_assign)[adj_id - 1] != INVALID_PARTITION;
-
-            // if (!is_partitioned && node_id_to_buffer_item[adj_id - 1].is_valid()) { // pq.contains(adj_id)) { // {
-            if (!is_partitioned) {
-                if (pq.contains_in_bucket(adj_id)) {
-                // auto it = node_id_to_buffer_item2.find(adj_id);
-                // if ( it != node_id_to_buffer_item2.end() && it->second.is_valid()) {
-                    // auto &adj_buffer_item = it->second; // node_id_to_buffer_item2[adj_id];
-
+            if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
+                if (pq.contains(adj_id)) {
                     PQItem& adj_buffer_item = pq.getBufferItem(adj_id);
-                    // if (!is_partitioned && node_id_to_buffer_item2.count(adj_id) && node_id_to_buffer_item2[adj_id].is_valid()) {
-                    // auto &adj_buffer_item = node_id_to_buffer_item[adj_id - 1];
-                    // pq.getKey(adj_id);
                     auto &adj_adjacents = adj_buffer_item.get_adjacents();
                     int adj_degree = adj_adjacents.size();
-                    if (adj_degree == 0) {
-                        continue;
-                    }
-
                     adj_buffer_item.num_adj_partitioned++;
 
                     // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
-                    if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned) {
-                        // assert_neighbors_partitioned(config, adj_buffer_item.adjacents, true);
-                        // cnt_part_adj_directly++;
+                    if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
+                    // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
                         pq.deleteNode(adj_id);
                         partition_single_node(config, adj_id, adj_adjacents);
 
                         // Update neighbors and clear buffer item
                         update_neighbours_priority(adj_adjacents);
-
                         completely_remove_node(adj_id);
                     } else {
                         // Update buffer score of neighbours
-                        // assert_neighbors_partitioned(config, adj_buffer_item.adjacents, false);
                         float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
-                        // float score = discretize_score(updated_buffer_score);
                         pq.increaseKey(adj_id, updated_buffer_score);
-                        // adj_buffer_item.buffer_score = updated_buffer_score;
                     }
                 }
             }
@@ -561,13 +521,7 @@ public:
     size_t size() const { return pq.size(); }
 
     std::vector<LongNodeID> &get_adjacents(LongNodeID node_id) {
-        // return *node_id_to_buffer_item[node_id - 1].adjacents;
-        // pq.getKey(node_id);
-
         return pq.getBufferItem(node_id).get_adjacents();
-
-        // return node_id_to_buffer_item2[node_id].get_adjacents();
-
     }
 
     void completely_remove_node(LongNodeID node_id) {
