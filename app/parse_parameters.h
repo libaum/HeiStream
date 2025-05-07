@@ -211,13 +211,13 @@ int parse_parameters(int argn, char **argv,
         struct arg_int *second_phase_buffer             = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
         struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
         struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
-        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anc|cms|nss|gts). Default: cbs" );
+        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anr|cms|nss|gts). Default: cbs" );
         struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
         struct arg_dbl *threshold_start_mlp             = arg_dbl0(NULL, "th_mlp", NULL, "Threshold for the start of the multilevel partitioning. Default 0.0.");
 
         struct arg_dbl *cbs_theta                       = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
 
-        struct arg_str *haa_hub_mode                    = arg_str0(NULL, "haa_hub_mode", NULL, "Mode for HAA (nonadaptive|incforhubs|decforhubs). Default: nonadaptive" );
+        struct arg_str *haa_hub_mode                    = arg_str0(NULL, "haa_hub_mode", NULL, "Mode for HAA (nonadaptive|incforhubs|decforhubs|incForProg|expForProg|logForProg|sinForProg|sigmoidForProg). Default: nonadaptive" );
         struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 2.0.");
         struct arg_dbl *haa_beta_min                    = arg_dbl0(NULL, "haa_beta_min", NULL, "Min beta parameter for haa buffer score. Default 1.0.");
         struct arg_dbl *haa_beta_max                    = arg_dbl0(NULL, "haa_beta_max", NULL, "Max beta parameter for haa buffer score. Default 2.0.");
@@ -236,6 +236,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+
+        struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
 
 
         struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
@@ -357,6 +359,7 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
+                print_times,
                 parallel_mlp
         };
 
@@ -446,6 +449,7 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
+                print_times,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
@@ -1693,6 +1697,10 @@ int parse_parameters(int argn, char **argv,
                 partition_config.param_enbld3 = true;
         }
 
+        if(print_times->count > 0) {
+                partition_config.print_times = true;
+        }
+
 
 
         if(d_direct->count > 0) {
@@ -1707,6 +1715,16 @@ int parse_parameters(int argn, char **argv,
                         partition_config.haa_hub_mode = HAA_INC_FOR_HUBS;
                 } else if (strcmp("decforhubs", haa_hub_mode->sval[0]) == 0) {
                         partition_config.haa_hub_mode = HAA_DEC_FOR_HUBS;
+                } else if (strcmp("incForProg", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_INC_FOR_PROG;
+                } else if (strcmp("expForProg", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_EXP_FOR_PROG;
+                } else if (strcmp("logForProg", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_LOG_FOR_PROG;
+                } else if (strcmp("sinForProg", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_SIN_FOR_PROG;
+                } else if (strcmp("sigmoidForProg", haa_hub_mode->sval[0]) == 0) {
+                        partition_config.haa_hub_mode = HAA_SIGMOID_FOR_PROG;
                 } else {
                         fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
                         exit(0);
@@ -1724,10 +1742,10 @@ int parse_parameters(int argn, char **argv,
                         partition_config.buffer_score_type = BUFFER_SCORE_CBS2;
                 } else if (strcmp("cbs3", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CBS3;
-                } else if (strcmp("anc", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_ANC;
-                } else if (strcmp("anc2", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_ANC2;
+                } else if (strcmp("anr", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_ANR;
+                } else if (strcmp("anr2", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_ANR2;
                 } else if (strcmp("haa", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_HAA;
                 } else if (strcmp("cms", buffer_score->sval[0]) == 0) {

@@ -42,34 +42,6 @@
 
 long getMaxRSS();
 
-// void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::vector<LongNodeID>> *&input);
-// void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes);
-
-
-void assert_neighbors_partitioned(PartitionConfig &partition_config, std::vector<LongNodeID> &line, bool all_should_be_partitioned) {
-    bool one_not_partitioned = false;
-    for (LongNodeID &global_adj_id : line) {
-        if (global_adj_id == line[0])
-            continue;
-        if ((*partition_config.stream_nodes_assign)[global_adj_id - 1] == INVALID_PARTITION) {
-            if (all_should_be_partitioned) {
-                assert(false);
-            }
-
-            one_not_partitioned = true;
-            break;
-        }
-    }
-    if (!all_should_be_partitioned) {
-        if (one_not_partitioned) {
-            std::cout << "Node " << line[0] << " has neighbors that are not partitioned" << std::endl;
-        }
-        assert(one_not_partitioned);
-    }
-}
-
-
-
 std::string extractBaseFilename(const std::string &fullPath);
 
 
@@ -127,6 +99,7 @@ int main(int argn, char **argv) {
     partition_config.stream_input = true;
 
     timer first_phase_t, second_phase_t, updating_adj_t, partitioning_t, calc_buffer_score_t;
+    timer t_mlp;
     double first_phase_time = 0;
     double second_phase_time = 0;
     double updating_adj_time = 0;
@@ -152,23 +125,19 @@ int main(int argn, char **argv) {
 
         buffer_io_time += io_t.elapsed();
 
-        Buffer buffer(partition_config);
+        Buffer buffer(partition_config, partition_config.max_pq_size);
 
         std::unique_ptr<buffered_input> ss2 = nullptr;
         std::vector<LongNodeID> cur_line;
 
         auto lines = std::make_unique<std::vector<std::string>>(1);
 
-        timer t_mlp;
-        first_phase_t.restart();
-
-        // std::vector<std::vector<LongNodeID>> high_deg_nodes;
-        // Buffer high_deg_nodes_buffer(partition_config, 0);
-
         // bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
+        first_phase_t.restart();
         bool use_mlp = partition_config.stream_buffer_len != 1;
         while (partition_config.remaining_stream_nodes) {
 
+            io_t.restart();
             // Load a line from the stream
             std::getline(*(partition_config.stream_in), (*lines)[0]);
             if ((*lines)[0][0] == '%') { // a comment in the file
@@ -181,12 +150,13 @@ int main(int argn, char **argv) {
 
             ss2 = std::make_unique<buffered_input>(lines.get());
             ss2->simple_scan_line(cur_line);
+            buffer_io_time += io_t.elapsed();
 
             unsigned degree = cur_line.size();
-            // int d_max = partition_config.d_max * pow(((double) partition_config.remaining_stream_nodes / partition_config.number_of_nodes),  0.2);
-            // int max_value = std::max(d_max, 500);
-            if (degree > partition_config.d_max || degree == 0) { //
+
+            if (degree >= partition_config.d_max || degree == 0) { //
                 // Partition node directly if degree is too high or 0
+
                 if (degree == 0) {
                     // Put node into partition with lowest weight
                     PartitionID best_partition = 0;
@@ -199,6 +169,8 @@ int main(int argn, char **argv) {
                     }
                     (*partition_config.stream_nodes_assign)[global_node_id - 1] = best_partition;
                     (*partition_config.stream_blocks_weight)[best_partition]++;
+
+
                 } else {
                     // Partition node directly
                     partition_config.count_misc1++;
@@ -210,48 +182,28 @@ int main(int argn, char **argv) {
                     // Update neighbors
                     buffer.update_neighbours_priority(cur_line);
                     updating_adj_time += updating_adj_t.elapsed();
-
-                    // if (false) {
-                    //     // Experimented with delaying high degree nodes completely
-                    //     // cur_line.push_back(global_node_id);
-                    //     // high_deg_nodes.push_back(cur_line);
-
-                    // } else {
-
-                    // }
-
-
                 }
-
-
                 continue;
+
             } else if (buffer.size() >= partition_config.max_pq_size) {
                 // Make space by removing node from queue by popping
                 if (use_mlp) {
-                    // && !buffer.max_value_below_cutoff() && buffer.max_value_above_1()) {
-                // if (partition_config.stream_buffer_len > 1) { // && buffer.max_value_above_1(partition_config.bs_cutoff)) {
 
-                    // if ((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes < partition_config.threshold_start_mlp) {
-                    //     partition_config.stream_buffer_len = 1;
-                    // } else {
-                    //     // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
-                    //     partition_config.stream_buffer_len = max_batch_size;
-                    // }
-                    // if (partition_config.stream_buffer_len > 1 && !buffer.max_value_below_cutoff()) {
                     if (partition_config.parallel_mlp) {
                         mlp_thread_manager.wait_completion();
                         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                        mlp_thread_manager.execute(partition_config, batch_nodes);
-                    } else {
+
                         t_mlp.restart();
+                        mlp_thread_manager.execute(partition_config, batch_nodes);
+                        time_mlp += t_mlp.elapsed();
+                    } else {
                         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+
+                        t_mlp.restart();
                         perform_mlp_on_batch(partition_config, batch_nodes);
                         time_mlp += t_mlp.elapsed();
                     }
 
-                    // } else {
-                    //     buffer.partitionTopNode();
-                    // }
                 } else {
                     buffer.partitionTopNode();
                 }
@@ -265,46 +217,23 @@ int main(int argn, char **argv) {
 
 
         second_phase_t.restart();
-        // bool useSecondPhaseBuffer = partition_config.second_phase_buffer_len != 1;
-        // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
-
         if ( use_mlp ) {
             while (!buffer.isEmpty()) {
 
                 if (partition_config.parallel_mlp) {
                     mlp_thread_manager.wait_completion();
                     buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                    mlp_thread_manager.execute(partition_config, batch_nodes);
-                } else {
                     t_mlp.restart();
+                    mlp_thread_manager.execute(partition_config, batch_nodes);
+                    time_mlp += t_mlp.elapsed();
+                } else {
                     buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
+                    t_mlp.restart();
                     perform_mlp_on_batch(partition_config, batch_nodes);
                     time_mlp += t_mlp.elapsed();
                 }
 
-                // if ((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes < partition_config.threshold_start_mlp) {
-                //     partition_config.stream_buffer_len = 1;
-                // } else {
-                //     // partition_config.stream_buffer_len = std::ceil((double) partition_config.total_nodes_loaded / partition_config.number_of_nodes * (double) max_batch_size);
-                //     partition_config.stream_buffer_len = max_batch_size;
-                // }
-                // if (buffer.max_value_above_1(partition_config.bs_cutoff)) {
-                // // if (partition_config.stream_buffer_len > 1 && !buffer.max_value_below_cutoff() && buffer.max_value_above_1()) {
 
-                //     if (partition_config.parallel_mlp) {
-                //         mlp_thread_manager.wait_completion();
-                //         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                //         mlp_thread_manager.execute(partition_config, batch_nodes);
-                //     } else {
-                //         t_mlp.restart();
-                //         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                //         perform_mlp_on_batch(partition_config, batch_nodes);
-                //         time_mlp += t_mlp.elapsed();
-                //     }
-
-                // } else {
-                //     buffer.partitionTopNode();
-                // }
             }
         } else {
             while (!buffer.isEmpty()) {
@@ -316,35 +245,19 @@ int main(int argn, char **argv) {
         }
         second_phase_time += second_phase_t.elapsed();
 
-
-        // if (false) {
-        //     Buffer high_deg_nodes_buffer(partition_config, 0);
-        //     for (auto &neigbhors : high_deg_nodes) {
-        //         LongNodeID global_node_id = neigbhors[neigbhors.size() - 1];
-        //         neigbhors.pop_back();
-        //         high_deg_nodes_buffer.addNode(global_node_id, neigbhors);
-        //     }
-        //     while (!high_deg_nodes_buffer.isEmpty()) {
-        //         high_deg_nodes_buffer.partitionTopNode();
-        //     }
-
-
-        //     for (auto &neigbhors : high_deg_nodes) {
-        //         // partitioning_t.restart();
-        //         LongNodeID global_node_id = neigbhors[neigbhors.size() - 1];
-        //         neigbhors.pop_back();
-        //         partition_single_node(partition_config, global_node_id, neigbhors, true);
-        //         // partitioning_time += partitioning_t.elapsed();
-        //     }
-        // }
     }
-    // std::cout << "First phase time: " << first_phase_time << std::endl;
-    // std::cout << "Second phase time: " << second_phase_time << std::endl;
-    // std::cout << "Updating adj time: " << updating_adj_time << std::endl;
-    // std::cout << "Partitioning time: " << partitioning_time << std::endl;
-    // std::cout << "Calc buffer score time: " << calc_buffer_score_time << std::endl;
     double total_time = processing_t.elapsed();
     long maxRSS = getMaxRSS();
+
+
+    if (partition_config.print_times) {
+        std::cout << "First phase time: " << first_phase_time << std::endl;
+        std::cout << "Second phase time: " << second_phase_time << std::endl;
+        std::cout << "MLP time: " << time_mlp << std::endl;
+        // std::cout << "Updating adj time: " << updating_adj_time << std::endl;
+        // std::cout << "Partitioning time: " << partitioning_time << std::endl;
+        // std::cout << "Calc buffer score time: " << calc_buffer_score_time << std::endl;
+    }
     FlatBufferWriter fb_writer;
 
     // Check if all nodes are assigned

@@ -111,8 +111,8 @@ typedef enum {
         BUFFER_SCORE_CBS,
         BUFFER_SCORE_CBS2,
         BUFFER_SCORE_CBS3,
-        BUFFER_SCORE_ANC,
-        BUFFER_SCORE_ANC2,
+        BUFFER_SCORE_ANR,
+        BUFFER_SCORE_ANR2,
         BUFFER_SCORE_HAA,
         BUFFER_SCORE_CMS,
         BUFFER_SCORE_NSS,
@@ -122,7 +122,13 @@ typedef enum {
 typedef enum {
         HAA_NONADAPTIVE,
         HAA_INC_FOR_HUBS,
-        HAA_DEC_FOR_HUBS
+        HAA_DEC_FOR_HUBS,
+        HAA_INC_FOR_PROG,     // Linear ansteigend mit Fortschritt
+        HAA_EXP_FOR_PROG,     // Exponentiell ansteigend mit Fortschritt
+        HAA_LOG_FOR_PROG,     // Logarithmisch ansteigend mit Fortschritt
+        HAA_SIN_FOR_PROG,     // Sinusförmig (Welle) ansteigend
+        HAA_SIGMOID_FOR_PROG  // S-förmig (sigmoid) ansteigend
+
 } HAAHubMode;
 
 

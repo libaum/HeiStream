@@ -17,7 +17,7 @@
 #define MAX(A, B) ((A) > (B)) ? (A) : (B)
 
 // CUTTANA HYPERPARAMETERS
-const double THETA = 2;
+const float THETA = 2;
 // const int D_MAX = 1000;
 const bool PARTITION_ADJ_DIRECTLY_ENABLED = true;
 
@@ -41,28 +41,20 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     float best_score = std::numeric_limits<float>::lowest();
     bool feasible_partition_found = false;
 
-    float f = 1; // Balance-Penalty-Faktor for Hubs
-    // if (is_hub) {
-    //     // f -= ((float) cnt_future_neighbors /  adjacents.size());
-    //     // std::cout << "Node " << global_node_id << " is a hub. f = " << f << std::endl;
-    // }
+
     for (PartitionID cur_partition = 0; cur_partition < partition_config.k; ++cur_partition) {
         NodeWeight current_block_weight = (*partition_config.stream_blocks_weight)[cur_partition];
         // Skip or penalize partitions that are already "full"
         if (current_block_weight >= partition_config.max_block_weight) {
             // This partition is not feasible anymore
             continue;
-            // Or set score = -infinity, but "continue" is simpler
         }
 
         float edge_gain = hash_map[cur_partition];
         NodeWeight partition_load = (*partition_config.stream_blocks_weight)[cur_partition];
         float load_penalty = partition_config.fennel_alpha_gamma * random_functions::approx_sqrt(partition_load);
-        float score = edge_gain - f * load_penalty;
+        float score = edge_gain - load_penalty;
 
-        // if (is_hub) {
-        //     std::cout << "Partition " << cur_partition << " has edge gain " << edge_gain << " and load penalty " << load_penalty << "partitionLoad: " << partition_load << ". Score: " << score << std::endl;
-        // }
         if (score > best_score) {
             best_score = score;
             best_partition = cur_partition;
@@ -70,17 +62,11 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
         }
     }
 
-    if (!feasible_partition_found) {
-        // If no feasible partition is found, assign to the partition with the least load
-        std::cout << "No feasible partition found for node " << global_node_id << ". Assigning to partition with least load." << std::endl;
-        best_partition = std::min_element(partition_config.stream_blocks_weight->begin(), partition_config.stream_blocks_weight->end()) - partition_config.stream_blocks_weight->begin();
-    }
     // Assign the node to the partition with the best score
     (*partition_config.stream_nodes_assign)[global_node_id - 1] = best_partition;
 
     // Update partition load
     (*partition_config.stream_blocks_weight)[best_partition]++;
-
 }
 
 // Effiziente Implementierung von pow für Fließkomma-Exponenten
@@ -97,12 +83,12 @@ inline float fast_pow_specialized(float base, float exponent) {
     else if (exponent == 1.0f) {
         return base;
     }
-    // else if (exponent == 0.5f) {
-    //     return random_functions::approx_sqrt(base);
-    // }
-    // else if (exponent == 0.0f) {
-    //     return 1.0f;
-    // }
+    else if (exponent == 0.5f) {
+        return random_functions::approx_sqrt(base);
+    }
+    else if (exponent == 0.0f) {
+        return 1.0f;
+    }
     // Allgemeiner Fall für andere Exponenten
     return std::exp(exponent * std::log(base));
 }
@@ -114,25 +100,27 @@ private:
 
     LongNodeID total_degree_sum;
     LongNodeID node_counter;
+    double progress;
     float current_beta;
 
 public:
-    Buffer(PartitionConfig &partition_config)
+    Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
         :   config(partition_config),
             pq(static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
-                partition_config.number_of_nodes, partition_config.max_pq_size) {
+                partition_config.number_of_nodes, max_pq_size, partition_config.bq_disc_factor) {
 
         current_beta = config.haa_beta;
         total_degree_sum = 0;
         node_counter = 0;
+        progress = 0.0;
     }
 
 
     static float get_max_buffer_score(const PartitionConfig& cfg) {
         switch (cfg.buffer_score_type) {
-            case BUFFER_SCORE_ANC:
+            case BUFFER_SCORE_ANR:
                 return 1;
-            case BUFFER_SCORE_ANC2:
+            case BUFFER_SCORE_ANR2:
                 return 1;
             case BUFFER_SCORE_HAA:
                 return std::max(cfg.haa_theta, 1.0f);
@@ -163,7 +151,7 @@ public:
         assert(cnt_adj_partitioned == 0);
 
         switch (config.buffer_score_type) {
-            case BUFFER_SCORE_ANC: // Assigned Neighbor Count
+            case BUFFER_SCORE_ANR: // Assigned Neighbor Count
             {
                 for (const LongNodeID &global_adj_id : adjacents) {
                     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
@@ -173,7 +161,7 @@ public:
                 buffer_score = cnt_adj_partitioned /  degree;
                 break;
             }
-            case BUFFER_SCORE_ANC2: // Assigned Neighbor Count
+            case BUFFER_SCORE_ANR2: // Assigned Neighbor Count
             {
                 float alpha = 0.6f;
                 float beta = 1.5f;
@@ -309,9 +297,9 @@ public:
         float degree = static_cast<float>(adjacents.size());
 
         switch (config.buffer_score_type) {
-            case BUFFER_SCORE_ANC:
+            case BUFFER_SCORE_ANR:
                 return buffer_item.buffer_score + 1.0 /  degree;
-            case BUFFER_SCORE_ANC2:
+            case BUFFER_SCORE_ANR2:
                 return buffer_item.buffer_score +  0.6 /  degree;
             case BUFFER_SCORE_HAA:
                 {
@@ -343,7 +331,7 @@ public:
                 return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
             case BUFFER_SCORE_CBS:
             default:
-                return buffer_item.buffer_score + (float) THETA / degree;
+                return buffer_item.buffer_score + THETA / degree;
         }
 
 
@@ -356,24 +344,72 @@ public:
     }
 
     void update_beta(double tau = 50.0) {
-        float avg_degree = get_avg_degree();
+        // progress = static_cast<float>(node_counter) / config.number_of_nodes;
         // current_beta = 1.5 * (1 + (avg_degree / config.d_max));
         switch (config.haa_hub_mode) {
             case HAA_INC_FOR_HUBS:
-                current_beta = config.haa_beta_min + (config.haa_beta_max - config.haa_beta_min) * std::exp(-avg_degree / config.haa_tau);
+                current_beta = config.haa_beta_min + (config.haa_beta_max - config.haa_beta_min) * std::exp(- get_avg_degree() / config.haa_tau);
                 break;
             case HAA_DEC_FOR_HUBS:
-                current_beta =  config.haa_beta_min - (config.haa_beta_max - config.haa_beta_min) * std::exp(-avg_degree / config.haa_tau);
+                current_beta =  config.haa_beta_min - (config.haa_beta_max - config.haa_beta_min) * std::exp(- get_avg_degree() / config.haa_tau);
                 break;
+            case HAA_INC_FOR_PROG:
+                current_beta = config.haa_beta_min +
+                            progress * (config.haa_beta_max - config.haa_beta_min);
+                break;
+
+            case HAA_EXP_FOR_PROG:
+                // Exponentiell ansteigend mit Fortschritt
+                {
+                    float exponent = config.haa_tau > 0.0 ? config.haa_tau : 2.0f;
+                    current_beta = config.haa_beta_min +
+                                    std::pow(progress, exponent) *
+                                    (config.haa_beta_max - config.haa_beta_min);
+                }
+                break;
+
+            case HAA_LOG_FOR_PROG:
+                // Logarithmisch ansteigend (schnell am Anfang, langsam am Ende)
+                {
+                    // Logarithmische Kurve, die bei 0 beginnt und bei 1 endet
+                    float log_prog = progress < 0.01f ? 0.0f :
+                                    std::log(1.0f + 99.0f * progress) / std::log(100.0f);
+                    current_beta = config.haa_beta_min +
+                                  log_prog * (config.haa_beta_max - config.haa_beta_min);
+                }
+                break;
+
+            case HAA_SIN_FOR_PROG:
+                // Sinusförmig variierend (Welle)
+                {
+                    // Sinuswelle zwischen min und max, abhängig vom Fortschritt
+                    // Komplett ein Zyklus über den gesamten Stream
+                    float sin_val = (std::sin(progress * 2.0f * M_PI) + 1.0f) / 2.0f;
+                    current_beta = config.haa_beta_min +
+                                  sin_val * (config.haa_beta_max - config.haa_beta_min);
+                }
+                break;
+
+            case HAA_SIGMOID_FOR_PROG:
+                // S-förmig ansteigend (langsam am Anfang und Ende, schnell in der Mitte)
+                {
+                    // Sigmoid-Funktion, skaliert auf [0,1]
+                    float x = (progress - 0.5f) * 10.0f; // Skalieren auf [-5, 5]
+                    float sigmoid = 1.0f / (1.0f + std::exp(-x));
+                    current_beta = config.haa_beta_min +
+                                  sigmoid * (config.haa_beta_max - config.haa_beta_min);
+                }
+                break;
+
             case HAA_NONADAPTIVE:
                 break;
         }
-        // std::cout << "Updated beta: " << current_beta << std::endl;
     }
 
     // Adds a node to the buffer
     void addNode(LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
         if (config.haa_hub_mode != HAA_NONADAPTIVE) {
+            progress += 1.0 / config.number_of_nodes;
             node_counter++;
             total_degree_sum += adjacents.size();
             if (node_counter == 1000) { // && node_counter % 100 == 0) {
@@ -383,18 +419,6 @@ public:
 
         unsigned num_adj_partitioned = 0;
         float buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
-
-        // if (false && adjacents.size() > config.d_max) {
-        //     for (const LongNodeID &global_adj_id : adjacents) {
-        //         if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-        //             num_adj_partitioned++;
-        //         }
-        //     }
-        //     buffer_score = num_adj_partitioned /  adjacents.size();
-
-        // } else {
-        //     buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
-        // }
 
         pq.insert(global_node_id, buffer_score, adjacents, num_adj_partitioned);
 
@@ -418,7 +442,7 @@ public:
     }
 
     bool max_value_below_cutoff() {
-            // std::cout << "Max value: " << pq.maxValue() << " " << pq.maxValue() / 100.0f  << " " << config.bs_cutoff << std::endl;
+        // std::cout << "Max value: " << pq.maxValue() << " " << pq.maxValue() / 100.0f  << " " << config.bs_cutoff << std::endl;
         return pq.maxValue() / (float) config.bq_disc_factor < config.bs_cutoff;
     }
 
@@ -427,34 +451,33 @@ public:
     }
 
     // Loads the top nodes into a batch for MLP processing
-    // void loadTopNodesToBatch(std::vector<LongNodeID> *&input_idxs, LongNodeID batch_size) {
     void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size) {
         // Initialize the partition configuration
         config.nmbNodes = MIN(batch_size, pq.size());
         batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
 
-        LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
+        // LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
         // Extract the top batch_size number of nodes from the queue
         LongNodeID local_node_counter = 0;
         while (local_node_counter < config.nmbNodes && !pq.empty()) {
-            if (config.bs_cutoff != 0.0f) {
-                if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
-                    break;
-                }
-            }
+            // if (config.bs_cutoff != 0.0f) {
+            //     if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
+            //         break;
+            //     }
+            // }
 
             LongNodeID node_id = pq.deleteMax();
             auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
 
             // Partition the node directly if it has a high degree
-            if (adjacents.size() > config.d_direct) {
-                partition_single_node(config, node_id, adjacents);
+            // if (adjacents.size() > config.d_direct) {
+            //     partition_single_node(config, node_id, adjacents);
 
-                // Update neighbors and make buffer item invalid
-                update_neighbours_priority(adjacents, false);
-                completely_remove_node(node_id);
-                continue;
-            }
+            //     // Update neighbors and make buffer item invalid
+            //     update_neighbours_priority(adjacents, false);
+            //     completely_remove_node(node_id);
+            //     continue;
+            // }
 
             (*config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
             update_neighbours_priority(adjacents, false);

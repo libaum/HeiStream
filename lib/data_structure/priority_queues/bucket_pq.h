@@ -21,11 +21,6 @@ const float INVALID_SCORE = std::numeric_limits<float>::max();
 const unsigned INVALID_POS = std::numeric_limits<unsigned>::max();
 // const unsigned INVALID_POS_CACHED = std::numeric_limits<unsigned>::max() - 1;
 
-inline unsigned discretize_score(float score) {
-    // Use round instead of floor to handle precision better
-    // return static_cast<unsigned>(std::round(score * config.bq_disc_factor));
-    return static_cast<unsigned>(std::round(score * 100));
-}
 
 class PQItem {
 public:
@@ -39,16 +34,9 @@ public:
     PQItem() : buffer_score(INVALID_SCORE), address(0), num_adj_partitioned(0),
                 adjacents(nullptr), pos_in_bucket(INVALID_POS) {}
 
-    // PQItem(float score, const std::vector<LongNodeID> &l, unsigned adj_part, unsigned pos_in_bucket, unsigned address)
-    //     : buffer_score(score), num_adj_partitioned(adj_part), adjacents(l), pos_in_bucket(pos_in_bucket), address(address) {
-    //     adjacents = new std::vector<LongNodeID>(l);
-    // }
-
     // Konstruktor für normale Referenzen (lvalue)
     PQItem(float score, std::vector<LongNodeID> &l, unsigned adj_part, unsigned pos_in_bucket, unsigned address)
         : buffer_score(score), address(address), num_adj_partitioned(adj_part), pos_in_bucket(pos_in_bucket) {
-        // Übernehme Ownership des Vektors ohne Kopie
-        // adjacents = new std::vector<LongNodeID>(std::move(l));
         adjacents = new std::vector<LongNodeID>(l);
     }
 
@@ -122,10 +110,6 @@ public:
         return address;
     }
 
-    // unsigned get_disc_buffer_score() const {
-    //     return discretize_score(buffer_score);
-    // }
-
     unsigned get_pos_in_bucket() const {
         return pos_in_bucket;
     }
@@ -138,33 +122,11 @@ public:
         buffer_score = new_buffer_score;
         address = new_address;
     }
-
-    // bool is_cached() const {
-    //     return pos_in_bucket == INVALID_POS_CACHED;
-    // }
-
-    // bool is_valid() const {
-    //     return pos_in_bucket != INVALID_POS_CACHED;
-    // }
-
-    // void set_cached() {
-    //     pos_in_bucket = INVALID_POS_CACHED;
-    // }
-
-
-    // void clean() { adjacents.reset(); valid = false; }
-
-    //  void clean() {
-    //      if (adjacents != nullptr) {
-    //          delete adjacents;
-    //          adjacents = nullptr;
-    //      }
-    //  }
 };
 
 class bucket_pq {
 public:
-    bucket_pq(const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size);
+    bucket_pq(const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size, unsigned bq_disc_factor);
 
     ~bucket_pq() = default;
 
@@ -189,21 +151,30 @@ public:
     PQItem& getBufferItem(LongNodeID node);
     void completely_remove_node(LongNodeID node);
 
+    unsigned discretize_score(float score) const;
+
 private:
     LongNodeID m_elements;
     EdgeWeight m_gain_span;
     unsigned m_max_idx; // points to the non-empty bucket with the largest gain
+    unsigned disc_factor;
 
     std::unordered_map<LongNodeID, PQItem> m_queue_index_map;
     std::vector<std::vector<LongNodeID>> m_buckets;
 };
 
-inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size)
-    : m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0) {
+inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size, unsigned bq_disc_factor)
+    : m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0), disc_factor(bq_disc_factor) {
 
     m_queue_index_map.reserve(max_pq_size);
     m_queue_index_map.max_load_factor(0.7f);
     m_buckets.resize(m_gain_span);
+}
+
+inline unsigned bucket_pq::discretize_score(float score) const{
+    // Use round instead of floor to handle precision better
+    // return static_cast<unsigned>(std::round(score * config.bq_disc_factor));
+    return static_cast<unsigned>(std::round(score * disc_factor));
 }
 
 inline LongNodeID bucket_pq::size() const {
@@ -314,7 +285,7 @@ inline void bucket_pq::deleteNode(LongNodeID node) {
     unsigned& address = buffer_item.address;
 
     if (m_buckets[address].size() > 1) {
-        // swap current element with last element and pop_back
+        // Swap current element with last element and pop_back
         m_queue_index_map[m_buckets[address].back()].pos_in_bucket = in_bucket_idx; // update helper structure
         std::swap(m_buckets[address][in_bucket_idx], m_buckets[address].back());
         m_buckets[address].pop_back();
@@ -322,7 +293,7 @@ inline void bucket_pq::deleteNode(LongNodeID node) {
         // size is 1
         m_buckets[address].pop_back();
         if (address == m_max_idx) {
-            // update max_idx
+            // Update max_idx
             while (m_max_idx != 0) {
                 m_max_idx--;
                 if (m_buckets[m_max_idx].size() > 0) {
@@ -333,7 +304,6 @@ inline void bucket_pq::deleteNode(LongNodeID node) {
     }
 
     m_elements--;
-    // buffer_item.set_cached();
 }
 
 #endif /* end of include guard: BUCKET_PQ_EM8YJPA9 */

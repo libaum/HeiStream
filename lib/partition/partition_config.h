@@ -32,6 +32,7 @@ struct PartitionConfig
         int count_misc1;
         int count_misc2;
 
+        bool print_times;
 
         BufferScoreType buffer_score_type;
         double gts_alpha;

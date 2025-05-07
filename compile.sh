@@ -3,7 +3,6 @@
 NCORES=12
 unamestr=`uname`
 
-rm -rf deploy
 rm -rf build
 mkdir build
 cd build 
