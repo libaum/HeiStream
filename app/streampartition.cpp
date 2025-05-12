@@ -39,11 +39,22 @@
 #include "mlp_thread_manager.cpp"
 
 
-
 long getMaxRSS();
 
 std::string extractBaseFilename(const std::string &fullPath);
 
+void write_node_part_order_to_file(std::vector<std::string> &node_part_order) {
+    std::ofstream order_file("hs_node_part_order");
+    if (!order_file.is_open()) {
+        std::cerr << "Failed to open node_part_order file for writing" << std::endl;
+        return;
+    }
+
+    for (const auto& entry : node_part_order) {
+        order_file << entry << "\n";
+    }
+    order_file.close();
+}
 
 int main(int argn, char **argv) {
     /* std::cout << R"(
@@ -107,6 +118,11 @@ int main(int argn, char **argv) {
     // double calc_buffer_score_time = 0;
     double time_mlp = 0;
 
+    if (partition_config.write_node_part_order) {
+        partition_config.node_part_order = new std::vector<std::string>();
+    } else {
+        partition_config.node_part_order = nullptr;
+    }
 
     int &passes = partition_config.num_streams_passes;
     partition_config.count_misc1 = 0;
@@ -172,6 +188,12 @@ int main(int argn, char **argv) {
 
 
                 } else {
+
+                    if (partition_config.write_node_part_order) {
+                        std::string entry = std::to_string(global_node_id) + " " + std::to_string(-1) + " -> ";
+                        (*partition_config.node_part_order).push_back(entry);
+                    }
+
                     // Partition node directly
                     partition_config.count_misc1++;
                     partitioning_t.restart();
@@ -267,6 +289,11 @@ int main(int argn, char **argv) {
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
     fb_writer.updateVertexPartitionResults(total_edge_cut, qm.balance_full_stream(*partition_config.stream_blocks_weight));
+
+
+    if (partition_config.write_node_part_order) {
+        write_node_part_order_to_file(*partition_config.node_part_order);
+    }
 
     double total_time_rounded = std::round(total_time * 100.0) / 100.0;
     std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << std::endl; // << " " << cnt_part_adj_directly << std::endl;

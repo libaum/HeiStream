@@ -563,6 +563,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.param_enbld2                   = false;
         partition_config.param_enbld3                   = false;
 
+        partition_config.write_node_part_order          = false;
+
         partition_config.d_direct                       = 1000; //std::numeric_limits<int>::max();
 
         partition_config.first_phase_buffer_len         = 1;

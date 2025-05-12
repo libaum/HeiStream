@@ -33,6 +33,9 @@ struct PartitionConfig
         int count_misc2;
 
         bool print_times;
+        bool write_node_part_order;
+
+        std::vector<std::string> *node_part_order;
 
         BufferScoreType buffer_score_type;
         double gts_alpha;

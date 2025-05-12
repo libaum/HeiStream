@@ -67,6 +67,13 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
 
     // Update partition load
     (*partition_config.stream_blocks_weight)[best_partition]++;
+
+
+    if (partition_config.write_node_part_order) {
+        if (!(*partition_config.node_part_order).empty() && (*partition_config.node_part_order).back().find(" -> ") == (*partition_config.node_part_order).back().size() - 4) {
+            (*partition_config.node_part_order).back() += std::to_string(best_partition);
+        }
+    }
 }
 
 // Effiziente Implementierung von pow für Fließkomma-Exponenten
@@ -432,6 +439,11 @@ public:
     void partitionTopNode() {
         LongNodeID node_id = pq.deleteMax();
 
+        if (config.write_node_part_order) {
+            std::string entry = std::to_string(node_id) + " " + std::to_string(pq.getBufferItem(node_id).buffer_score) + " -> ";
+            (*config.node_part_order).push_back(entry);
+        }
+
         // Partition the node
         auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
         partition_single_node(config, node_id, adjacents);
@@ -468,6 +480,14 @@ public:
 
             LongNodeID node_id = pq.deleteMax();
             auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
+
+            if (config.write_node_part_order) {
+                std::string entry = std::to_string(node_id) + " " + std::to_string(pq.getBufferItem(node_id).buffer_score) + " -> ";
+                (*config.node_part_order).push_back(entry);
+                // if (!(*partition_config.node_part_order).empty() && (*partition_config.node_part_order).back().find(" -> ") == (*partition_config.node_part_order).back().size() - 4) {
+                //     (*partition_config.node_part_order).back() += std::to_string(best_partition);
+                // }
+            }
 
             // Partition the node directly if it has a high degree
             // if (adjacents.size() > config.d_direct) {
