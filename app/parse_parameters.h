@@ -237,6 +237,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *write_npo                       = arg_lit0(NULL, "write_npo", "(Default: disabled)");
+        struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
 
         struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
@@ -362,6 +363,7 @@ int parse_parameters(int argn, char **argv,
                 param_enbld2,
                 param_enbld3,
                 write_npo,
+                disable_part_adj_direct,
                 print_times,
                 parallel_mlp
         };
@@ -453,6 +455,7 @@ int parse_parameters(int argn, char **argv,
                 param_enbld2,
                 param_enbld3,
                 write_npo,
+                disable_part_adj_direct,
                 print_times,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
@@ -1704,6 +1707,11 @@ int parse_parameters(int argn, char **argv,
         if(write_npo->count > 0) {
                 partition_config.write_node_part_order = true;
         }
+        if(disable_part_adj_direct->count > 0) {
+                partition_config.part_adj_directly = false;
+        }
+
+
 
         if(print_times->count > 0) {
                 partition_config.print_times = true;

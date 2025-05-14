@@ -34,6 +34,7 @@ struct PartitionConfig
 
         bool print_times;
         bool write_node_part_order;
+        bool part_adj_directly;
 
         std::vector<std::string> *node_part_order;
 

@@ -564,6 +564,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.param_enbld3                   = false;
 
         partition_config.write_node_part_order          = false;
+        partition_config.part_adj_directly              = true;
 
         partition_config.d_direct                       = 1000; //std::numeric_limits<int>::max();
 

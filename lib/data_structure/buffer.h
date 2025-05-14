@@ -19,7 +19,6 @@
 // CUTTANA HYPERPARAMETERS
 const float THETA = 2;
 // const int D_MAX = 1000;
-const bool PARTITION_ADJ_DIRECTLY_ENABLED = true;
 
 
 inline void partition_single_node(PartitionConfig &partition_config, LongNodeID global_node_id, std::vector<LongNodeID> &adjacents, bool is_hub = false) {
@@ -524,7 +523,11 @@ public:
 
 
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
-    void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = PARTITION_ADJ_DIRECTLY_ENABLED) {
+    void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
+        if (part_adj_directly == false) {
+            part_adj_directly = config.part_adj_directly;
+        }
+
         // Ensure that the adjacents contains at least one neighbor.
         if (adjacents.size() == 0) {
             return;
