@@ -177,6 +177,7 @@ int main(int argn, char **argv) {
                     // Put node into partition with lowest weight
                     PartitionID best_partition = 0;
                     LongNodeID min_weight = partition_config.max_block_weight;
+                    mlp_thread_manager.wait_completion();
                     for (PartitionID i = 0; i < partition_config.k; i++) {
                         if ((*partition_config.stream_blocks_weight)[i] < min_weight) {
                             min_weight = (*partition_config.stream_blocks_weight)[i];
@@ -196,6 +197,7 @@ int main(int argn, char **argv) {
 
                     // Partition node directly
                     partition_config.count_misc1++;
+                    mlp_thread_manager.wait_completion();
                     partitioning_t.restart();
                     partition_single_node(partition_config, global_node_id, cur_line, true);
                     partitioning_time += partitioning_t.elapsed();
