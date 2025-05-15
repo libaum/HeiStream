@@ -62,6 +62,9 @@ private:
     bool has_task = false;
     bool shutdown = false;
 
+    timer t_mlp;
+    double time_mlp = 0.0;
+
     PartitionConfig* config_ptr = nullptr;
     std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>** batch_ptr = nullptr;
 
@@ -79,7 +82,9 @@ private:
 
             // Ausführen der MLP-Funktion
             if (config_ptr && batch_ptr) {
+                t_mlp.restart();
                 ::perform_mlp_on_batch(*config_ptr, *batch_ptr);
+                time_mlp += t_mlp.elapsed();
             }
 
             // Signalisiere Fertigstellung
@@ -106,6 +111,10 @@ public:
         if (worker.joinable()) {
             worker.join();
         }
+    }
+
+    double get_mlp_time() const {
+        return time_mlp;
     }
 
     // Führt perform_mlp_on_batch asynchron aus (wartet wenn nötig)
