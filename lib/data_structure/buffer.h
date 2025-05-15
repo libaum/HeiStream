@@ -126,20 +126,9 @@ public:
         switch (cfg.buffer_score_type) {
             case BUFFER_SCORE_ANR:
                 return 1;
-            case BUFFER_SCORE_ANR2:
-                return 1;
             case BUFFER_SCORE_HAA:
                 return std::max(cfg.haa_theta, 1.0f);
-            case BUFFER_SCORE_CMS:
-                return 1;
-            case BUFFER_SCORE_NSS:
-                return 1;
-            case BUFFER_SCORE_GTS:
-                return 1;
-
             case BUFFER_SCORE_CBS:
-            case BUFFER_SCORE_CBS2:
-            case BUFFER_SCORE_CBS3:
             default:
                 return 3;
         }
@@ -167,23 +156,6 @@ public:
                 buffer_score = cnt_adj_partitioned /  degree;
                 break;
             }
-            case BUFFER_SCORE_ANR2: // Assigned Neighbor Count
-            {
-                float alpha = 0.6f;
-                float beta = 1.5f;
-
-                for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    }
-                }
-
-                float neighbor_term = cnt_adj_partitioned / degree;  // avoid div by 0
-                float deg_term = pow(degree / config.d_max, beta);
-
-                buffer_score = alpha * neighbor_term + (1.0f - alpha) * deg_term;
-                break;
-            }
             case BUFFER_SCORE_HAA:
             {
                 // Zähle, wie viele Nachbarn schon partitioniert sind.
@@ -204,83 +176,6 @@ public:
                 break;
             }
 
-            case BUFFER_SCORE_CMS: // Community - Majority Score
-            {
-                std::vector<int> hash_map(config.k, 0);
-                // int cnt_future_neighbors = 0;
-                int most_common_partition_count = 0;
-                for (LongNodeID adj_id : adjacents) {
-                    PartitionID adj_part = (*config.stream_nodes_assign)[adj_id - 1];
-                    if (adj_part < TO_BE_PARTITIONED) {
-                        cnt_adj_partitioned++;
-                        hash_map[adj_part]++;
-                        if (hash_map[adj_part] > most_common_partition_count) {
-                            most_common_partition_count = hash_map[adj_part];
-                            if (most_common_partition_count > degree / 2) {
-                                break;
-                            }
-                        }
-                    }
-                }
-                buffer_score =(float) most_common_partition_count /  degree; // +  (float) degree / config.d_max;
-                break;
-            }
-
-            case BUFFER_SCORE_NSS: // Neighborhood Seen Score
-            {
-                unsigned cnt_adj_in_buffer = 0;
-                for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    } else if (pq.contains(global_adj_id)) {
-                        cnt_adj_in_buffer++;
-                    }
-                }
-                // NOTE: Maybe account for degree somehow? higher importance to higher degree nodes exponentially or linearly? (e.g. degree / config.d_max)
-                buffer_score = (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree;
-                break;
-            }
-            case BUFFER_SCORE_GTS: // Graph Traversal Score
-            {
-                // NOTE: Maybe leave out this for performance reasons
-                for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    }
-                }
-                buffer_score = (float) degree / config.d_max;
-                break;
-            }
-
-            case BUFFER_SCORE_CBS3: // Cuttana buffer score 3
-            {
-                unsigned cnt_adj_in_buffer = 0;
-                for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    } else if (pq.contains(global_adj_id)) {
-
-                        cnt_adj_in_buffer++;
-                    }
-                }
-                buffer_score = (float) degree / config.d_max + THETA * (float) cnt_adj_partitioned /  degree + (float) cnt_adj_in_buffer/ degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
-                break;
-            }
-
-            case BUFFER_SCORE_CBS2: // Cuttana buffer score 2
-            {
-                unsigned cnt_adj_in_buffer = 0;
-                for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    } else if (pq.contains(global_adj_id)) {
-
-                        cnt_adj_in_buffer++;
-                    }
-                }
-                buffer_score = (float) degree / config.d_max + THETA * (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
-                break;
-            }
             case BUFFER_SCORE_CBS: // Cuttana buffer score
             default: // Default to classic buffer score
             {
@@ -305,8 +200,6 @@ public:
         switch (config.buffer_score_type) {
             case BUFFER_SCORE_ANR:
                 return buffer_item.buffer_score + 1.0 /  degree;
-            case BUFFER_SCORE_ANR2:
-                return buffer_item.buffer_score +  0.6 /  degree;
             case BUFFER_SCORE_HAA:
                 {
                     float r = std::pow(degree / static_cast<float>(config.d_max), current_beta);
@@ -314,36 +207,11 @@ public:
                     // float r = fast_pow_specialized(degree / config.d_max, current_beta);
                     return std::min(buffer_item.buffer_score + (1 - r) * (1 / degree), 1.0f);
                 }
-            case BUFFER_SCORE_CMS:
-                buffer_item.num_adj_partitioned = 0;
-                // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
-                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
-            case BUFFER_SCORE_NSS:
-                buffer_item.num_adj_partitioned = 0;
-                // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
-                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
-            case BUFFER_SCORE_GTS:
-                return MIN(buffer_item.buffer_score + config.gts_alpha, get_max_buffer_score(config));
-
-            case BUFFER_SCORE_CBS3:
-                // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
-                buffer_item.num_adj_partitioned = 0;
-                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
-
-            case BUFFER_SCORE_CBS2:
-                // return buffer_item.buffer_score + (float) THETA / degree;
-                // NOTE: only for evaluation, if it performs good, then some more sophisticated logic for updating should be implemented
-                buffer_item.num_adj_partitioned = 0;
-                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
             case BUFFER_SCORE_CBS:
             default:
                 return buffer_item.buffer_score + THETA / degree;
         }
-
-
     }
-
-
 
     float get_avg_degree() {
         return static_cast<float>(total_degree_sum) / node_counter;
@@ -427,11 +295,6 @@ public:
         float buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
 
         pq.insert(global_node_id, buffer_score, adjacents, num_adj_partitioned);
-
-        if (config.buffer_score_type == BUFFER_SCORE_CBS2 || config.buffer_score_type == BUFFER_SCORE_CBS3) {
-            // We need to update the buffer score of the neighbors of the node that was just added, because if node is contained in the buffer is relevant for buffer score
-            update_neighbours_priority(adjacents, false);
-        }
     }
 
     // Removes and partitions the node with the highest priority
