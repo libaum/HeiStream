@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include "timer.h"
 
 #include "data_structure/graph_access.h"
 #include "data_structure/priority_queues/bucket_pq.h"
@@ -108,6 +109,9 @@ private:
     LongNodeID node_counter;
     double progress;
     float current_beta;
+
+    timer update_adj_t;
+    double update_adj_time = 0.0;
 
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
@@ -387,7 +391,9 @@ public:
 
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
     void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
-        if (part_adj_directly == false) {
+        update_adj_t.restart();
+
+        if (part_adj_directly == true) {
             part_adj_directly = config.part_adj_directly;
         }
 
@@ -407,12 +413,14 @@ public:
                     // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
                     if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
                     // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
+                        update_adj_time += update_adj_t.elapsed();
                         pq.deleteNode(adj_id);
                         partition_single_node(config, adj_id, adj_adjacents);
 
                         // Update neighbors and clear buffer item
                         update_neighbours_priority(adj_adjacents);
                         completely_remove_node(adj_id);
+                        update_adj_t.restart();
                     } else {
                         // Update buffer score of neighbours
                         float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
@@ -421,6 +429,11 @@ public:
                 }
             }
         }
+        update_adj_time += update_adj_t.elapsed();
+    }
+
+    double get_update_adj_time() {
+        return update_adj_time;
     }
 
     // Helper-Methoden
