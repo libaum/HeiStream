@@ -284,8 +284,8 @@ public:
         }
     }
 
-    // Adds a node to the buffer
-    void addNode(LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
+    // Adds a node to the buffer or partition directly if buffer score is higher than max score
+    bool addNode(LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
         if (config.haa_hub_mode != HAA_NONADAPTIVE) {
             progress += 1.0 / config.number_of_nodes;
             node_counter++;
@@ -297,8 +297,16 @@ public:
 
         unsigned num_adj_partitioned = 0;
         float buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
+        unsigned bucket_idx = pq.discretize_score(buffer_score);
 
-        pq.insert(global_node_id, buffer_score, adjacents, num_adj_partitioned);
+        // if (pq.size() >= config.max_pq_size && bucket_idx > pq.maxValue()) { // test1
+        // if (pq.size() >= config.max_pq_size && bucket_idx >= pq.maxValue()) { // test2
+        if (config.stream_buffer_len == 1 && pq.size() >= config.max_pq_size && bucket_idx >= pq.maxValue()) { // test3
+            return false;
+        } else {
+            pq.insert(global_node_id, buffer_score, adjacents, num_adj_partitioned, bucket_idx);
+            return true;
+        }
     }
 
     // Removes and partitions the node with the highest priority
@@ -446,6 +454,10 @@ public:
 
     void completely_remove_node(LongNodeID node_id) {
         pq.completely_remove_node(node_id);
+    }
+
+    float get_max_value() {
+        return pq.maxValue();
     }
 };
 

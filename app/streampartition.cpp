@@ -219,8 +219,30 @@ int main(int argn, char **argv) {
                 }
                 continue;
 
-            } else if (buffer.size() >= partition_config.max_pq_size) {
-                // Make space by removing node from queue by popping
+            }
+
+            // Check if new node has a higher buffer score than max score in buffer
+            buffer_add_node_t.restart();
+            bool added_to_buffer = buffer.addNode(global_node_id, cur_line);
+            buffer_add_node_time += buffer_add_node_t.elapsed();
+
+            if (!added_to_buffer) {
+                // Wait for MLP to finish
+                wait_for_mlp_t.restart();
+                mlp_thread_manager.wait_completion();
+                wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+
+                part_single_node_t.restart();
+                partition_single_node(partition_config, global_node_id, cur_line, true);
+                part_single_node_time += part_single_node_t.elapsed();
+
+                buffer.update_neighbours_priority(cur_line);
+            }
+
+
+
+            // If buffer is full, partition either the top node or a batch of top nodes using MLP
+            if (buffer.size() > partition_config.max_pq_size) {
                 if (use_mlp) {
 
                     if (partition_config.parallel_mlp) {
@@ -246,9 +268,7 @@ int main(int argn, char **argv) {
                 }
             }
 
-            buffer_add_node_t.restart();
-            buffer.addNode(global_node_id, cur_line);
-            buffer_add_node_time += buffer_add_node_t.elapsed();
+
 
         }
         cur_line.clear();
