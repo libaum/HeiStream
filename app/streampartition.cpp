@@ -143,31 +143,30 @@ int main(int argn, char **argv) {
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
         io_time += io_t.elapsed();
 
+        first_phase_t.restart();
         Buffer buffer(partition_config, partition_config.max_pq_size);
 
-        std::unique_ptr<buffered_input> ss2 = nullptr;
+        std::vector<std::string> lines(1);
+        buffered_input ss2(&lines);
         std::vector<LongNodeID> cur_line;
+        cur_line.reserve(1000);
 
-        auto lines = std::make_unique<std::vector<std::string>>(1);
-
-        // bool useFirstPhaseBuffer = partition_config.first_phase_buffer_len != 1;
-        first_phase_t.restart();
         bool use_mlp = partition_config.stream_buffer_len != 1;
         while (partition_config.remaining_stream_nodes) {
 
             io_t.restart();
             // Load a line from the stream
-            std::getline(*(partition_config.stream_in), (*lines)[0]);
-            if ((*lines)[0][0] == '%') { // a comment in the file
+            std::getline(*(partition_config.stream_in), lines[0]);
+            if (lines[0][0] == '%') { // skip comments in the file
                 continue;
             }
+
             partition_config.remaining_stream_nodes--;
             LongNodeID global_node_id = ++partition_config.total_nodes_loaded;
 
             assert(global_node_id <= partition_config.number_of_nodes);
 
-            ss2 = std::make_unique<buffered_input>(lines.get());
-            ss2->simple_scan_line(cur_line);
+            ss2.simple_scan_line_fast(cur_line);
             io_time += io_t.elapsed();
 
             unsigned degree = cur_line.size();

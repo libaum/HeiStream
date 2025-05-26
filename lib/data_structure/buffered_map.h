@@ -91,6 +91,37 @@ class buffered_input {
 			}
 			this->row++;
 		}
+
+		void simple_scan_line_fast(std::vector<LongNodeID>& vec) {
+			vec.clear();
+
+			const std::string& line = (*this->lines)[this->row];
+			const char* ptr = line.c_str();
+			const char* end = ptr + line.length();
+
+			// Reserviere Speicher
+			// vec.reserve(line.length() / 4);
+
+			while (ptr < end) {
+				// Überspringe Nicht-Ziffern
+				while (ptr < end && (*ptr < '0' || *ptr > '9')) {
+					ptr++;
+				}
+
+				if (ptr >= end) break;
+
+				// Parse Zahl
+				LongNodeID num = 0;
+				while (ptr < end && *ptr >= '0' && *ptr <= '9') {
+					num = num * 10 + (*ptr - '0');
+					ptr++;
+				}
+
+				vec.push_back(num);
+			}
+
+		}
+
 	private:
 		bool next_int(LongNodeID& item) {
 			bool valid_number = false;
