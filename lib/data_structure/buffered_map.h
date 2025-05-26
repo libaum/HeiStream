@@ -1,5 +1,5 @@
 /******************************************************************************
- * buffered_map.h 
+ * buffered_map.h
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -59,8 +59,8 @@ class buffered_map {
 		std::vector<LongNodeID> value_to_key;
 };
 
-//macros  
-#define forall_pairs_bufferedmap(obj,key,value) { for (LongNodeID value = 0; value < (obj).value_to_key.size(); value++) { LongNodeID key = (obj).value_to_key[value]; 
+//macros
+#define forall_pairs_bufferedmap(obj,key,value) { for (LongNodeID value = 0; value < (obj).value_to_key.size(); value++) { LongNodeID key = (obj).value_to_key[value];
 #define endfor_bufferedmap }}
 
 
@@ -100,14 +100,14 @@ class buffered_input {
 				switch(c) {
 					case '0': case '1': case '2': case '3': case '4':
 					case '5': case '6': case '7': case '8': case '9':
-						item = 10*item + (LongNodeID) (c - '0');                                     
-						valid_number = true; 
+						item = 10*item + (LongNodeID) (c - '0');
+						valid_number = true;
 						break;
 					default:
 						if (valid_number) return true;
 						break;
 				}
-				this->column++; 
+				this->column++;
 			}
 			return valid_number;
 		}
@@ -118,6 +118,6 @@ class buffered_input {
 
 
 #endif /* end of include guard: BUFFERED_MAP_EFRXO4X2 */
-//macros  
+//macros
 
 
