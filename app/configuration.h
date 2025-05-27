@@ -543,6 +543,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.max_block_weight                       = 0;
         partition_config.buffer_score_type                      = BUFFER_SCORE_CBS;
 
+        partition_config.max_active_batches             = 10;
+
         partition_config.haa_hub_mode                           = HAA_NONADAPTIVE;
         partition_config.haa_beta                       = 2.0f;
         partition_config.haa_beta_min                   = 1.0f;
@@ -563,6 +565,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.param_enbld2                   = false;
         partition_config.param_enbld3                   = false;
 
+        partition_config.node_part_order                = nullptr;
         partition_config.write_node_part_order          = false;
         partition_config.part_adj_directly              = true;
 

@@ -43,7 +43,7 @@ public:
 
     virtual ~graph_io_stream();
 
-    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes);
+    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id);
 
     static void processNodeWeight(PartitionConfig &config, std::vector<NodeWeight> &all_nodes, NodeID node, NodeWeight weight, LongNodeID global_node);
 

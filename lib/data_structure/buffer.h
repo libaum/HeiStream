@@ -12,7 +12,6 @@
 #include "macros_assertions.h"
 #include "partition/partition_config.h"
 #include "random_functions.h"
-// #include <sparsehash/dense_hash_map>
 
 #define MIN(A, B) ((A) < (B)) ? (A) : (B)
 #define MAX(A, B) ((A) > (B)) ? (A) : (B)
@@ -29,7 +28,7 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     int cnt_future_neighbors = 0;
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
-        if (adj_part < TO_BE_PARTITIONED) {
+        if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
             hash_map[adj_part]++;
         } else {
             cnt_future_neighbors++;
@@ -337,10 +336,12 @@ public:
     }
 
     // Loads the top nodes into a batch for MLP processing
-    void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size) {
+    void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size, size_t batch_id) {
         // Initialize the partition configuration
-        config.nmbNodes = MIN(batch_size, pq.size());
-        batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
+
+        batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(MIN(batch_size, pq.size()));
+
+        PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
 
         // LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
         // Extract the top batch_size number of nodes from the queue
@@ -373,8 +374,10 @@ public:
             //     continue;
             // }
 
-            (*config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
+            (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
             update_neighbours_priority(adjacents, false);
+
+
 
             (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
             completely_remove_node(node_id);
@@ -385,8 +388,7 @@ public:
 
         }
 
-        if (local_node_counter < config.nmbNodes) {
-            config.nmbNodes = local_node_counter;
+        if (local_node_counter < batch_nodes->size()) {
             batch_nodes->resize(local_node_counter);
         }
 
@@ -410,32 +412,39 @@ public:
             return;
         }
 
+        // Für Performance-Optimierung: direkter Zugriff
+        auto& queue_map = pq.get_queue_index_map();
+        std::unordered_map<LongNodeID, PQItem>::iterator it;
+
         for (LongNodeID adj_id : adjacents) {
-            if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
-                if (pq.contains(adj_id)) {
-                    PQItem& adj_buffer_item = pq.getBufferItem(adj_id);
-                    auto &adj_adjacents = adj_buffer_item.get_adjacents();
-                    unsigned adj_degree = adj_adjacents.size();
-                    adj_buffer_item.num_adj_partitioned++;
+            it = queue_map.find(adj_id);
+            if (it != queue_map.end()) {
+            // if (pq.contains_with_it(adj_id, it)) {
+                PQItem& adj_buffer_item = it->second;
+                auto &adj_adjacents = adj_buffer_item.get_adjacents();
+                unsigned adj_degree = adj_adjacents.size();
+                adj_buffer_item.num_adj_partitioned++;
 
-                    // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
-                    if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
-                    // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
-                        update_adj_time += update_adj_t.elapsed();
-                        pq.deleteNode(adj_id);
-                        partition_single_node(config, adj_id, adj_adjacents);
+                // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
+                if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
+                // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
+                    std::cout << "Partitioning directly: " << adj_id << " with degree: " << adj_degree << std::endl;
+                    update_adj_time += update_adj_t.elapsed();
+                    pq.deleteNode(adj_id);
+                    partition_single_node(config, adj_id, adj_adjacents);
 
-                        // Update neighbors and clear buffer item
-                        update_neighbours_priority(adj_adjacents);
-                        completely_remove_node(adj_id);
-                        update_adj_t.restart();
-                    } else {
-                        // Update buffer score of neighbours
-                        float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
-                        pq.increaseKey(adj_id, updated_buffer_score);
-                    }
+                    // Update neighbors and clear buffer item
+                    update_neighbours_priority(adj_adjacents);
+                    completely_remove_node(adj_id);
+                    update_adj_t.restart();
+                } else {
+                    // Update buffer score of neighbours
+                    float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
+                    pq.increaseKey(adj_id, updated_buffer_score);
                 }
             }
+            // if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
+            // }
         }
         update_adj_time += update_adj_t.elapsed();
     }
@@ -448,6 +457,8 @@ public:
     bool isEmpty() const { return pq.empty(); }
     size_t size() const { return pq.size(); }
 
+
+
     std::vector<LongNodeID> &get_adjacents(LongNodeID node_id) {
         return pq.getBufferItem(node_id).get_adjacents();
     }
@@ -458,6 +469,14 @@ public:
 
     float get_max_value() {
         return pq.maxValue();
+    }
+
+    float deleteMax() {
+        return pq.deleteMax();
+    }
+
+    void print_pq_statistics() const {
+        pq.print_statistics();
     }
 };
 

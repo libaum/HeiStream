@@ -18,7 +18,7 @@ void config_multibfs_initial_partitioning(PartitionConfig &partition_config) {
 }
 
 // A function to do multi-level partitioning the nodes in the batch (input)
-void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes) {
+void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id) {
 // void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
     // Initialize the partition configuration
     graph_access G = graph_access();
@@ -28,7 +28,7 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     // ***************************** build model ***************************************
     G.set_partition_count(partition_config.k);
     partition_config.local_to_global_map = new std::vector<NodeID>(partition_config.nmbNodes);
-    graph_io_stream::createModel(partition_config, G, batch_nodes);
+    graph_io_stream::createModel(partition_config, G, batch_nodes, batch_id);
     graph_io_stream::countAssignedNodes(partition_config);
     graph_io_stream::prescribeBufferInbalance(partition_config);
     bool already_fully_partitioned = (partition_config.restream_vcycle && partition_config.restream_number);
@@ -43,6 +43,7 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     graph_io_stream::generalizeStreamPartition(partition_config, G);
 
     delete partition_config.local_to_global_map;
+
 }
 
 // Thread-Management für MLP
@@ -67,6 +68,7 @@ private:
 
     PartitionConfig* config_ptr = nullptr;
     std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>** batch_ptr = nullptr;
+    size_t batch_id;
 
     void worker_loop() {
         while (!shutdown) {
@@ -83,7 +85,7 @@ private:
             // Ausführen der MLP-Funktion
             if (config_ptr && batch_ptr) {
                 t_mlp.restart();
-                ::perform_mlp_on_batch(*config_ptr, *batch_ptr);
+                ::perform_mlp_on_batch(*config_ptr, *batch_ptr, batch_id);
                 time_mlp += t_mlp.elapsed();
             }
 
@@ -119,7 +121,8 @@ public:
 
     // Führt perform_mlp_on_batch asynchron aus (wartet wenn nötig)
     void execute(PartitionConfig& config,
-                std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>*& batch) {
+                std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>*& batch,
+                size_t batch_id) {
         std::unique_lock<std::mutex> lock(mtx);
         // Warten wenn bereits eine Aufgabe läuft
         completion_cv.wait(lock, [this]{ return !has_task; });
@@ -127,6 +130,7 @@ public:
         // Parameter setzen und Thread starten
         config_ptr = &config;
         batch_ptr = &batch;
+        batch_id = batch_id;
         has_task = true;
 
         lock.unlock();

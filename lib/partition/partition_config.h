@@ -15,6 +15,7 @@
 #include <sparsehash/dense_hash_map>
 #include <sparsehash/dense_hash_set>
 #include <unordered_set>
+#include "batch_id_manager.h"
 
 typedef struct {
         PartitionID block;
@@ -31,6 +32,9 @@ struct PartitionConfig
 
         int count_misc1;
         int count_misc2;
+
+        BatchIDManager* batch_manager;
+        size_t max_active_batches;
 
         bool print_times;
         bool write_node_part_order;

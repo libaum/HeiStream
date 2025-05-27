@@ -239,6 +239,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *write_npo                       = arg_lit0(NULL, "write_npo", "(Default: disabled)");
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
+        struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
+
 
         struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
 
@@ -353,6 +355,7 @@ int parse_parameters(int argn, char **argv,
                 haa_theta,
                 cbs_theta,
                 bs_cutoff,
+                max_active_batches,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -445,6 +448,7 @@ int parse_parameters(int argn, char **argv,
                 haa_theta,
                 cbs_theta,
                 bs_cutoff,
+                max_active_batches,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -1671,6 +1675,11 @@ int parse_parameters(int argn, char **argv,
 
         if(bs_cutoff->count > 0) {
                 partition_config.bs_cutoff = bs_cutoff->dval[0];
+        }
+
+
+        if (max_active_batches->count > 0) {
+                partition_config.max_active_batches = static_cast<size_t>(max_active_batches->ival[0]);
         }
 
         if (param_int1->count > 0) {
