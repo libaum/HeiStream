@@ -251,6 +251,41 @@ int main(int argn, char **argv) {
         // THREAD 2: PQHandler
         std::thread pq_handler([&]() {
             timer local_buffer_t;
+            // Helper function for batch creation
+            auto create_batch_task = [&]() {
+                size_t batch_id = partition_config.batch_manager->acquire_id();
+
+                std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes_ptr;
+                buffer.loadTopNodesToBatch(batch_nodes_ptr, partition_config.stream_buffer_len, batch_id);
+
+                PartitionTask task(batch_id, batch_nodes_ptr);
+
+                {
+                    std::lock_guard<std::mutex> lock(partition_mutex);
+                    partition_queue.push(std::move(task));
+                }
+                partition_cv.notify_one();
+            };
+
+            // Helper function for single node task creation
+            auto create_single_node_task = [&]() {
+                LongNodeID node_id = buffer.deleteMax();
+                auto &adjs = buffer.get_adjacents(node_id);
+
+                buffer.update_neighbours_priority(adjs);
+
+                PartitionTask task(
+                    -1,
+                    std::vector<BatchNode>{{node_id, std::move(adjs)}}
+                );
+                buffer.completely_remove_node(node_id);
+
+                {
+                    std::lock_guard<std::mutex> lock(partition_mutex);
+                    partition_queue.push(std::move(task));
+                }
+                partition_cv.notify_one();
+            };
 
             while (true) {
                 ParsedLine parsed_line;
@@ -332,44 +367,10 @@ int main(int argn, char **argv) {
                 // If buffer is full, create batch task
                 if (buffer.size() > partition_config.max_pq_size) {
                     if (use_mlp) {
-                        // TODO make inline function out of this, so it can be used in both branches
-                        size_t batch_id = partition_config.batch_manager->acquire_id();
-
-                        std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes_ptr;
-                        buffer.loadTopNodesToBatch(batch_nodes_ptr, partition_config.stream_buffer_len, batch_id);
-
-                        PartitionTask task(batch_id, batch_nodes_ptr);
-
-                        {
-                            std::lock_guard<std::mutex> lock(partition_mutex);
-                            partition_queue.push(std::move(task));
-                        }
-                        partition_cv.notify_one();
+                        create_batch_task();
                     } else {
                         // TODO: parallelizing not working yet, still different results than before
-                        LongNodeID node_id = buffer.deleteMax();
-                        auto &adjs = buffer.get_adjacents(node_id);
-
-                        // if (config.write_node_part_order) {
-                        //     std::string entry = std::to_string(node_id) + " " + std::to_string(buffer.getBufferItem(node_id).buffer_score) + " -> ";
-                        //     (*config.node_part_order).push_back(entry);
-                        // }
-                        // Update neighbors and clear buffer item
-                        buffer.update_neighbours_priority(adjs);
-
-                        // Form a PartitionTask for single node
-                        PartitionTask task(
-                            -1,
-                            std::vector<BatchNode>{{node_id, std::move(adjs)}}
-                        );
-                        buffer.completely_remove_node(node_id);
-
-                        {
-                            std::lock_guard<std::mutex> lock(partition_mutex);
-                            partition_queue.push(std::move(task));
-                        }
-                        partition_cv.notify_one();
-
+                        create_single_node_task();
                     }
                 }
             }
@@ -377,44 +378,11 @@ int main(int argn, char **argv) {
             // Handle remaining buffer
             if (use_mlp) {
                 while (!buffer.isEmpty()) {
-                    size_t batch_id = partition_config.batch_manager->acquire_id();
-
-                    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes_ptr;
-                    buffer.loadTopNodesToBatch(batch_nodes_ptr, partition_config.stream_buffer_len, batch_id);
-
-                    PartitionTask task(batch_id, batch_nodes_ptr);
-
-                    {
-                        std::lock_guard<std::mutex> lock(partition_mutex);
-                        partition_queue.push(std::move(task));
-                    }
-                    partition_cv.notify_one();
+                    create_batch_task();
                 }
             } else {
                 while (!buffer.isEmpty()) {
-                    LongNodeID node_id = buffer.deleteMax();
-                    auto &adjs = buffer.get_adjacents(node_id);
-
-                    // if (config.write_node_part_order) {
-                    //     std::string entry = std::to_string(node_id) + " " + std::to_string(buffer.getBufferItem(node_id).buffer_score) + " -> ";
-                    //     (*config.node_part_order).push_back(entry);
-                    // }
-                    // Update neighbors and clear buffer item
-                    buffer.update_neighbours_priority(adjs);
-
-                    // Form a PartitionTask for single node
-                    PartitionTask task(
-                        -1,
-                        std::vector<BatchNode>{{node_id, std::move(adjs)}}
-                    );
-                    buffer.completely_remove_node(node_id);
-
-                    {
-                        std::lock_guard<std::mutex> lock(partition_mutex);
-                        partition_queue.push(std::move(task));
-                    }
-                    partition_cv.notify_one();
-                    // buffer.partitionTopNode();
+                    create_single_node_task();
                 }
             }
 
