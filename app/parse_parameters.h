@@ -240,6 +240,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
         struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
+        struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 100.");
 
 
         struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
@@ -356,6 +357,7 @@ int parse_parameters(int argn, char **argv,
                 cbs_theta,
                 bs_cutoff,
                 max_active_batches,
+                max_input_q_size,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -449,6 +451,7 @@ int parse_parameters(int argn, char **argv,
                 cbs_theta,
                 bs_cutoff,
                 max_active_batches,
+                max_input_q_size,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -1681,6 +1684,15 @@ int parse_parameters(int argn, char **argv,
         if (max_active_batches->count > 0) {
                 partition_config.max_active_batches = static_cast<size_t>(max_active_batches->ival[0]);
         }
+        if (max_input_q_size->count > 0) {
+                int max_input_q_size_value = static_cast<size_t>(max_input_q_size->ival[0]);
+                if (max_input_q_size_value == -1) {
+                        partition_config.max_input_q_size = std::numeric_limits<size_t>::max();
+                } else {
+                        partition_config.max_input_q_size = max_input_q_size_value;
+                }
+        }
+
 
         if (param_int1->count > 0) {
                 partition_config.param_int1 = param_int1->ival[0];

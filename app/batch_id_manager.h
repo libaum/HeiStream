@@ -22,7 +22,7 @@ public:
 
     // Last valid PartitionID, used to determine the maximum valid partition ID that is not a batch marker.
     PartitionID get_max_valid_partition_id() const {
-        return TO_BE_PARTITIONED - 1000; //max_active_batches * 2;
+        return TO_BE_PARTITIONED - max_active_batches * 2;
     }
 
     // Hole eine freie batch_id (blockierend, wenn keine verfügbar)

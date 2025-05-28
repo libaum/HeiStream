@@ -543,7 +543,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.max_block_weight                       = 0;
         partition_config.buffer_score_type                      = BUFFER_SCORE_CBS;
 
-        partition_config.max_active_batches             = 10;
+        partition_config.max_active_batches             = 1000;
+        partition_config.max_input_q_size               = 100;
 
         partition_config.haa_hub_mode                           = HAA_NONADAPTIVE;
         partition_config.haa_beta                       = 2.0f;

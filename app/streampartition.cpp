@@ -62,25 +62,30 @@ struct PartitionTask {
     // Für Batches (Heap-allokiert)
     std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_batch_nodes;
 
-    // Flag zur Unterscheidung
-    bool is_heap_allocated;
 
     // Konstruktoren
-    PartitionTask() : batch_id(-1), heap_batch_nodes(nullptr), is_heap_allocated(false) {}
+    PartitionTask() : batch_id(-1), heap_batch_nodes(nullptr) {}
 
     // Für Einzelknoten
     PartitionTask(int bid, std::vector<BatchNode> single_nodes)
-        : batch_id(bid), nodes(std::move(single_nodes)), heap_batch_nodes(nullptr), is_heap_allocated(false) {}
+        : batch_id(bid), nodes(std::move(single_nodes)), heap_batch_nodes(nullptr) {}
 
     // Für Heap-Batches
     PartitionTask(int bid, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_ptr)
-        : batch_id(bid), heap_batch_nodes(heap_ptr), is_heap_allocated(true) {}
+        : batch_id(bid), heap_batch_nodes(heap_ptr) {}
 };
 
 
 long getMaxRSS();
 
 std::string extractBaseFilename(const std::string &fullPath);
+
+void write_new_npo_entry(PartitionConfig& partition_config, LongNodeID global_node_id) {
+    if (partition_config.write_node_part_order) {
+        std::string entry = std::to_string(global_node_id) + " " + std::to_string(partition_config.k) + " -> ";
+        (*partition_config.node_part_order).push_back(entry);
+    }
+}
 
 void write_node_part_order_to_file(std::vector<std::string> &node_part_order) {
     std::ofstream order_file("hs_node_part_order");
@@ -197,7 +202,6 @@ int main(int argn, char **argv) {
         std::atomic<bool> pq_finished{false};
 
         // Timing variables für threads
-        std::mutex timing_mutex;
         double thread_io_time = 0.0;
         double thread_buffer_add_node_time = 0.0;
         double thread_part_single_node_time = 0.0;
@@ -234,16 +238,18 @@ int main(int argn, char **argv) {
 
                 ss2.simple_scan_line_fast(adjacents);
 
-                {
-                    std::lock_guard<std::mutex> lock(timing_mutex);
-                    thread_io_time += local_io_t.elapsed();
-                }
+                thread_io_time += local_io_t.elapsed();
 
-                // Create ParsedLine and push to queue
+                // Create ParsedLine and push to queue with backpressure
                 ParsedLine parsed_line{global_node_id, adjacents};
-
                 {
-                    std::lock_guard<std::mutex> lock(input_mutex);
+                    std::unique_lock<std::mutex> lock(input_mutex);
+
+                    // Wait if queue is too full (backpressure)
+                    input_cv.wait(lock, [&] {
+                        return input_queue.size() < partition_config.max_input_q_size;
+                    });
+
                     input_queue.push(std::move(parsed_line));
                 }
                 input_cv.notify_one();
@@ -265,7 +271,7 @@ int main(int argn, char **argv) {
 
             // Helper function for batch creation
             auto create_batch_task = [&]() {
-                size_t batch_id = partition_config.batch_manager->acquire_id();
+                size_t batch_id = partition_config.batch_manager->acquire_id(); // Necessary as a unique marker that a node is contained in a specific batch in partition_config->stream_nodes_assign
 
                 std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes_ptr;
                 buffer.loadTopNodesToBatch(batch_nodes_ptr, partition_config.stream_buffer_len, batch_id);
@@ -279,24 +285,34 @@ int main(int argn, char **argv) {
                 partition_cv.notify_one();
             };
 
-            // Helper function for single node task creation
-            auto create_single_node_task = [&]() {
-                LongNodeID node_id = buffer.deleteMax();
-                auto &adjs = buffer.get_adjacents(node_id);
+            // Helper function to create single node partition task
+            auto create_single_node_task = [&](LongNodeID node_id, std::vector<LongNodeID>&& adjacents) {
+                // TODO: handle case with part_adj_directly correctly, currently should not work
+                // - create queue for adjacents for neighbors that should be partitioned directly,
+                //    -> then after finishing this function, parition them in while loop?
+                // NO: actually just add a task for them -> i will handle this in the PartitionWorker
 
-                buffer.update_neighbours_priority(adjs);
+                buffer.update_neighbours_priority(adjacents);
+                (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
 
                 PartitionTask task(
                     -1,
-                    std::vector<BatchNode>{{node_id, std::move(adjs)}}
+                    std::vector<BatchNode>{{node_id, std::move(adjacents)}}
                 );
-                buffer.completely_remove_node(node_id);
 
                 {
                     std::lock_guard<std::mutex> lock(partition_mutex);
                     partition_queue.push(std::move(task));
                 }
                 partition_cv.notify_one();
+            };
+
+            // Helper function for task creation for the top node in the buffer
+            auto create_task_for_top_node = [&]() {
+                LongNodeID node_id = buffer.deleteMax();
+
+                create_single_node_task(node_id, std::move(buffer.get_adjacents(node_id)));
+                buffer.completely_remove_node(node_id);
             };
 
             while (true) {
@@ -313,6 +329,9 @@ int main(int argn, char **argv) {
 
                     parsed_line = std::move(input_queue.front());
                     input_queue.pop();
+
+                    // Notify IOReader that queue has space (backpressure relief)
+                    input_cv.notify_one();
                 }
                 thread_timer.restart();
 
@@ -321,32 +340,7 @@ int main(int argn, char **argv) {
                 unsigned degree = adjacents.size();
 
                 if (degree >= partition_config.d_max || degree == 0) {
-                    if (partition_config.write_node_part_order) {
-                        std::string entry = std::to_string(global_node_id) + " " + std::to_string(-1) + " -> ";
-                        (*partition_config.node_part_order).push_back(entry);
-                    }
-
-                    if (degree > 0) {
-                        // TODO: handle case with part_adj_directly correctly, currently should not work
-                        // - create queue for adjacents for neighbors that should be partitioned directly,
-                        //    -> then after finishing this function, parition them in while loop?
-                        // NO: actually just add a task for them -> i will handle this in the PartitionWorker
-                        // Update neighbors priority
-                        buffer.update_neighbours_priority(adjacents);
-                        (*partition_config.stream_nodes_assign)[global_node_id - 1] = TO_BE_PARTITIONED;
-                    }
-
-                    // Form a PartitionTask for high degree node
-                    PartitionTask task(
-                        -1,
-                        std::vector<BatchNode>{{global_node_id, std::move(adjacents)}}
-                    );
-
-                    {
-                        std::lock_guard<std::mutex> lock(partition_mutex);
-                        partition_queue.push(std::move(task));
-                    }
-                    partition_cv.notify_one();
+                    create_single_node_task(global_node_id, std::move(adjacents));
                     pq_thread_time += thread_timer.elapsed();
                     continue;
                 }
@@ -355,26 +349,11 @@ int main(int argn, char **argv) {
                 local_buffer_t.restart();
                 bool added_to_buffer = buffer.addNode(global_node_id, adjacents);
 
-                {
-                    std::lock_guard<std::mutex> lock(timing_mutex);
-                    thread_buffer_add_node_time += local_buffer_t.elapsed();
-                }
+                thread_buffer_add_node_time += local_buffer_t.elapsed();
 
                 if (!added_to_buffer) {
-                    // Update neighbors priority
-                    buffer.update_neighbours_priority(adjacents);
-
-                    // Form a PartitionTask for single node
-                    PartitionTask task(
-                        -1,
-                        std::vector<BatchNode>{{global_node_id, std::move(adjacents)}}
-                    );
-
-                    {
-                        std::lock_guard<std::mutex> lock(partition_mutex);
-                        partition_queue.push(std::move(task));
-                    }
-                    partition_cv.notify_one();
+                    // Means that the buffer is full and the current node has the highest score -> create partition task for it
+                    create_single_node_task(global_node_id, std::move(adjacents));
                 }
 
                 // If buffer is full, create batch task
@@ -382,8 +361,7 @@ int main(int argn, char **argv) {
                     if (use_mlp) {
                         create_batch_task();
                     } else {
-                        // TODO: parallelizing not working yet, still different results than before
-                        create_single_node_task();
+                        create_task_for_top_node();
                     }
                 }
                 pq_thread_time += thread_timer.elapsed();
@@ -397,7 +375,7 @@ int main(int argn, char **argv) {
                 }
             } else {
                 while (!buffer.isEmpty()) {
-                    create_single_node_task();
+                    create_task_for_top_node();
                 }
             }
             // Update thread runtime
@@ -448,13 +426,10 @@ int main(int argn, char **argv) {
                         (*partition_config.stream_nodes_assign)[node_data.first - 1] = best_partition;
                         (*partition_config.stream_blocks_weight)[best_partition]++;
                     } else {
-                        partition_single_node(partition_config, node_data.first, node_data.second, true);
+                        partition_single_node(partition_config, node_data.first, node_data.second);
                     }
 
-                    {
-                        std::lock_guard<std::mutex> lock(timing_mutex);
-                        thread_part_single_node_time += local_part_t.elapsed();
-                    }
+                    thread_part_single_node_time += local_part_t.elapsed();
 
                 } else {
                     // Batch partitioning (heap-allocated)
@@ -462,14 +437,10 @@ int main(int argn, char **argv) {
 
                     auto batch_ptr = task.heap_batch_nodes;
                     partition_config.nmbNodes = batch_ptr->size();
-                    // std::cout << "Processing batch ID: " << task.batch_id << std::endl;
                     perform_mlp_on_batch(partition_config, batch_ptr, task.batch_id);
                     partition_config.batch_manager->release_id(task.batch_id);
 
-                    {
-                        std::lock_guard<std::mutex> lock(timing_mutex);
-                        thread_mlp_time += local_mlp_t.elapsed();
-                    }
+                    thread_mlp_time += local_mlp_t.elapsed();
                 }
                 // Update thread runtime
                 partition_thread_time += thread_timer.elapsed();
@@ -551,8 +522,11 @@ int main(int argn, char **argv) {
         write_node_part_order_to_file(*partition_config.node_part_order);
     }
 
-    double total_time_rounded = std::round(total_time * 100.0) / 100.0;
-    std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << std::endl;
+    double total_time_rounded = std::round(total_time * 1000.0) / 1000.0;
+    std::cout << std::fixed << std::setprecision(3) << total_time_rounded;
+    std::cout << " " << maxRSS;
+    std::cout << " " << total_edge_cut;
+    std::cout << " " << std::defaultfloat << total_edge_cut / (double) partition_config.total_edges << std::endl;
 
     // write the partition to the disc
     std::stringstream filename;

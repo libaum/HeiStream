@@ -39,6 +39,7 @@ struct PartitionConfig
         bool print_times;
         bool write_node_part_order;
         bool part_adj_directly;
+        size_t max_input_q_size;
 
         std::vector<std::string> *node_part_order;
 

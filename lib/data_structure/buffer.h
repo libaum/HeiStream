@@ -21,7 +21,7 @@ const float THETA = 2;
 // const int D_MAX = 1000;
 
 
-inline void partition_single_node(PartitionConfig &partition_config, LongNodeID global_node_id, std::vector<LongNodeID> &adjacents, bool is_hub = false) {
+inline void partition_single_node(PartitionConfig &partition_config, LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
 
     partition_config.count_misc2++;
     std::vector<int> hash_map(partition_config.k, 0);
