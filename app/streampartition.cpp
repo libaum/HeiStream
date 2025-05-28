@@ -124,6 +124,10 @@ int main(int argn, char **argv) {
     double mlp_time = 0;
     double wait_for_mlp_finish_time = 0;
 
+    double io_thread_time = 0;
+    double pq_thread_time = 0;
+    double partition_thread_time = 0;
+
     PartitionConfig partition_config;
     std::string graph_filename;
     EdgeWeight total_edge_cut = 0;
@@ -198,13 +202,17 @@ int main(int argn, char **argv) {
         double thread_buffer_add_node_time = 0.0;
         double thread_part_single_node_time = 0.0;
         double thread_mlp_time = 0.0;
+
+
         // std::atomic<double> thread_wait_for_mlp_time{0.0};
 
         bool use_mlp = partition_config.stream_buffer_len != 1;
 
         // THREAD 1: IOReader
         std::thread io_reader([&]() {
-            timer local_io_t;
+            timer thread_timer, local_io_t;
+            thread_timer.restart();
+
             std::vector<std::string> lines(1);
             buffered_input ss2(&lines);
             std::vector<LongNodeID> adjacents;
@@ -243,6 +251,9 @@ int main(int argn, char **argv) {
                 adjacents.clear();
             }
 
+            // Update thread runtime
+            io_thread_time += thread_timer.elapsed();
+
             io_finished = true;
             input_cv.notify_all();
             (*partition_config.stream_in).close();
@@ -250,7 +261,8 @@ int main(int argn, char **argv) {
 
         // THREAD 2: PQHandler
         std::thread pq_handler([&]() {
-            timer local_buffer_t;
+            timer thread_timer, local_buffer_t;
+
             // Helper function for batch creation
             auto create_batch_task = [&]() {
                 size_t batch_id = partition_config.batch_manager->acquire_id();
@@ -302,6 +314,7 @@ int main(int argn, char **argv) {
                     parsed_line = std::move(input_queue.front());
                     input_queue.pop();
                 }
+                thread_timer.restart();
 
                 LongNodeID global_node_id = parsed_line.node_id;
                 std::vector<LongNodeID>& adjacents = parsed_line.neighbors;
@@ -334,7 +347,7 @@ int main(int argn, char **argv) {
                         partition_queue.push(std::move(task));
                     }
                     partition_cv.notify_one();
-
+                    pq_thread_time += thread_timer.elapsed();
                     continue;
                 }
 
@@ -373,8 +386,10 @@ int main(int argn, char **argv) {
                         create_single_node_task();
                     }
                 }
+                pq_thread_time += thread_timer.elapsed();
             }
 
+            thread_timer.restart();
             // Handle remaining buffer
             if (use_mlp) {
                 while (!buffer.isEmpty()) {
@@ -385,6 +400,8 @@ int main(int argn, char **argv) {
                     create_single_node_task();
                 }
             }
+            // Update thread runtime
+            pq_thread_time += thread_timer.elapsed();
 
             pq_finished = true;
             partition_cv.notify_all();
@@ -392,7 +409,7 @@ int main(int argn, char **argv) {
 
         // THREAD 3: PartitionWorker
         std::thread partition_worker([&]() {
-            timer local_part_t, local_mlp_t;
+            timer thread_timer, local_part_t, local_mlp_t;
 
             while (true) {
                 PartitionTask task;
@@ -410,10 +427,9 @@ int main(int argn, char **argv) {
                     partition_queue.pop();
                 }
 
+                thread_timer.restart();
+
                 if (task.batch_id == -1) {
-
-
-
                     // Single node partitioning (stack-allocated)
                     local_part_t.restart();
                     auto& node_data = task.nodes[0]; // node_data is a pair<LongNodeID, std::vector<LongNodeID>>
@@ -455,7 +471,10 @@ int main(int argn, char **argv) {
                         thread_mlp_time += local_mlp_t.elapsed();
                     }
                 }
+                // Update thread runtime
+                partition_thread_time += thread_timer.elapsed();
             }
+
         });
 
         // Join all threads
@@ -507,6 +526,14 @@ int main(int argn, char **argv) {
             sum_detailed = io_time + buffer_add_node_time + updating_adj_time + mlp_time + part_single_node_time;
         }
         std::cout << "│ Sum of detailed times   │ " << std::setw(13) << std::fixed << std::setprecision(3) << sum_detailed << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (sum_detailed / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ THREAD RUNTIME TRACKING │               │               │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ IOReader thread time    │ " << std::setw(13) << std::fixed << std::setprecision(3) << io_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (io_thread_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "│ PQHandler thread time   │ " << std::setw(13) << std::fixed << std::setprecision(3) << pq_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (pq_thread_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "│ PartitionWorker time    │ " << std::setw(13) << std::fixed << std::setprecision(3) << partition_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (partition_thread_time / total_time * 100) << "%" << " │" << std::endl;
+        double total_thread_time = io_thread_time + pq_thread_time + partition_thread_time;
+        std::cout << "│ Total thread time       │ " << std::setw(13) << std::fixed << std::setprecision(3) << total_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (total_thread_time / total_time * 100) << "%" << " │" << std::endl;
         std::cout << "└─────────────────────────┴───────────────┴───────────────┘" << std::endl;
     }
     FlatBufferWriter fb_writer;
