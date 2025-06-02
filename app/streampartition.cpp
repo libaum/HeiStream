@@ -358,8 +358,11 @@ int main(int argn, char **argv) {
         write_node_part_order_to_file(*partition_config.node_part_order);
     }
 
-    double total_time_rounded = std::round(total_time * 100.0) / 100.0;
-    std::cout << total_time_rounded << " " << total_edge_cut << " " << maxRSS << std::endl;
+    double total_time_rounded = std::round(total_time * 1000.0) / 1000.0;
+    std::cout << std::fixed << std::setprecision(3) << total_time_rounded;
+    std::cout << " " << maxRSS;
+    std::cout << " " << total_edge_cut;
+    std::cout << " " << std::defaultfloat << total_edge_cut / (double) partition_config.total_edges << std::endl;
 
     // write the partition to the disc
     std::stringstream filename;
