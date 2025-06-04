@@ -46,34 +46,7 @@
 #include "batch_id_manager.h"
 
 
-struct ParsedLine {
-    LongNodeID node_id;
-    std::vector<LongNodeID> neighbors;
-};
 
-using BatchNode = std::pair<LongNodeID, std::vector<LongNodeID>>;
-
-struct PartitionTask {
-    int batch_id;
-
-    // Für Einzelknoten (Stack-allokiert)
-    std::vector<BatchNode> nodes;
-
-    // Für Batches (Heap-allokiert)
-    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_batch_nodes;
-
-
-    // Konstruktoren
-    PartitionTask() : batch_id(-1), heap_batch_nodes(nullptr) {}
-
-    // Für Einzelknoten
-    PartitionTask(int bid, std::vector<BatchNode> single_nodes)
-        : batch_id(bid), nodes(std::move(single_nodes)), heap_batch_nodes(nullptr) {}
-
-    // Für Heap-Batches
-    PartitionTask(int bid, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_ptr)
-        : batch_id(bid), heap_batch_nodes(heap_ptr) {}
-};
 
 
 long getMaxRSS();
@@ -292,7 +265,15 @@ int main(int argn, char **argv) {
                 //    -> then after finishing this function, parition them in while loop?
                 // NO: actually just add a task for them -> i will handle this in the PartitionWorker
 
-                buffer.update_neighbours_priority(adjacents);
+                // buffer.update_neighbours_priority(adjacents, true);
+                buffer.update_neighbours_priority(
+                    adjacents,
+                    true,
+                    &partition_queue,
+                    &partition_mutex,
+                    &partition_cv,
+                    partition_config.stream_nodes_assign
+                );
                 (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
 
                 PartitionTask task(
@@ -310,9 +291,11 @@ int main(int argn, char **argv) {
             // Helper function for task creation for the top node in the buffer
             auto create_task_for_top_node = [&]() {
                 LongNodeID node_id = buffer.deleteMax();
-
-                create_single_node_task(node_id, std::move(buffer.get_adjacents(node_id)));
+                // Get the adjacents of the node to be partitioned, move to a new vector
+                std::vector<LongNodeID> adjacents_copy = std::move(buffer.get_adjacents(node_id));
                 buffer.completely_remove_node(node_id);
+
+                create_single_node_task(node_id, std::move(adjacents_copy));
             };
 
             while (true) {

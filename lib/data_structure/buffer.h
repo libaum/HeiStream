@@ -12,6 +12,7 @@
 #include "macros_assertions.h"
 #include "partition/partition_config.h"
 #include "random_functions.h"
+#include "batch_id_manager.h"
 
 #define MIN(A, B) ((A) < (B)) ? (A) : (B)
 #define MAX(A, B) ((A) > (B)) ? (A) : (B)
@@ -400,7 +401,16 @@ public:
 
 
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
-    void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
+    void update_neighbours_priority(
+        std::vector<LongNodeID> &adjacents,
+        bool part_adj_directly = false,
+        std::queue<PartitionTask> *partition_queue = nullptr,
+        std::mutex *partition_mutex = nullptr,
+        std::condition_variable *partition_cv = nullptr,
+        std::vector<PartitionID> *stream_nodes_assign = nullptr) {
+
+
+    // void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
         update_adj_t.restart();
 
         if (part_adj_directly == true) {
@@ -428,15 +438,36 @@ public:
                 // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
                 if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
                 // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
-                    std::cout << "Partitioning directly: " << adj_id << " with degree: " << adj_degree << std::endl;
-                    update_adj_time += update_adj_t.elapsed();
-                    pq.deleteNode(adj_id);
-                    partition_single_node(config, adj_id, adj_adjacents);
+                    // std::cout << "Queueing directly part_adj_ready node: " << adj_id << std::endl;
 
-                    // Update neighbors and clear buffer item
-                    update_neighbours_priority(adj_adjacents);
+                    // move adj_adjacents to a new vector to avoid dangling references
+                    std::vector<LongNodeID> adj_adjacents_copy = std::move(adj_adjacents);
+
+                    pq.deleteNode(adj_id);
                     completely_remove_node(adj_id);
-                    update_adj_t.restart();
+
+                    update_neighbours_priority(
+                        adj_adjacents_copy,
+                        true,
+                        partition_queue,
+                        partition_mutex,
+                        partition_cv,
+                        stream_nodes_assign
+                    );
+                    (*stream_nodes_assign)[adj_id - 1] = TO_BE_PARTITIONED;
+
+                    PartitionTask task(
+                        -1,
+                        std::vector<BatchNode>{{adj_id, std::move(adj_adjacents_copy)}}
+                    );
+
+                    {
+                        std::lock_guard<std::mutex> lock(*partition_mutex);
+                        partition_queue->push(std::move(task));
+                    }
+                    partition_cv->notify_one();
+
+
                 } else {
                     // Update buffer score of neighbours
                     float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
