@@ -106,6 +106,20 @@ int main(int argn, char **argv) {
     double pq_thread_time = 0;
     double partition_thread_time = 0;
 
+    // NEU: Warte-/Blockierungszeiten
+    double io_wait_time = 0.0;           // Zeit, die IOReader auf Queue wartet
+    double pq_wait_time = 0.0;           // Zeit, die PQHandler auf Input wartet
+    double partition_wait_time = 0.0;    // Zeit, die PartitionWorker auf Tasks wartet
+
+    // NEU: Durchsatz-Metriken
+    std::atomic<size_t> nodes_processed_io{0};
+    std::atomic<size_t> nodes_processed_pq{0};
+    std::atomic<size_t> tasks_processed_partition{0};
+
+    // NEU: Queue-Größen überwachen
+    std::atomic<size_t> max_input_queue_size{0};
+    std::atomic<size_t> max_partition_queue_size{0};
+
     PartitionConfig partition_config;
     std::string graph_filename;
     EdgeWeight total_edge_cut = 0;
@@ -181,6 +195,7 @@ int main(int argn, char **argv) {
         double thread_mlp_time = 0.0;
 
 
+
         // std::atomic<double> thread_wait_for_mlp_time{0.0};
 
         bool use_mlp = partition_config.stream_buffer_len != 1;
@@ -215,6 +230,10 @@ int main(int argn, char **argv) {
 
                 // Create ParsedLine and push to queue with backpressure
                 ParsedLine parsed_line{global_node_id, adjacents};
+
+                timer wait_timer;
+                wait_timer.restart();
+
                 {
                     std::unique_lock<std::mutex> lock(input_mutex);
 
@@ -223,10 +242,16 @@ int main(int argn, char **argv) {
                         return input_queue.size() < partition_config.max_input_q_size;
                     });
 
+                    io_wait_time += wait_timer.elapsed();
+
+                    // Queue-Größe überwachen
+                    max_input_queue_size = std::max(max_input_queue_size.load(), input_queue.size());
+
                     input_queue.push(std::move(parsed_line));
                 }
                 input_cv.notify_one();
 
+                nodes_processed_io++;
                 adjacents.clear();
             }
 
@@ -301,10 +326,15 @@ int main(int argn, char **argv) {
             while (true) {
                 ParsedLine parsed_line;
 
+                timer wait_timer;
+                wait_timer.restart();
+
                 // Wait for input or termination
                 {
                     std::unique_lock<std::mutex> lock(input_mutex);
                     input_cv.wait(lock, [&] { return !input_queue.empty() || io_finished; });
+
+                    pq_wait_time += wait_timer.elapsed();
 
                     if (input_queue.empty() && io_finished) {
                         break;
@@ -325,6 +355,7 @@ int main(int argn, char **argv) {
                 if (degree >= partition_config.d_max || degree == 0) {
                     create_single_node_task(global_node_id, std::move(adjacents));
                     pq_thread_time += thread_timer.elapsed();
+                    nodes_processed_pq++;
                     continue;
                 }
 
@@ -348,6 +379,7 @@ int main(int argn, char **argv) {
                     }
                 }
                 pq_thread_time += thread_timer.elapsed();
+                nodes_processed_pq++;
             }
 
             thread_timer.restart();
@@ -375,14 +407,22 @@ int main(int argn, char **argv) {
             while (true) {
                 PartitionTask task;
 
+                timer wait_timer;
+                wait_timer.restart();
+
                 // Wait for partition task or termination
                 {
                     std::unique_lock<std::mutex> lock(partition_mutex);
                     partition_cv.wait(lock, [&] { return !partition_queue.empty() || pq_finished; });
 
+                    partition_wait_time += wait_timer.elapsed();
+
                     if (partition_queue.empty() && pq_finished) {
                         break;
                     }
+
+                    // Queue-Größe überwachen
+                    max_partition_queue_size = std::max(max_partition_queue_size.load(), partition_queue.size());
 
                     task = std::move(partition_queue.front());
                     partition_queue.pop();
@@ -427,6 +467,7 @@ int main(int argn, char **argv) {
                 }
                 // Update thread runtime
                 partition_thread_time += thread_timer.elapsed();
+                tasks_processed_partition++;
             }
 
         });
@@ -488,6 +529,19 @@ int main(int argn, char **argv) {
         std::cout << "│ PartitionWorker time    │ " << std::setw(13) << std::fixed << std::setprecision(3) << partition_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (partition_thread_time / total_time * 100) << "%" << " │" << std::endl;
         double total_thread_time = io_thread_time + pq_thread_time + partition_thread_time;
         std::cout << "│ Total thread time       │ " << std::setw(13) << std::fixed << std::setprecision(3) << total_thread_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (total_thread_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ BOTTLENECK ANALYSIS     │               │               │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ IO wait time            │ " << std::setw(13) << std::fixed << std::setprecision(3) << io_wait_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (io_wait_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "│ PQ wait time            │ " << std::setw(13) << std::fixed << std::setprecision(3) << pq_wait_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (pq_wait_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "│ Partition wait time     │ " << std::setw(13) << std::fixed << std::setprecision(3) << partition_wait_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (partition_wait_time / total_time * 100) << "%" << " │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ Nodes/sec IO            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (nodes_processed_io / total_time) << " │               │" << std::endl;
+        std::cout << "│ Nodes/sec PQ            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (nodes_processed_pq / total_time) << " │               │" << std::endl;
+        std::cout << "│ Tasks/sec Partition     │ " << std::setw(13) << std::fixed << std::setprecision(0) << (tasks_processed_partition / total_time) << " │               │" << std::endl;
+        std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
+        std::cout << "│ Max input queue size    │ " << std::setw(13) << std::fixed << std::setprecision(0) << max_input_queue_size.load() << " │               │" << std::endl;
+        std::cout << "│ Max partition queue size│ " << std::setw(13) << std::fixed << std::setprecision(0) << max_partition_queue_size.load() << " │               │" << std::endl;
         std::cout << "└─────────────────────────┴───────────────┴───────────────┘" << std::endl;
     }
     FlatBufferWriter fb_writer;
