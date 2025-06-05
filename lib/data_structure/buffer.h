@@ -7,6 +7,7 @@
 #include <vector>
 #include "timer.h"
 
+#include "definitions.h"
 #include "data_structure/graph_access.h"
 #include "data_structure/priority_queues/bucket_pq.h"
 #include "macros_assertions.h"
@@ -16,6 +17,8 @@
 
 #define MIN(A, B) ((A) < (B)) ? (A) : (B)
 #define MAX(A, B) ((A) > (B)) ? (A) : (B)
+
+
 
 // CUTTANA HYPERPARAMETERS
 const float THETA = 2;
@@ -39,7 +42,6 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     // Iterate over partitions to compute FENNEL scores
     PartitionID best_partition = 0;
     float best_score = std::numeric_limits<float>::lowest();
-    bool feasible_partition_found = false;
 
 
     for (PartitionID cur_partition = 0; cur_partition < partition_config.k; ++cur_partition) {
@@ -58,7 +60,6 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
         if (score > best_score) {
             best_score = score;
             best_partition = cur_partition;
-            feasible_partition_found = true;
         }
     }
 
@@ -111,7 +112,7 @@ private:
     float current_beta;
 
     timer update_adj_t;
-    double update_adj_time = 0.0;
+    TIMING_DECLARE(double update_adj_time) = 0.0;
 
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
@@ -411,7 +412,7 @@ public:
 
 
     // void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
-        update_adj_t.restart();
+        TIMING_START(update_adj_t);
 
         if (part_adj_directly == true) {
             part_adj_directly = config.part_adj_directly;
@@ -477,7 +478,7 @@ public:
             // if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
             // }
         }
-        update_adj_time += update_adj_t.elapsed();
+        TIMING_ACCUMULATE(update_adj_time, update_adj_t);
     }
 
     double get_update_adj_time() {

@@ -20,6 +20,27 @@
 #include "stdio.h"
 
 
+// Timing macros - enable/disable with ENABLE_TIME_MEASUREMENTS flag
+#ifdef ENABLE_TIME_MEASUREMENTS
+    #define TIMING_START(timer) timer.restart()
+    #define TIMING_ACCUMULATE(var, timer) var += timer.elapsed()
+    #define TIMING_DECLARE(var) var
+    #define TIMING_INIT(var, value) var = value
+    #define TIMING_INCREMENT(counter) counter++
+    #define TIMING_MAX_UPDATE(var, value) var = std::max(var.load(), value)
+    #define TIMING_LOAD(var) var.load()
+    #define TIMING_ADD(var, value) var += value
+#else
+    #define TIMING_START(timer) ((void)0)
+    #define TIMING_ACCUMULATE(var, timer) ((void)0)
+    #define TIMING_DECLARE(var) var
+    #define TIMING_INIT(var, value) var = value
+    #define TIMING_INCREMENT(counter) ((void)0)
+    #define TIMING_MAX_UPDATE(var, value) ((void)0)
+    #define TIMING_LOAD(var) 0
+    #define TIMING_ADD(var, value) ((void)0)
+#endif
+
 // allows us to disable most of the output during partitioning
 #ifdef KAFFPAOUTPUT
         #define PRINT(x) x

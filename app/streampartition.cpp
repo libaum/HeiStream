@@ -26,7 +26,7 @@
 #include <condition_variable>
 #include <atomic>
 
-
+#include "definitions.h"
 #include "balance_configuration.h"
 #include "data_structure/graph_access.h"
 #include "data_structure/priority_queues/bucket_pq.h"
@@ -44,9 +44,6 @@
 #include "tools/flat_buffer_writer.h"
 #include "mlp_thread_manager.cpp"
 #include "batch_id_manager.h"
-
-
-
 
 
 long getMaxRSS();
@@ -90,26 +87,26 @@ int main(int argn, char **argv) {
     )" << std::endl; */
 
     timer processing_t, io_t, t_mlp, first_phase_t, second_phase_t, part_single_node_t, buffer_add_node_t, wait_for_mlp_t;
-    double global_mapping_time = 0;
-    double buffer_io_time = 0;
-    double io_time = 0;
-    double buffer_add_node_time = 0;
-    double model_construction_time = 0;
-    double first_phase_time = 0;
-    double second_phase_time = 0;
-    double updating_adj_time = 0;
-    double part_single_node_time = 0;
-    double mlp_time = 0;
-    double wait_for_mlp_finish_time = 0;
+    TIMING_DECLARE(double global_mapping_time) = 0;
+    TIMING_DECLARE(double buffer_io_time) = 0;
+    TIMING_DECLARE(double io_time) = 0;
+    TIMING_DECLARE(double buffer_add_node_time) = 0;
+    TIMING_DECLARE(double model_construction_time) = 0;
+    TIMING_DECLARE(double first_phase_time) = 0;
+    TIMING_DECLARE(double second_phase_time) = 0;
+    TIMING_DECLARE(double updating_adj_time) = 0;
+    TIMING_DECLARE(double part_single_node_time) = 0;
+    TIMING_DECLARE(double mlp_time) = 0;
+    TIMING_DECLARE(double wait_for_mlp_finish_time) = 0;
 
-    double io_thread_time = 0;
-    double pq_thread_time = 0;
-    double partition_thread_time = 0;
+    TIMING_DECLARE(double io_thread_time) = 0;
+    TIMING_DECLARE(double pq_thread_time) = 0;
+    TIMING_DECLARE(double partition_thread_time) = 0;
 
     // NEU: Warte-/Blockierungszeiten
-    double io_wait_time = 0.0;           // Zeit, die IOReader auf Queue wartet
-    double pq_wait_time = 0.0;           // Zeit, die PQHandler auf Input wartet
-    double partition_wait_time = 0.0;    // Zeit, die PartitionWorker auf Tasks wartet
+    TIMING_DECLARE(double io_wait_time) = 0.0;           // Zeit, die IOReader auf Queue wartet
+    TIMING_DECLARE(double pq_wait_time) = 0.0;           // Zeit, die PQHandler auf Input wartet
+    TIMING_DECLARE(double partition_wait_time) = 0.0;    // Zeit, die PartitionWorker auf Tasks wartet
 
     // NEU: Durchsatz-Metriken
     std::atomic<size_t> nodes_processed_io{0};
@@ -171,12 +168,12 @@ int main(int argn, char **argv) {
         partition_config.batch_manager = new BatchIDManager(partition_config.max_active_batches);
 
         // ***************************** IO operations ***************************************
-        io_t.restart();
+        TIMING_START(io_t);
         graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);
 
         double avg_block_size = static_cast<double>(partition_config.number_of_nodes) / partition_config.k;
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
-        io_time += io_t.elapsed();
+        TIMING_ACCUMULATE(io_time, io_t);
 
         Buffer buffer(partition_config, partition_config.max_pq_size);
 
@@ -189,10 +186,10 @@ int main(int argn, char **argv) {
         std::atomic<bool> pq_finished{false};
 
         // Timing variables für threads
-        double thread_io_time = 0.0;
-        double thread_buffer_add_node_time = 0.0;
-        double thread_part_single_node_time = 0.0;
-        double thread_mlp_time = 0.0;
+        TIMING_DECLARE(double thread_io_time) = 0.0;
+        TIMING_DECLARE(double thread_buffer_add_node_time) = 0.0;
+        TIMING_DECLARE(double thread_part_single_node_time) = 0.0;
+        TIMING_DECLARE(double thread_mlp_time) = 0.0;
 
 
 
@@ -211,7 +208,7 @@ int main(int argn, char **argv) {
             adjacents.reserve(1000);
 
             while (partition_config.remaining_stream_nodes) {
-                local_io_t.restart();
+                TIMING_START(local_io_t);
 
                 // Load a line from the stream
                 std::getline(*(partition_config.stream_in), lines[0]);
@@ -226,13 +223,13 @@ int main(int argn, char **argv) {
 
                 ss2.simple_scan_line_fast(adjacents);
 
-                thread_io_time += local_io_t.elapsed();
+                TIMING_ACCUMULATE(thread_io_time, local_io_t);
 
                 // Create ParsedLine and push to queue with backpressure
                 ParsedLine parsed_line{global_node_id, adjacents};
 
                 timer wait_timer;
-                wait_timer.restart();
+                TIMING_START(wait_timer);
 
                 {
                     std::unique_lock<std::mutex> lock(input_mutex);
@@ -242,21 +239,21 @@ int main(int argn, char **argv) {
                         return input_queue.size() < partition_config.max_input_q_size;
                     });
 
-                    io_wait_time += wait_timer.elapsed();
+                    TIMING_ACCUMULATE(io_wait_time, wait_timer);
 
                     // Queue-Größe überwachen
-                    max_input_queue_size = std::max(max_input_queue_size.load(), input_queue.size());
+                    TIMING_MAX_UPDATE(max_input_queue_size, input_queue.size());
 
                     input_queue.push(std::move(parsed_line));
                 }
                 input_cv.notify_one();
 
-                nodes_processed_io++;
+                TIMING_INCREMENT(nodes_processed_io);
                 adjacents.clear();
             }
 
             // Update thread runtime
-            io_thread_time += thread_timer.elapsed();
+            TIMING_ACCUMULATE(io_thread_time, thread_timer);
 
             io_finished = true;
             input_cv.notify_all();
@@ -327,14 +324,14 @@ int main(int argn, char **argv) {
                 ParsedLine parsed_line;
 
                 timer wait_timer;
-                wait_timer.restart();
+                TIMING_START(wait_timer);
 
                 // Wait for input or termination
                 {
                     std::unique_lock<std::mutex> lock(input_mutex);
                     input_cv.wait(lock, [&] { return !input_queue.empty() || io_finished; });
 
-                    pq_wait_time += wait_timer.elapsed();
+                    TIMING_ACCUMULATE(pq_wait_time, wait_timer);
 
                     if (input_queue.empty() && io_finished) {
                         break;
@@ -346,7 +343,7 @@ int main(int argn, char **argv) {
                     // Notify IOReader that queue has space (backpressure relief)
                     input_cv.notify_one();
                 }
-                thread_timer.restart();
+                TIMING_START(thread_timer);
 
                 LongNodeID global_node_id = parsed_line.node_id;
                 std::vector<LongNodeID>& adjacents = parsed_line.neighbors;
@@ -354,16 +351,16 @@ int main(int argn, char **argv) {
 
                 if (degree >= partition_config.d_max || degree == 0) {
                     create_single_node_task(global_node_id, std::move(adjacents));
-                    pq_thread_time += thread_timer.elapsed();
-                    nodes_processed_pq++;
+                    TIMING_ACCUMULATE(pq_thread_time, thread_timer);
+                    TIMING_INCREMENT(nodes_processed_pq);
                     continue;
                 }
 
                 // Check if new node has a higher buffer score than max score in buffer
-                local_buffer_t.restart();
+                TIMING_START(local_buffer_t);
                 bool added_to_buffer = buffer.addNode(global_node_id, adjacents);
 
-                thread_buffer_add_node_time += local_buffer_t.elapsed();
+                TIMING_ACCUMULATE(thread_buffer_add_node_time, local_buffer_t);
 
                 if (!added_to_buffer) {
                     // Means that the buffer is full and the current node has the highest score -> create partition task for it
@@ -378,11 +375,11 @@ int main(int argn, char **argv) {
                         create_task_for_top_node();
                     }
                 }
-                pq_thread_time += thread_timer.elapsed();
-                nodes_processed_pq++;
+                TIMING_ACCUMULATE(pq_thread_time, thread_timer);
+                TIMING_INCREMENT(nodes_processed_pq);
             }
 
-            thread_timer.restart();
+            TIMING_START(thread_timer);
             // Handle remaining buffer
             if (use_mlp) {
                 while (!buffer.isEmpty()) {
@@ -394,7 +391,7 @@ int main(int argn, char **argv) {
                 }
             }
             // Update thread runtime
-            pq_thread_time += thread_timer.elapsed();
+            TIMING_ACCUMULATE(pq_thread_time, thread_timer);
 
             pq_finished = true;
             partition_cv.notify_all();
@@ -408,31 +405,31 @@ int main(int argn, char **argv) {
                 PartitionTask task;
 
                 timer wait_timer;
-                wait_timer.restart();
+                TIMING_START(wait_timer);
 
                 // Wait for partition task or termination
                 {
                     std::unique_lock<std::mutex> lock(partition_mutex);
                     partition_cv.wait(lock, [&] { return !partition_queue.empty() || pq_finished; });
 
-                    partition_wait_time += wait_timer.elapsed();
+                    TIMING_ACCUMULATE(partition_wait_time, wait_timer);
 
                     if (partition_queue.empty() && pq_finished) {
                         break;
                     }
 
                     // Queue-Größe überwachen
-                    max_partition_queue_size = std::max(max_partition_queue_size.load(), partition_queue.size());
+                    TIMING_MAX_UPDATE(max_partition_queue_size, partition_queue.size());
 
                     task = std::move(partition_queue.front());
                     partition_queue.pop();
                 }
 
-                thread_timer.restart();
+                TIMING_START(thread_timer);
 
                 if (task.batch_id == -1) {
                     // Single node partitioning (stack-allocated)
-                    local_part_t.restart();
+                    TIMING_START(local_part_t);
                     auto& node_data = task.nodes[0]; // node_data is a pair<LongNodeID, std::vector<LongNodeID>>
 
                     if (node_data.second.size() == 0) {
@@ -452,22 +449,22 @@ int main(int argn, char **argv) {
                         partition_single_node(partition_config, node_data.first, node_data.second);
                     }
 
-                    thread_part_single_node_time += local_part_t.elapsed();
+                    TIMING_ACCUMULATE(thread_part_single_node_time, local_part_t);
 
                 } else {
                     // Batch partitioning (heap-allocated)
-                    local_mlp_t.restart();
+                    TIMING_START(local_mlp_t);
 
                     auto batch_ptr = task.heap_batch_nodes;
                     partition_config.nmbNodes = batch_ptr->size();
                     perform_mlp_on_batch(partition_config, batch_ptr, task.batch_id);
                     partition_config.batch_manager->release_id(task.batch_id);
 
-                    thread_mlp_time += local_mlp_t.elapsed();
+                    TIMING_ACCUMULATE(thread_mlp_time, local_mlp_t);
                 }
                 // Update thread runtime
-                partition_thread_time += thread_timer.elapsed();
-                tasks_processed_partition++;
+                TIMING_ACCUMULATE(partition_thread_time, thread_timer);
+                TIMING_INCREMENT(tasks_processed_partition);
             }
 
         });
@@ -478,13 +475,13 @@ int main(int argn, char **argv) {
         partition_worker.join();
 
         // Update timing variables (thread-sicher, da alle Threads beendet sind)
-        io_time += thread_io_time;
-        buffer_add_node_time += thread_buffer_add_node_time;
-        part_single_node_time += thread_part_single_node_time;
-        mlp_time += thread_mlp_time;
+        TIMING_ADD(io_time, thread_io_time);
+        TIMING_ADD(buffer_add_node_time, thread_buffer_add_node_time);
+        TIMING_ADD(part_single_node_time, thread_part_single_node_time);
+        TIMING_ADD(mlp_time, thread_mlp_time);
 
-        first_phase_time += first_phase_t.elapsed();
-        second_phase_time += second_phase_t.elapsed();
+        TIMING_ACCUMULATE(first_phase_time, first_phase_t);
+        TIMING_ACCUMULATE(second_phase_time, second_phase_t);
         updating_adj_time = buffer.get_update_adj_time();
 
         if (partition_config.print_times) {
@@ -498,7 +495,7 @@ int main(int argn, char **argv) {
 
 
     if (partition_config.print_times) {
-
+#ifdef ENABLE_TIME_MEASUREMENTS
         double sum_detailed;
 
         std::cout << "┌─────────────────────────┬───────────────┬───────────────┐" << std::endl;
@@ -536,13 +533,16 @@ int main(int argn, char **argv) {
         std::cout << "│ PQ wait time            │ " << std::setw(13) << std::fixed << std::setprecision(3) << pq_wait_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (pq_wait_time / total_time * 100) << "%" << " │" << std::endl;
         std::cout << "│ Partition wait time     │ " << std::setw(13) << std::fixed << std::setprecision(3) << partition_wait_time << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (partition_wait_time / total_time * 100) << "%" << " │" << std::endl;
         std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
-        std::cout << "│ Nodes/sec IO            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (nodes_processed_io / total_time) << " │               │" << std::endl;
-        std::cout << "│ Nodes/sec PQ            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (nodes_processed_pq / total_time) << " │               │" << std::endl;
-        std::cout << "│ Tasks/sec Partition     │ " << std::setw(13) << std::fixed << std::setprecision(0) << (tasks_processed_partition / total_time) << " │               │" << std::endl;
+        std::cout << "│ Nodes/sec IO            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (TIMING_LOAD(nodes_processed_io) / total_time) << " │               │" << std::endl;
+        std::cout << "│ Nodes/sec PQ            │ " << std::setw(13) << std::fixed << std::setprecision(0) << (TIMING_LOAD(nodes_processed_pq) / total_time) << " │               │" << std::endl;
+        std::cout << "│ Tasks/sec Partition     │ " << std::setw(13) << std::fixed << std::setprecision(0) << (TIMING_LOAD(tasks_processed_partition) / total_time) << " │               │" << std::endl;
         std::cout << "├─────────────────────────┼───────────────┼───────────────┤" << std::endl;
-        std::cout << "│ Max input queue size    │ " << std::setw(13) << std::fixed << std::setprecision(0) << max_input_queue_size.load() << " │               │" << std::endl;
-        std::cout << "│ Max partition queue size│ " << std::setw(13) << std::fixed << std::setprecision(0) << max_partition_queue_size.load() << " │               │" << std::endl;
+        std::cout << "│ Max input queue size    │ " << std::setw(13) << std::fixed << std::setprecision(0) << TIMING_LOAD(max_input_queue_size) << " │               │" << std::endl;
+        std::cout << "│ Max partition queue size│ " << std::setw(13) << std::fixed << std::setprecision(0) << TIMING_LOAD(max_partition_queue_size) << " │               │" << std::endl;
         std::cout << "└─────────────────────────┴───────────────┴───────────────┘" << std::endl;
+#else
+        std::cout << "Timing disabled - compile with -DENABLE_TIME_MEASUREMENTS to see detailed timing information" << std::endl;
+#endif
     }
     FlatBufferWriter fb_writer;
 

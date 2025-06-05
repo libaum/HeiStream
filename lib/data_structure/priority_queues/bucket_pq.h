@@ -22,9 +22,9 @@
 #include <sparsehash/dense_hash_map>
 
 
-// #define ENABLE_TIMING  // Kommentiere diese Zeile aus, um Timing zu deaktivieren
+// #define ENABLE_BPQ_TIME_MEASUREMENTS  // Kommentiere diese Zeile aus, um Timing zu deaktivieren
 
-#ifdef ENABLE_TIMING
+#ifdef ENABLE_BPQ_TIME_MEASUREMENTS
 #define START_TIMER(stats_ref) ScopedTimer timer(stats_ref)
 #else
 #define START_TIMER(stats_ref)
@@ -223,7 +223,7 @@ private:
         ScopedTimer(OperationStats& stats_ref) : stats(stats_ref),
                                             start(std::chrono::high_resolution_clock::now()) {}
         ~ScopedTimer() {
-            #ifdef ENABLE_TIMING
+            #ifdef ENABLE_BPQ_TIME_MEASUREMENTS
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
             stats.update(elapsed.count());
@@ -395,7 +395,7 @@ inline void bucket_pq::deleteNode(LongNodeID node) {
 
 
 inline void bucket_pq::print_statistics() const {
-#ifdef ENABLE_TIMING
+#ifdef ENABLE_BPQ_TIME_MEASUREMENTS
     std::cout << "===== bucket_pq Laufzeitstatistiken =====" << std::endl;
     std::cout << "Aktueller PQ-Größe: " << m_elements << " Elemente" << std::endl;
 
@@ -441,7 +441,7 @@ inline void bucket_pq::print_statistics() const {
     std::cout << " - Einfügen: " << (stats.insert.call_count > 0 ? stats.insert.total_time / stats.insert.call_count * 1e6 : 0.0) << " µs" << std::endl;
     std::cout << " - Entfernen: " << (stats.delete_max.call_count > 0 ? stats.delete_max.total_time / stats.delete_max.call_count * 1e6 : 0.0) << " µs" << std::endl;
 #else
-    std::cout << "Timer deactivated. Define ENABLE_TIMING for bucket PQ runtime stats." << std::endl;
+    std::cout << "Timer deactivated. Define ENABLE_BPQ_TIME_MEASUREMENTS for bucket PQ runtime stats." << std::endl;
 #endif
 }
 
