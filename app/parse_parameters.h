@@ -234,8 +234,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *param_dbl2                      = arg_dbl0(NULL, "param_dbl2", NULL, "");
         struct arg_dbl *param_dbl3                      = arg_dbl0(NULL, "param_dbl3", NULL, "");
         struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld2", "(Default: disabled)");
+        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld3", "(Default: disabled)");
         struct arg_lit *write_npo                       = arg_lit0(NULL, "write_npo", "(Default: disabled)");
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
