@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.10)
 include(CheckCXXCompilerFlag)
 
+option(ENABLE_TIME_MEASUREMENTS "Enable time measurements for debugging" OFF)
+option(ENABLE_BPQ_TIME_MEASUREMENTS "Enable BucketPQ time measurements for debugging" OFF)
+
+
+if(ENABLE_TIME_MEASUREMENTS)
+    add_definitions(-DENABLE_TIME_MEASUREMENTS)
+endif()
+
+if(ENABLE_BPQ_TIME_MEASUREMENTS)
+    add_definitions(-DENABLE_BPQ_TIME_MEASUREMENTS)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_program(CCACHE_PROGRAM ccache)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
@@ -139,8 +151,8 @@ target_link_libraries(heistream ${OpenMP_CXX_LIBRARIES} flatbuffers)
 #target_link_libraries (streampartition /usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so)
 install(TARGETS heistream DESTINATION bin)
 
-add_executable(heistream_edge app/streamedgepartition.cpp $<TARGET_OBJECTS:libkaffpa> )
-target_compile_definitions(heistream_edge PRIVATE "-DMODE_STREAMPARTITION")
-target_link_libraries(heistream_edge ${OpenMP_CXX_LIBRARIES} flatbuffers)
-#target_link_libraries(heistream_edge flatbuffers)
-install(TARGETS heistream_edge DESTINATION bin)
+# add_executable(heistream_edge app/streamedgepartition.cpp $<TARGET_OBJECTS:libkaffpa> )
+# target_compile_definitions(heistream_edge PRIVATE "-DMODE_STREAMPARTITION")
+# target_link_libraries(heistream_edge ${OpenMP_CXX_LIBRARIES} flatbuffers)
+# #target_link_libraries(heistream_edge flatbuffers)
+# install(TARGETS heistream_edge DESTINATION bin)
