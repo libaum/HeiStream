@@ -282,12 +282,6 @@ int main(int argn, char **argv) {
 
             // Helper function to create single node partition task
             auto create_single_node_task = [&](LongNodeID node_id, std::vector<LongNodeID>&& adjacents) {
-                // TODO: handle case with part_adj_directly correctly, currently should not work
-                // - create queue for adjacents for neighbors that should be partitioned directly,
-                //    -> then after finishing this function, parition them in while loop?
-                // NO: actually just add a task for them -> i will handle this in the PartitionWorker
-
-                // buffer.update_neighbours_priority(adjacents, true);
                 buffer.update_neighbours_priority(
                     adjacents,
                     true,
@@ -320,6 +314,7 @@ int main(int argn, char **argv) {
                 create_single_node_task(node_id, std::move(adjacents_copy));
             };
 
+            // bool increased_input_q_size = false;
             while (true) {
                 ParsedLine parsed_line;
 
@@ -367,10 +362,18 @@ int main(int argn, char **argv) {
                     create_single_node_task(global_node_id, std::move(adjacents));
                 }
 
+                // if (!increased_input_q_size && buffer.size() > partition_config.max_pq_size - partition_config.stream_buffer_len/2) {
+                //     partition_config.max_input_q_size += partition_config.stream_buffer_len;
+                //     increased_input_q_size = true;
+                // }
+
                 // If buffer is full, create batch task
                 if (buffer.size() > partition_config.max_pq_size) {
                     if (use_mlp) {
+                        partition_config.max_input_q_size += partition_config.stream_buffer_len;
                         create_batch_task();
+                        partition_config.max_input_q_size -= partition_config.stream_buffer_len;
+                        // increased_input_q_size = false;
                     } else {
                         create_task_for_top_node();
                     }
