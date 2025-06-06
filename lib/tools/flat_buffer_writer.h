@@ -77,66 +77,42 @@
          flatbuffers::FlatBufferBuilder builder(1024);
          std::stringstream filename;
          std::string baseFilename = extractBaseFilename(graph_filename);
-         PartitionInfo::GraphMetadataBuilder metadata_builder(builder);
          auto filenameOffset = builder.CreateString(baseFilename);
-         metadata_builder.add_filename(filenameOffset);
-         metadata_builder.add_num_nodes(partition_config.total_nodes);
-         metadata_builder.add_num_edges(partition_config.total_edges);
-         auto metadata = metadata_builder.Finish();
-         builder.Finish(metadata);
 
-         PartitionInfo::PartitionConfigurationBuilder config_builder(builder);
-         config_builder.add_k(partition_config.k);
-         config_builder.add_seed(partition_config.seed);
-         config_builder.add_stream_buffer(partition_config.stream_buffer_len);
-         if(partition_config.minimal_mode) config_builder.add_model_mode(-1);
-         if(partition_config.batch_alpha) config_builder.add_alpha(0);
-         auto configdata = config_builder.Finish();
-         builder.Finish(configdata);
+         auto metadata = PartitionInfo::CreateGraphMetadata(
+            builder, filenameOffset, partition_config.total_nodes, partition_config.total_edges);
+
+        auto configdata = PartitionInfo::CreatePartitionConfiguration(
+            builder, partition_config.k, partition_config.seed, partition_config.stream_buffer_len,
+            partition_config.minimal_mode ? -1 : 0,
+            partition_config.batch_alpha ? 0 : 0);
+
          if(partition_config.edge_partition) {
              if (partition_config.minimal_mode) std::cout << "Mode: Minimal" << std::endl;
              if (partition_config.batch_alpha) std::cout << "Alpha: Batch Alpha" << std::endl;
          }
 
-         PartitionInfo::RunTimeBuilder runtime_builder(builder);
-         runtime_builder.add_io_time(io_time_);
-         runtime_builder.add_model_construction_time(model_construction_time_);
-         runtime_builder.add_mapping_time(mapping_time_);
-         runtime_builder.add_partition_time(partition_time_);
-         runtime_builder.add_total_time(total_time_);
-         auto runtimedata = runtime_builder.Finish();
-         builder.Finish(runtimedata);
+         auto runtimedata = PartitionInfo::CreateRunTime(
+            builder, io_time_, model_construction_time_, mapping_time_,
+            partition_time_, total_time_);
 
-         // Create PartitionMetrics
-         PartitionInfo::PartitionMetricsBuilder partition_metrics_builder(builder);
-         if(!partition_config.edge_partition) {
-             partition_metrics_builder.add_edge_cut(edge_cut_);
-         } else {
-             partition_metrics_builder.add_vertex_cut(vertex_cut_);
-             partition_metrics_builder.add_replicas(replicas_);
-             partition_metrics_builder.add_replication_factor(replication_factor_);
-             if(replication_factor_ != 0){
-                 std::cout << "Vertex Cut: " << vertex_cut_ << std::endl;
-                 std::cout << "Replicas: " << replicas_ << std::endl;
-                 std::cout << "Replication Factor: " << replication_factor_ << std::endl;
-             }
-         }
-         partition_metrics_builder.add_balance(balance_);
-         auto partition_metrics = partition_metrics_builder.Finish();
-         builder.Finish(partition_metrics);
+        EdgeWeight edge_cut_val = partition_config.edge_partition ? 0 : edge_cut_;
+        NodeID vertex_cut_val = partition_config.edge_partition ? vertex_cut_ : 0;
+        NodeID replicas_val = partition_config.edge_partition ? replicas_ : 0;
+        double replication_factor_val = partition_config.edge_partition ? replication_factor_ : 0;
+
+        auto partition_metrics = PartitionInfo::CreatePartitionMetrics(
+            builder, edge_cut_val, vertex_cut_val, replicas_val,
+            replication_factor_val, balance_);
 
          // Create MemoryConsumption
          auto memory_consumption = PartitionInfo::CreateMemoryConsumption(builder, maxRSS_);
 
          // Create PartitionLog
-         PartitionInfo::PartitionLogBuilder partition_log_builder(builder);
-         partition_log_builder.add_graph_metadata(metadata);
-         partition_log_builder.add_partition_configuration(configdata);
-         partition_log_builder.add_runtime(runtimedata);
-         partition_log_builder.add_memory_consumption(memory_consumption);
-         partition_log_builder.add_metrics(partition_metrics);
-         auto partition_log = partition_log_builder.Finish();
-         builder.Finish(partition_log);
+         auto partition_log = PartitionInfo::CreatePartitionLog(
+            builder, metadata, configdata, runtimedata, memory_consumption, partition_metrics);
+
+        builder.Finish(partition_log);
 
          //Step 4: Write to File
          const uint8_t* bufferPointer = builder.GetBufferPointer();
