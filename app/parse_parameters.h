@@ -225,6 +225,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "haa_theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
         struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
 
+        struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
         struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
@@ -345,6 +346,7 @@ int parse_parameters(int argn, char **argv,
                 bq_disc_factor,
                 buffer_score,
                 haa_hub_mode,
+                bpq_storage_type,
                 gts_alpha,
                 threshold_start_mlp,
                 d_max,
@@ -438,6 +440,7 @@ int parse_parameters(int argn, char **argv,
                 max_pq_size,
                 bq_disc_factor,
                 buffer_score,
+                bpq_storage_type,
                 haa_hub_mode,
                 gts_alpha,
                 threshold_start_mlp,
@@ -1744,6 +1747,16 @@ int parse_parameters(int argn, char **argv,
                 partition_config.d_direct = d_direct->ival[0];
         }
 
+        if (bpq_storage_type->count > 0) {
+                if(strcmp("vec", bpq_storage_type->sval[0]) == 0) {
+                        partition_config.bpq_storage_type = BPQ_STORAGE_VECTOR;
+                } else if (strcmp("map", bpq_storage_type->sval[0]) == 0) {
+                        partition_config.bpq_storage_type = BPQ_STORAGE_UNORDERED_MAP;
+                } else {
+                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        exit(0);
+                }
+        }
 
         if (haa_hub_mode->count > 0) {
                 if(strcmp("nonadaptive", haa_hub_mode->sval[0]) == 0) {

@@ -570,6 +570,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.write_node_part_order          = false;
         partition_config.part_adj_directly              = true;
 
+        partition_config.bpq_storage_type               = BPQ_STORAGE_UNORDERED_MAP;
+
         partition_config.d_direct                       = 1000; //std::numeric_limits<int>::max();
 
         partition_config.first_phase_buffer_len         = 1;

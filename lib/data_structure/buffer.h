@@ -117,7 +117,7 @@ private:
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
         :   config(partition_config),
-            pq(static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
+            pq(partition_config, static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, max_pq_size, partition_config.bq_disc_factor) {
 
         current_beta = config.haa_beta;
@@ -424,14 +424,16 @@ public:
         }
 
         // Für Performance-Optimierung: direkter Zugriff
-        auto& queue_map = pq.get_queue_index_map();
+        // auto& queue_map = pq.get_queue_index_map();
         std::unordered_map<LongNodeID, PQItem>::iterator it;
 
         for (LongNodeID adj_id : adjacents) {
-            it = queue_map.find(adj_id);
-            if (it != queue_map.end()) {
+            // it = queue_map.find(adj_id);
+            // if (it != queue_map.end()) {
             // if (pq.contains_with_it(adj_id, it)) {
-                PQItem& adj_buffer_item = it->second;
+            if (pq.contains(adj_id)) {
+                // PQItem& adj_buffer_item = it->second;
+                PQItem& adj_buffer_item = pq.getBufferItem(adj_id); // Ensure the item is loaded into the buffer
                 auto &adj_adjacents = adj_buffer_item.get_adjacents();
                 unsigned adj_degree = adj_adjacents.size();
                 adj_buffer_item.num_adj_partitioned++;

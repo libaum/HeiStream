@@ -8,21 +8,21 @@
 #ifndef BUCKET_PQ_EM8YJPA9
 #define BUCKET_PQ_EM8YJPA9
 
-#include <limits>
-#include <unordered_map>
-#include <utility>
-
+#include <memory>
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 
+#include "partition/partition_config.h"
 #include "definitions.h"
 #include "priority_queue_interface.h"
-#include <sparsehash/dense_hash_map>
+#include "pq_item.h"
+#include "pq_storage_interface.h"
+#include "vector_storage.h"
+#include "map_storage.h"
 
-
-// #define ENABLE_BPQ_TIME_MEASUREMENTS  // Kommentiere diese Zeile aus, um Timing zu deaktivieren
+// #define ENABLE_BPQ_TIME_MEASUREMENTS
 
 #ifdef ENABLE_BPQ_TIME_MEASUREMENTS
 #define START_TIMER(stats_ref) ScopedTimer timer(stats_ref)
@@ -30,117 +30,9 @@
 #define START_TIMER(stats_ref)
 #endif
 
-
-const float INVALID_SCORE = std::numeric_limits<float>::max();
-const unsigned INVALID_POS = std::numeric_limits<unsigned>::max();
-// const unsigned INVALID_POS_CACHED = std::numeric_limits<unsigned>::max() - 1;
-
-
-class PQItem {
-public:
-    float buffer_score;
-    unsigned bucket_idx;
-    unsigned num_adj_partitioned;
-    std::vector<LongNodeID> *adjacents;
-    unsigned pos_in_bucket;
-
-    // Default-Konstruktor
-    PQItem() : buffer_score(INVALID_SCORE), bucket_idx(0), num_adj_partitioned(0),
-                adjacents(nullptr), pos_in_bucket(INVALID_POS) {}
-
-    // Konstruktor für normale Referenzen (lvalue)
-    PQItem(float score, std::vector<LongNodeID> &l, unsigned adj_part, unsigned pos_in_bucket, unsigned bucket_idx)
-        : buffer_score(score), bucket_idx(bucket_idx), num_adj_partitioned(adj_part), pos_in_bucket(pos_in_bucket) {
-        adjacents = new std::vector<LongNodeID>(l);
-    }
-
-    // Move-Konstruktor für rvalue-Referenzen
-    PQItem(float score, std::vector<LongNodeID>&& l, unsigned adj_part, unsigned pos_in_bucket, unsigned bucket_idx)
-        : buffer_score(score), bucket_idx(bucket_idx), num_adj_partitioned(adj_part), pos_in_bucket(pos_in_bucket) {
-        // Übernehme Ownership des Vektors ohne Kopie
-        adjacents = new std::vector<LongNodeID>(std::move(l));
-    }
-
-    // Copy-Konstruktor
-    PQItem(const PQItem& other) : buffer_score(other.buffer_score), bucket_idx(other.bucket_idx), num_adj_partitioned(other.num_adj_partitioned), pos_in_bucket(other.pos_in_bucket) {
-        // Kopiere Nachbarn, falls vorhanden
-        adjacents = other.adjacents ? new std::vector<LongNodeID>(*other.adjacents) : nullptr;
-    }
-
-    // Move-Konstruktor
-    PQItem(PQItem&& other) noexcept : buffer_score(other.buffer_score), bucket_idx(other.bucket_idx),
-                num_adj_partitioned(other.num_adj_partitioned), adjacents(other.adjacents), pos_in_bucket(other.pos_in_bucket) {
-        // Vermeidet doppeltes Freigeben
-        other.adjacents = nullptr;
-    }
-
-    // Copy-Zuweisungsoperator
-    PQItem& operator=(const PQItem& other) {
-        if (this != &other) {
-            buffer_score = other.buffer_score;
-            bucket_idx = other.bucket_idx;
-            num_adj_partitioned = other.num_adj_partitioned;
-            pos_in_bucket = other.pos_in_bucket;
-
-            // Alten Vector löschen
-            delete adjacents;
-
-            // Neuen Vector kopieren, falls vorhanden
-            adjacents = other.adjacents ? new std::vector<LongNodeID>(*other.adjacents) : nullptr;
-        }
-        return *this;
-    }
-
-    // Move-Zuweisungsoperator
-    PQItem& operator=(PQItem&& other) noexcept {
-        if (this != &other) {
-            buffer_score = other.buffer_score;
-            bucket_idx = other.bucket_idx;
-            num_adj_partitioned = other.num_adj_partitioned;
-            pos_in_bucket = other.pos_in_bucket;
-
-            // Alten Vector löschen
-            delete adjacents;
-
-            // Pointer übernehmen
-            adjacents = other.adjacents;
-            other.adjacents = nullptr;
-        }
-        return *this;
-    }
-
-    // Destruktor bleibt ähnlich, aber jetzt mit nullptr-Check
-    ~PQItem() {
-        if (adjacents != nullptr) {
-            delete adjacents;  // Sicher für nullptr
-        }
-    }
-
-    std::vector<LongNodeID>& get_adjacents() {
-        return *adjacents;
-    }
-
-    unsigned get_address() const {
-        return bucket_idx;
-    }
-
-    unsigned get_pos_in_bucket() const {
-        return pos_in_bucket;
-    }
-
-    void set_pos_in_bucket(unsigned pos) {
-        pos_in_bucket = pos;
-    }
-
-    void set_buffer_score(float new_buffer_score, unsigned new_bucket_idx) {
-        buffer_score = new_buffer_score;
-        bucket_idx = new_bucket_idx;
-    }
-};
-
 class bucket_pq {
 public:
-    bucket_pq(const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size, unsigned bq_disc_factor);
+    bucket_pq(PartitionConfig& partition_config, const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size, unsigned bq_disc_factor);
 
     ~bucket_pq() = default;
 
@@ -160,7 +52,6 @@ public:
     void deleteNode(LongNodeID node);
 
     bool contains(LongNodeID node);
-    // bool contains_with_it(LongNodeID node, std::unordered_map<LongNodeID, PQItem>::iterator& it);
     PQItem& getBufferItem(LongNodeID node);
     void completely_remove_node(LongNodeID node);
 
@@ -169,22 +60,21 @@ public:
     void print_statistics() const;
     void reset_statistics();
 
-    std::unordered_map<LongNodeID, PQItem>& get_queue_index_map() {
-        return m_queue_index_map;
+    std::unique_ptr<PQStorageBase<LongNodeID, PQItem>>& get_storage() {
+        return m_storage;
     }
-
 
 private:
     LongNodeID m_elements;
     EdgeWeight m_gain_span;
     unsigned m_max_idx; // points to the non-empty bucket with the largest gain
     unsigned disc_factor;
+    PartitionConfig &config;
 
-
-    std::unordered_map<LongNodeID, PQItem> m_queue_index_map;
+    std::unique_ptr<PQStorageBase<LongNodeID, PQItem>> m_storage;
     std::vector<std::vector<LongNodeID>> m_buckets;
 
-        // Timing-Strukturen
+    // Timing-Strukturen
     struct OperationStats {
         double total_time = 0.0;       // Gesamtzeit in Sekunden
         uint64_t call_count = 0;       // Anzahl der Aufrufe
@@ -232,11 +122,22 @@ private:
     };
 };
 
-inline bucket_pq::bucket_pq(const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size, unsigned bq_disc_factor)
-    : m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0), disc_factor(bq_disc_factor) {
+inline bucket_pq::bucket_pq(PartitionConfig& partition_config, const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size, unsigned bq_disc_factor)
+    : config(partition_config), m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0), disc_factor(bq_disc_factor) {
 
-    m_queue_index_map.reserve(max_pq_size);
-    m_queue_index_map.max_load_factor(0.7f);
+    // Storage-Typ zur Runtime wählen
+    switch (config.bpq_storage_type) {
+        case BPQStorageType::BPQ_STORAGE_VECTOR:
+            m_storage = std::make_unique<VectorStorage<LongNodeID, PQItem>>(num_nodes);
+            break;
+        case BPQStorageType::BPQ_STORAGE_UNORDERED_MAP:
+        default:
+            m_storage = std::make_unique<MapStorage<LongNodeID, PQItem>>();
+            break;
+    }
+
+    m_storage->reserve(max_pq_size);
+    m_storage->set_max_load_factor(0.7f);
     m_buckets.resize(m_gain_span);
 
 }
@@ -254,26 +155,16 @@ inline LongNodeID bucket_pq::size() const {
 
 inline bool bucket_pq::contains(LongNodeID node) {
     START_TIMER(stats.contains);
-
-    return m_queue_index_map.find(node) != m_queue_index_map.end();
+    return m_storage->contains(node);
 }
-
-// inline bool bucket_pq::contains_with_it(LongNodeID node, std::unordered_map<LongNodeID, PQItem>::iterator& it) {
-//     START_TIMER(stats.contains);
-
-//     it = m_queue_index_map.find(node);
-
-//     return it != m_queue_index_map.end();
-// }
 
 inline PQItem& bucket_pq::getBufferItem(LongNodeID node) {
     START_TIMER(stats.get_buffer_item);
-
-    return m_queue_index_map[node];
+    return (*m_storage)[node];
 }
 
 inline void bucket_pq::completely_remove_node(LongNodeID node) {
-    m_queue_index_map.erase(node);
+    m_storage->erase(node);
 }
 
 inline void bucket_pq::update_insert(LongNodeID node, float buffer_score) {
@@ -288,8 +179,8 @@ inline void bucket_pq::update_insert(LongNodeID node, float buffer_score) {
     }
 
     m_buckets[new_bucket_idx].push_back(node);
-    m_queue_index_map[node].set_buffer_score(buffer_score, new_bucket_idx);
-    m_queue_index_map[node].set_pos_in_bucket(m_buckets[new_bucket_idx].size() - 1);
+    (*m_storage)[node].set_buffer_score(buffer_score, new_bucket_idx);
+    (*m_storage)[node].set_pos_in_bucket(m_buckets[new_bucket_idx].size() - 1);
 
     m_elements++;
 }
@@ -303,12 +194,10 @@ inline void bucket_pq::insert(LongNodeID node, float buffer_score,  std::vector<
     }
 
     m_buckets[bucket_idx].push_back(node);
-    m_queue_index_map.emplace(
+    m_storage->emplace(
         node,
         PQItem(buffer_score, adjacents, num_adj_partitioned, m_buckets[bucket_idx].size() - 1, bucket_idx)
     );
-
-    // m_queue_index_map[node] = PQItem(buffer_score, adjacents, num_adj_partitioned, m_buckets[bucket_idx].size() - 1, bucket_idx);
 
     m_elements++;
 }
@@ -351,7 +240,7 @@ inline void bucket_pq::increaseKey(LongNodeID node, float new_buffer_score) {
 }
 
 inline unsigned bucket_pq::getKey(LongNodeID node) {
-    return m_queue_index_map[node].pos_in_bucket;
+    return (*m_storage)[node].pos_in_bucket;
 }
 
 inline void bucket_pq::changeKey(LongNodeID node, float new_buffer_score) {
@@ -364,14 +253,14 @@ inline void bucket_pq::changeKey(LongNodeID node, float new_buffer_score) {
 inline void bucket_pq::deleteNode(LongNodeID node) {
     START_TIMER(stats.delete_node);
 
-    PQItem& buffer_item = m_queue_index_map[node];
+    PQItem& buffer_item = (*m_storage)[node];
 
     unsigned& in_bucket_idx = buffer_item.pos_in_bucket;
     unsigned& bucket_idx = buffer_item.bucket_idx;
 
     if (m_buckets[bucket_idx].size() > 1) {
         // Swap current element with last element and pop_back
-        m_queue_index_map[m_buckets[bucket_idx].back()].pos_in_bucket = in_bucket_idx; // update helper structure
+        (*m_storage)[m_buckets[bucket_idx].back()].pos_in_bucket = in_bucket_idx; // update helper structure
         std::swap(m_buckets[bucket_idx][in_bucket_idx], m_buckets[bucket_idx].back());
         m_buckets[bucket_idx].pop_back();
     } else {

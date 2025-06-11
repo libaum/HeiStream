@@ -41,6 +41,8 @@ struct PartitionConfig
         bool part_adj_directly;
         size_t max_input_q_size;
 
+        BPQStorageType bpq_storage_type;
+
         std::vector<std::string> *node_part_order;
 
         BufferScoreType buffer_score_type;

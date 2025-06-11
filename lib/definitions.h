@@ -140,6 +140,12 @@ typedef enum {
         BUFFER_SCORE_GTS
 } BufferScoreType;
 
+
+typedef enum {
+    BPQ_STORAGE_UNORDERED_MAP,
+    BPQ_STORAGE_VECTOR
+} BPQStorageType;
+
 typedef enum {
         HAA_NONADAPTIVE,
         HAA_INC_FOR_HUBS,
