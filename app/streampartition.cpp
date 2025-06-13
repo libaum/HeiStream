@@ -207,6 +207,7 @@ int main(int argn, char **argv) {
             std::vector<LongNodeID> adjacents;
             adjacents.reserve(1000);
 
+            timer wait_timer;
             while (partition_config.remaining_stream_nodes) {
                 TIMING_START(local_io_t);
 
@@ -228,7 +229,6 @@ int main(int argn, char **argv) {
                 // Create ParsedLine and push to queue with backpressure
                 ParsedLine parsed_line{global_node_id, adjacents};
 
-                timer wait_timer;
                 TIMING_START(wait_timer);
 
                 {
@@ -264,20 +264,43 @@ int main(int argn, char **argv) {
         std::thread pq_handler([&]() {
             timer thread_timer, local_buffer_t;
 
-            // Helper function for batch creation
+            // Batch management variables
+            std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> current_batch;
+
+            bool batch_building_mode = false;
+            int nodes_extracted_for_batch = 0;
+            size_t cur_batch_id = partition_config.batch_manager->acquire_id();
+            PartitionID cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
+
+            // Helper function for batch creation from manually collected nodes
             auto create_batch_task = [&]() {
-                size_t batch_id = partition_config.batch_manager->acquire_id(); // Necessary as a unique marker that a node is contained in a specific batch in partition_config->stream_nodes_assign
+                // Create batch task with manually collected nodes
+                PartitionTask task(cur_batch_id, std::move(current_batch));
 
-                std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *batch_nodes_ptr;
-                buffer.loadTopNodesToBatch(batch_nodes_ptr, partition_config.stream_buffer_len, batch_id);
+                current_batch.clear(); // Reset for next batch
 
-                PartitionTask task(batch_id, batch_nodes_ptr);
 
                 {
                     std::lock_guard<std::mutex> lock(partition_mutex);
                     partition_queue.push(std::move(task));
                 }
                 partition_cv.notify_one();
+
+                // Update batch id and marker for next batch
+                cur_batch_id = partition_config.batch_manager->acquire_id();
+                cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
+            };
+
+            // Helper function to manually extract top node from buffer
+            auto extract_top_node_from_buffer = [&]() -> std::pair<LongNodeID, std::vector<LongNodeID>> {
+                LongNodeID node_id = buffer.deleteMax();
+                std::vector<LongNodeID> adjacents = std::move(buffer.get_adjacents(node_id));
+
+                (*partition_config.stream_nodes_assign)[node_id - 1] = cur_batch_marker;
+                buffer.update_neighbours_priority(adjacents, false);
+
+                buffer.completely_remove_node(node_id);
+                return {node_id, std::move(adjacents)};
             };
 
             // Helper function to create single node partition task
@@ -292,10 +315,7 @@ int main(int argn, char **argv) {
                 );
                 (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
 
-                PartitionTask task(
-                    -1,
-                    std::vector<BatchNode>{{node_id, std::move(adjacents)}}
-                );
+                PartitionTask task(-1, {{node_id, std::move(adjacents)}});
 
                 {
                     std::lock_guard<std::mutex> lock(partition_mutex);
@@ -304,26 +324,31 @@ int main(int argn, char **argv) {
                 partition_cv.notify_one();
             };
 
-            // Helper function for task creation for the top node in the buffer
-            auto create_task_for_top_node = [&]() {
-                LongNodeID node_id = buffer.deleteMax();
-                // Get the adjacents of the node to be partitioned, move to a new vector
-                std::vector<LongNodeID> adjacents_copy = std::move(buffer.get_adjacents(node_id));
-                buffer.completely_remove_node(node_id);
+            // Helper function to try extracting one node for current batch
+            auto try_extract_for_batch = [&]() -> bool {
+                auto [node_id, node_adjacents] = extract_top_node_from_buffer();
+                current_batch.emplace_back(node_id, std::move(node_adjacents));
 
-                create_single_node_task(node_id, std::move(adjacents_copy));
+                // Check if batch is complete
+                if (current_batch.size() >= partition_config.stream_buffer_len) {
+                    create_batch_task();
+                    return true; // Batch completed
+                }
+                return false; // Batch not yet complete or no extraction possible
             };
 
-            // bool increased_input_q_size = false;
+            timer wait_timer;
             while (true) {
+
+                // Process incoming nodes from input queue
                 ParsedLine parsed_line;
 
-                timer wait_timer;
                 TIMING_START(wait_timer);
 
                 // Wait for input or termination
                 {
                     std::unique_lock<std::mutex> lock(input_mutex);
+
                     input_cv.wait(lock, [&] { return !input_queue.empty() || io_finished; });
 
                     TIMING_ACCUMULATE(pq_wait_time, wait_timer);
@@ -334,10 +359,11 @@ int main(int argn, char **argv) {
 
                     parsed_line = std::move(input_queue.front());
                     input_queue.pop();
-
-                    // Notify IOReader that queue has space (backpressure relief)
                     input_cv.notify_one();
                 }
+
+                // Process the input node if we have one
+
                 TIMING_START(thread_timer);
 
                 LongNodeID global_node_id = parsed_line.node_id;
@@ -351,49 +377,52 @@ int main(int argn, char **argv) {
                     continue;
                 }
 
-                // Check if new node has a higher buffer score than max score in buffer
                 TIMING_START(local_buffer_t);
                 bool added_to_buffer = buffer.addNode(global_node_id, adjacents);
-
                 TIMING_ACCUMULATE(thread_buffer_add_node_time, local_buffer_t);
 
                 if (!added_to_buffer) {
-                    // Means that the buffer is full and the current node has the highest score -> create partition task for it
                     create_single_node_task(global_node_id, std::move(adjacents));
                 }
 
-                // if (!increased_input_q_size && buffer.size() > partition_config.max_pq_size - partition_config.stream_buffer_len/2) {
-                //     partition_config.max_input_q_size += partition_config.stream_buffer_len;
-                //     increased_input_q_size = true;
-                // }
-
-                // If buffer is full, create batch task
-                if (buffer.size() > partition_config.max_pq_size) {
-                    if (use_mlp) {
-                        partition_config.max_input_q_size += partition_config.stream_buffer_len;
-                        create_batch_task();
-                        partition_config.max_input_q_size -= partition_config.stream_buffer_len;
-                        // increased_input_q_size = false;
-                    } else {
-                        create_task_for_top_node();
-                    }
-                }
                 TIMING_ACCUMULATE(pq_thread_time, thread_timer);
                 TIMING_INCREMENT(nodes_processed_pq);
+
+                if (buffer.size() > partition_config.max_pq_size) {
+                    if (use_mlp) {
+                        try_extract_for_batch();
+                    } else {
+                        // Handle non-MLP mode buffer overflow
+                        auto [node_id, node_adjacents] = extract_top_node_from_buffer();
+                        create_single_node_task(node_id, std::move(node_adjacents));
+                    }
+
+                }
             }
 
             TIMING_START(thread_timer);
+
+
             // Handle remaining buffer
             if (use_mlp) {
+                // Process remaining nodes in batches using interleaved approach
                 while (!buffer.isEmpty()) {
-                    create_batch_task();
+                    try_extract_for_batch();
                 }
             } else {
+                // Process remaining nodes individually
                 while (!buffer.isEmpty()) {
-                    create_task_for_top_node();
+                    auto [node_id, node_adjacents] = extract_top_node_from_buffer();
+                    create_single_node_task(node_id, std::move(node_adjacents));
                 }
             }
-            // Update thread runtime
+
+            // Complete any remaining batch
+            if (!current_batch.empty()) {
+                create_batch_task();
+                // partition_config.max_input_q_size -= partition_config.stream_buffer_len;
+            }
+
             TIMING_ACCUMULATE(pq_thread_time, thread_timer);
 
             pq_finished = true;
@@ -404,13 +433,12 @@ int main(int argn, char **argv) {
         std::thread partition_worker([&]() {
             timer thread_timer, local_part_t, local_mlp_t;
 
+            timer wait_timer;
             while (true) {
                 PartitionTask task;
 
-                timer wait_timer;
                 TIMING_START(wait_timer);
 
-                // Wait for partition task or termination
                 {
                     std::unique_lock<std::mutex> lock(partition_mutex);
                     partition_cv.wait(lock, [&] { return !partition_queue.empty() || pq_finished; });
@@ -421,7 +449,6 @@ int main(int argn, char **argv) {
                         break;
                     }
 
-                    // Queue-Größe überwachen
                     TIMING_MAX_UPDATE(max_partition_queue_size, partition_queue.size());
 
                     task = std::move(partition_queue.front());
@@ -431,12 +458,11 @@ int main(int argn, char **argv) {
                 TIMING_START(thread_timer);
 
                 if (task.batch_id == -1) {
-                    // Single node partitioning (stack-allocated)
+                    // Single node partitioning
                     TIMING_START(local_part_t);
-                    auto& node_data = task.nodes[0]; // node_data is a pair<LongNodeID, std::vector<LongNodeID>>
+                    auto& node_data = task.nodes[0];
 
                     if (node_data.second.size() == 0) {
-                        // Put node into partition with lowest weight
                         PartitionID best_partition = 0;
                         LongNodeID min_weight = partition_config.max_block_weight;
 
@@ -455,21 +481,20 @@ int main(int argn, char **argv) {
                     TIMING_ACCUMULATE(thread_part_single_node_time, local_part_t);
 
                 } else {
-                    // Batch partitioning (heap-allocated)
+                    // Batch partitioning (batch_id >= 0)
                     TIMING_START(local_mlp_t);
 
-                    auto batch_ptr = task.heap_batch_nodes;
+                    // Convert our manual batch format to the expected format
+                    auto batch_ptr = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(std::move(task.nodes));
                     partition_config.nmbNodes = batch_ptr->size();
                     perform_mlp_on_batch(partition_config, batch_ptr, task.batch_id);
                     partition_config.batch_manager->release_id(task.batch_id);
 
                     TIMING_ACCUMULATE(thread_mlp_time, local_mlp_t);
                 }
-                // Update thread runtime
                 TIMING_ACCUMULATE(partition_thread_time, thread_timer);
                 TIMING_INCREMENT(tasks_processed_partition);
             }
-
         });
 
         // Join all threads
