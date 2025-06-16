@@ -501,11 +501,11 @@ public:
         pq.completely_remove_node(node_id);
     }
 
-    float get_max_value() {
+    unsigned get_max_value() {
         return pq.maxValue();
     }
 
-    float deleteMax() {
+    LongNodeID deleteMax() {
         return pq.deleteMax();
     }
 

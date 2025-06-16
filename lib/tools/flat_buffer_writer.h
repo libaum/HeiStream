@@ -119,7 +119,7 @@
          int bufferSize = builder.GetSize();
 
          std::string outputFileNameStream;
-         outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.stream_buffer_len) + ".bin";
+         outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.stream_buffer_len) + "_" + std::to_string(partition_config.max_pq_size) + ".bin";
          const char* outputFileName = outputFileNameStream.c_str();
          if(partition_config.write_log) {
              FILE *file = fopen(outputFileName, "wb");
