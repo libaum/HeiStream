@@ -47,7 +47,7 @@ public:
     }
 
     PartitionID get_batch_marker(size_t batch_id) const {
-            return TO_BE_PARTITIONED - batch_id;
+            return TO_BE_PARTITIONED - batch_id - 1;
     }
 
     // Last valid PartitionID, used to determine the maximum valid partition ID that is not a batch marker.

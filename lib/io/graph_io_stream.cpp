@@ -34,7 +34,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     LongEdgeID used_edges = 0;
     bool read_ew = false;
     bool read_nw = false;
-    LongEdgeID nmbEdges = 2 * config.remaining_stream_edges;
+    // LongEdgeID nmbEdges = 2 * config.remaining_stream_edges;
     LongNodeID target;
     NodeWeight weight;
     std::vector<std::vector<std::pair<NodeID, EdgeWeight>>> all_edges;
@@ -53,14 +53,18 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     if (config.ram_stream) {
     }
 
-    if (nmbEdges > std::numeric_limits<EdgeWeight>::max() || config.nmbNodes > std::numeric_limits<LongNodeID>::max()) {
-#ifdef MODE64BITEDGES
-        std::cerr << "The graph is too large. Currently only 64bits supported!" << std::endl;
-#else
-        std::cerr << "The graph is too large. Currently only 32bits supported!" << std::endl;
-#endif
-        exit(0);
-    }
+//     if (nmbEdges > std::numeric_limits<EdgeWeight>::max() || config.nmbNodes > std::numeric_limits<LongNodeID>::max()) {
+// #ifdef MODE64BITEDGES
+//         std::cout << "nmbEdges: " << nmbEdges << std::endl;
+//         std::cout << "config.nmbNodes: " << config.nmbNodes << std::endl;
+//         std::cout << "config.remaining_stream_edges: " << config.remaining_stream_edges << std::endl;
+//         std::cout << "config.remaining_stream_nodes: " << config.remaining_stream_nodes << std::endl;
+//         std::cerr << "The graph is too large. Currently only 64bits supported!" << std::endl;
+// #else
+//         std::cerr << "The graph is too large. Currently only 32bits supported!" << std::endl;
+// #endif
+//         exit(0);
+//     }
 
     switch (config.remaining_stream_ew) {
     case 1:
@@ -107,24 +111,51 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         total_nodeweight += weight;
         processNodeWeight(config, all_nodes, node, weight, global_node_id);
 
-        while (col_counter < line_numbers.size()) {
-            target = line_numbers[col_counter++];
-            EdgeWeight edge_weight = 1;
-            if (read_ew) {
-                edge_weight = line_numbers[col_counter++];
-            }
-
-            if ((*config.stream_nodes_assign)[target - 1] == batch_marker) {
-                if (processed_nodes.find(target) != processed_nodes.end()) {
-                    used_edges++;                 // used_edges only counts arcs to previus nodes
-                    NodeID local_target = global_to_local_map[target - 1];
-                    edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
+        if (config.restream_number) {
+            while (col_counter < line_numbers.size()) {
+                target = line_numbers[col_counter++];
+                EdgeWeight edge_weight = 1;
+                if (read_ew) {
+                    edge_weight = line_numbers[col_counter++];
                 }
-            } else if ((*config.stream_nodes_assign)[target - 1] < max_valid_part_id) { // edge to previous batch
-                used_edges++;
-                processQuotientEdgeInBatch(config, node, target, edge_weight);
-            } else { // edge to future batch
-                processGhostNeighborInBatch(config, node, target, edge_weight);
+
+                if ((*config.node_to_batch_marker)[target - 1] == batch_marker) {
+                    // TODO could be further optimized by reusing the vector and reserving two spaces for each batch -> then increment/dec when processed
+                    if (processed_nodes.find(target) != processed_nodes.end()) {
+                        used_edges++;                 // used_edges only counts arcs to previus nodes
+                        NodeID local_target = global_to_local_map[target - 1];
+                        edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
+                    }
+                } else if ((*config.node_to_batch_marker)[target - 1] == PROCESSED_BEFORE) { // edge to previous batch
+                    used_edges++;
+                    config.count_misc1++;
+                    processQuotientEdgeInBatch(config, node, target, edge_weight);
+                } else { // edge to future batch
+                    processGhostNeighborInBatch(config, node, target, edge_weight);
+                }
+            }
+        } else {
+            while (col_counter < line_numbers.size()) {
+                target = line_numbers[col_counter++];
+                EdgeWeight edge_weight = 1;
+                if (read_ew) {
+                    edge_weight = line_numbers[col_counter++];
+                }
+
+                if ((*config.stream_nodes_assign)[target - 1] == batch_marker) {
+                    if (processed_nodes.find(target) != processed_nodes.end()) {
+                        used_edges++;                 // used_edges only counts arcs to previus nodes
+                        NodeID local_target = global_to_local_map[target - 1];
+                        edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
+                    }
+                } else if ((*config.stream_nodes_assign)[target - 1] < max_valid_part_id) { // edge to previous batch
+                    used_edges++;
+                    config.count_misc1++;
+                    processQuotientEdgeInBatch(config, node, target, edge_weight);
+                } else { // edge to future batch
+                    processGhostNeighborInBatch(config, node, target, edge_weight);
+                }
+
             }
         }
 
@@ -151,7 +182,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     config.total_stream_nodecounter += config.nmbNodes;
     config.total_stream_nodeweight += total_nodeweight;
     // config.remaining_stream_nodes -= config.nmbNodes;
-    config.remaining_stream_edges -= used_edges;
+    // config.remaining_stream_edges -= used_edges;
 
     if (node_counter != (NodeID)config.nmbNodes + uncontracted_ghost_nodes + config.quotient_nodes) {
         std::cerr << "number of specified nodes mismatch" << std::endl;
@@ -460,6 +491,9 @@ void graph_io_stream::generalizeStreamPartition(PartitionConfig &config, graph_a
         PartitionID block = G_local.getPartitionIndex(node);
         LongNodeID global_node = (*config.local_to_global_map)[node];
         (*config.stream_nodes_assign)[global_node - 1] = block;
+        if (config.restream_number) {
+            (*config.node_to_batch_marker)[global_node - 1] = PROCESSED_BEFORE; // reset batch marker
+        }
         (*config.stream_blocks_weight)[block] += G_local.getNodeWeight(node) - G_local.getImplicitGhostNodes(node);
     }
 }

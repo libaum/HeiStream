@@ -498,6 +498,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.lower_global_node                 = 1;
         partition_config.upper_global_node                 = partition_config.k;
         partition_config.stream_nodes_assign               = NULL;
+        partition_config.node_to_batch_marker              = nullptr;
         partition_config.stream_blocks_weight              = NULL;
         partition_config.nmbNodes                          = 0;
         partition_config.degree_nodeBlock		   = NULL;
@@ -536,6 +537,9 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 	partition_config.xxx				   = 4;
 	partition_config.double_non_ghost_edges		   = true;
 	partition_config.edge_block_nodes		   = NULL;
+        partition_config.restream_include_high_degree_nodes   = false;
+
+        partition_config.batch_extraction_strategy         = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
 
         partition_config.print_times                            = false;
         partition_config.total_nodes_loaded                     = 0;

@@ -78,6 +78,9 @@ const NodeID UNASSIGNED                = std::numeric_limits<NodeID>::max();
 const NodeID ASSIGNED                  = std::numeric_limits<NodeID>::max()-1;
 const PartitionID INVALID_PARTITION    = std::numeric_limits<PartitionID>::max();
 const PartitionID TO_BE_PARTITIONED    = std::numeric_limits<PartitionID>::max()-1;
+
+const PartitionID UNPROCESSED          = std::numeric_limits<PartitionID>::max();
+const PartitionID PROCESSED_BEFORE     = std::numeric_limits<PartitionID>::max()-1;
 const PartitionID BOUNDARY_STRIPE_NODE = std::numeric_limits<PartitionID>::max();
 const int NOTINQUEUE 		       = std::numeric_limits<int>::max();
 const int ROOT 			       = 0;
@@ -145,6 +148,12 @@ typedef enum {
     BPQ_STORAGE_UNORDERED_MAP,
     BPQ_STORAGE_VECTOR
 } BPQStorageType;
+
+typedef enum {
+        BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE,
+        BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH,
+        BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ
+} BatchExtractionStrategy;
 
 typedef enum {
         HAA_NONADAPTIVE,

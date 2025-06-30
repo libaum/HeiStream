@@ -30,8 +30,12 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
-        int count_misc1;
-        int count_misc2;
+        LongNodeID count_misc1;
+        LongNodeID count_misc2;
+
+        bool restream_include_high_degree_nodes;
+
+        std::vector<PartitionID>* node_to_batch_marker;
 
         BatchIDManager* batch_manager;
         size_t max_active_batches;
@@ -42,6 +46,7 @@ struct PartitionConfig
         size_t max_input_q_size;
 
         BPQStorageType bpq_storage_type;
+        BatchExtractionStrategy batch_extraction_strategy;
 
         std::vector<std::string> *node_part_order;
 
@@ -74,6 +79,7 @@ struct PartitionConfig
         bool param_enbld1;
         bool param_enbld2;
         bool param_enbld3;
+
 
         float avg_degree;
 

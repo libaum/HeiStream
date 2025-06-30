@@ -227,6 +227,8 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
         struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
+        struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
+
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
@@ -244,7 +246,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 100.");
 
 
-        struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
+        struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
+        struct arg_lit *restream_include_high_degree_nodes= arg_lit0(NULL, "include_highdeg_nodes", "Include high degree nodes in MLP when restreaming. (Default: disabled)");
 
 
         struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
@@ -347,6 +350,7 @@ int parse_parameters(int argn, char **argv,
                 buffer_score,
                 haa_hub_mode,
                 bpq_storage_type,
+                batch_extraction_strategy,
                 gts_alpha,
                 threshold_start_mlp,
                 d_max,
@@ -372,6 +376,7 @@ int parse_parameters(int argn, char **argv,
                 write_npo,
                 disable_part_adj_direct,
                 print_times,
+                restream_include_high_degree_nodes,
                 parallel_mlp
         };
 
@@ -441,6 +446,7 @@ int parse_parameters(int argn, char **argv,
                 bq_disc_factor,
                 buffer_score,
                 bpq_storage_type,
+                batch_extraction_strategy,
                 haa_hub_mode,
                 gts_alpha,
                 threshold_start_mlp,
@@ -467,6 +473,7 @@ int parse_parameters(int argn, char **argv,
                 write_npo,
                 disable_part_adj_direct,
                 print_times,
+                restream_include_high_degree_nodes,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
@@ -1743,6 +1750,10 @@ int parse_parameters(int argn, char **argv,
 
 
 
+        if(restream_include_high_degree_nodes->count > 0) {
+                partition_config.restream_include_high_degree_nodes = true;
+        }
+
         if(d_direct->count > 0) {
                 partition_config.d_direct = d_direct->ival[0];
         }
@@ -1754,6 +1765,22 @@ int parse_parameters(int argn, char **argv,
                         partition_config.bpq_storage_type = BPQ_STORAGE_UNORDERED_MAP;
                 } else {
                         fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        exit(0);
+                }
+        }
+
+
+
+
+        if (batch_extraction_strategy->count > 0) {
+                if(strcmp("top_node", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
+                } else if (strcmp("complete_batch", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH;
+                } else if (strcmp("complete_batch_with_adj", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ;
+                } else {
+                        fprintf(stderr, "Invalid batch extraction strategy variant: \"%s\"\n", batch_extraction_strategy->sval[0]);
                         exit(0);
                 }
         }

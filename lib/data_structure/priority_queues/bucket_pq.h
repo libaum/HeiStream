@@ -136,8 +136,8 @@ inline bucket_pq::bucket_pq(PartitionConfig& partition_config, const EdgeWeight 
             break;
     }
 
-    m_storage->reserve(max_pq_size);
     m_storage->set_max_load_factor(0.7f);
+    m_storage->reserve(max_pq_size);
     m_buckets.resize(m_gain_span);
 
 }

@@ -29,14 +29,15 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
 
     partition_config.count_misc2++;
     std::vector<int> hash_map(partition_config.k, 0);
-    int cnt_future_neighbors = 0;
+    // int cnt_future_neighbors = 0;
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
         if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
             hash_map[adj_part]++;
-        } else {
-            cnt_future_neighbors++;
         }
+        // else {
+        //     cnt_future_neighbors++;
+        // }
     }
 
     // Iterate over partitions to compute FENNEL scores
@@ -400,6 +401,62 @@ public:
     }
 
 
+    // Loads the top nodes into a batch for MLP processing
+    void loadTopNodesAndNeighborsToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> &batch_nodes, LongNodeID batch_size, size_t batch_id) {
+        // Initialize the partition configuration
+
+        // batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(MIN(batch_size, pq.size()));
+        // batch_nodes->clear();
+
+        PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
+
+        // LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
+        // Extract the top batch_size number of nodes from the queue
+        LongNodeID local_node_counter = 0;
+        while (local_node_counter < config.nmbNodes && !pq.empty()) {
+            // if (config.bs_cutoff != 0.0f) {
+            //     if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
+            //         break;
+            //     }
+            // }
+
+            LongNodeID node_id = pq.deleteMax();
+            std::vector<LongNodeID> adjacents = std::move(get_adjacents(node_id));
+
+            (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
+            update_neighbours_priority(adjacents, false);
+            completely_remove_node(node_id);
+
+            if (config.batch_extraction_strategy == BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ) {
+                for (LongNodeID &adj_id : adjacents) {
+                    if (pq.contains(adj_id) && local_node_counter < config.nmbNodes - 2) {
+                        pq.deleteNode(adj_id);
+                        std::vector<LongNodeID> adj_adjacents = std::move(get_adjacents(adj_id));
+                        (*config.stream_nodes_assign)[adj_id - 1] = batch_marker;
+
+                        update_neighbours_priority(adj_adjacents, false);
+                        completely_remove_node(adj_id);
+                        batch_nodes.emplace_back(adj_id, std::move(adj_adjacents));
+
+                        local_node_counter++;
+                    }
+                }
+            }
+
+            batch_nodes.emplace_back(node_id, std::move(adjacents));
+
+            local_node_counter++;
+        }
+
+        if (local_node_counter < batch_nodes.size()) {
+            batch_nodes.resize(local_node_counter);
+        }
+
+        if (config.haa_hub_mode != HAA_NONADAPTIVE) {
+            update_beta();
+        }
+    }
+
 
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
     void update_neighbours_priority(
@@ -425,7 +482,7 @@ public:
 
         // Für Performance-Optimierung: direkter Zugriff
         // auto& queue_map = pq.get_queue_index_map();
-        std::unordered_map<LongNodeID, PQItem>::iterator it;
+        // std::unordered_map<LongNodeID, PQItem>::iterator it;
 
         for (LongNodeID adj_id : adjacents) {
             // it = queue_map.find(adj_id);
