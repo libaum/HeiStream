@@ -239,7 +239,6 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *write_npo                       = arg_lit0(NULL, "write_npo", "(Default: disabled)");
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
         struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
@@ -373,7 +372,6 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
-                write_npo,
                 disable_part_adj_direct,
                 print_times,
                 restream_include_high_degree_nodes,
@@ -470,7 +468,6 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
-                write_npo,
                 disable_part_adj_direct,
                 print_times,
                 restream_include_high_degree_nodes,
@@ -1735,9 +1732,6 @@ int parse_parameters(int argn, char **argv,
                 partition_config.param_enbld3 = true;
         }
 
-        if(write_npo->count > 0) {
-                partition_config.write_node_part_order = true;
-        }
         if(disable_part_adj_direct->count > 0) {
                 partition_config.part_adj_directly = false;
         }

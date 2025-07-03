@@ -5,6 +5,8 @@
 #include <atomic>
 #include <future>
 #include <memory>
+#include <fstream>
+
 #include "partition/partition_config.h"
 #include "graph_io_stream.h"
 #include "partition/graph_partitioner.h"
@@ -17,13 +19,27 @@ void config_multibfs_initial_partitioning(PartitionConfig &partition_config) {
     }
 }
 
+void log_memory_usage(const std::string& tag) {
+    std::ifstream status("/proc/self/status");
+    std::string line;
+    while (getline(status, line)) {
+        if (line.find("VmRSS:") == 0) {
+            // std::cout << "[" << tag << "] " << line << std::endl;
+
+        }
+    }
+}
+
 // A function to do multi-level partitioning the nodes in the batch (input)
-void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id) {
+void perform_mlp_on_batch(PartitionConfig &partition_config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id) {
 // void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
     // Initialize the partition configuration
-    graph_access G = graph_access();
     quality_metrics qm;
     balance_configuration bc;
+
+    if (partition_config.restream_number) {
+        log_memory_usage("Before MLP");
+    }
 
     // ***************************** build model ***************************************
     G.set_partition_count(partition_config.k);
@@ -43,108 +59,111 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     graph_io_stream::generalizeStreamPartition(partition_config, G);
 
     delete partition_config.local_to_global_map;
+    partition_config.local_to_global_map = nullptr;
+    delete batch_nodes;
+    batch_nodes = nullptr;
 
 }
 
 // Thread-Management für MLP
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
+// #include <thread>
+// #include <mutex>
+// #include <condition_variable>
+// #include <atomic>
 
-class MLPThreadManager {
-private:
-    std::thread worker;
-    std::mutex mtx;
-    std::condition_variable task_cv;
-    std::condition_variable completion_cv;
+// class MLPThreadManager {
+// private:
+//     std::thread worker;
+//     std::mutex mtx;
+//     std::condition_variable task_cv;
+//     std::condition_variable completion_cv;
 
-    std::atomic<bool> is_running{false};
-    bool has_task = false;
-    bool shutdown = false;
+//     std::atomic<bool> is_running{false};
+//     bool has_task = false;
+//     bool shutdown = false;
 
-    timer t_mlp;
-    double time_mlp = 0.0;
+//     timer t_mlp;
+//     double time_mlp = 0.0;
 
-    PartitionConfig* config_ptr = nullptr;
-    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>** batch_ptr = nullptr;
-    size_t batch_id;
+//     PartitionConfig* config_ptr = nullptr;
+//     std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>** batch_ptr = nullptr;
+//     size_t batch_id;
 
-    void worker_loop() {
-        while (!shutdown) {
-            // Auf Aufgabe warten
-            {
-                std::unique_lock<std::mutex> lock(mtx);
-                task_cv.wait(lock, [this]{ return has_task || shutdown; });
+//     void worker_loop() {
+//         while (!shutdown) {
+//             // Auf Aufgabe warten
+//             {
+//                 std::unique_lock<std::mutex> lock(mtx);
+//                 task_cv.wait(lock, [this]{ return has_task || shutdown; });
 
-                if (shutdown) break;
+//                 if (shutdown) break;
 
-                is_running = true;
-            }
+//                 is_running = true;
+//             }
 
-            // Ausführen der MLP-Funktion
-            if (config_ptr && batch_ptr) {
-                t_mlp.restart();
-                ::perform_mlp_on_batch(*config_ptr, *batch_ptr, batch_id);
-                time_mlp += t_mlp.elapsed();
-            }
+//             // Ausführen der MLP-Funktion
+//             if (config_ptr && batch_ptr) {
+//                 t_mlp.restart();
+//                 ::perform_mlp_on_batch(*config_ptr, *batch_ptr, batch_id);
+//                 time_mlp += t_mlp.elapsed();
+//             }
 
-            // Signalisiere Fertigstellung
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                has_task = false;
-                is_running = false;
-            }
-            completion_cv.notify_all();
-        }
-    }
+//             // Signalisiere Fertigstellung
+//             {
+//                 std::lock_guard<std::mutex> lock(mtx);
+//                 has_task = false;
+//                 is_running = false;
+//             }
+//             completion_cv.notify_all();
+//         }
+//     }
 
-public:
-    MLPThreadManager() {
-        worker = std::thread(&MLPThreadManager::worker_loop, this);
-    }
+// public:
+//     MLPThreadManager() {
+//         worker = std::thread(&MLPThreadManager::worker_loop, this);
+//     }
 
-    ~MLPThreadManager() {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            shutdown = true;
-        }
-        task_cv.notify_one();
-        if (worker.joinable()) {
-            worker.join();
-        }
-    }
+//     ~MLPThreadManager() {
+//         {
+//             std::lock_guard<std::mutex> lock(mtx);
+//             shutdown = true;
+//         }
+//         task_cv.notify_one();
+//         if (worker.joinable()) {
+//             worker.join();
+//         }
+//     }
 
-    double get_mlp_time() const {
-        return time_mlp;
-    }
+//     double get_mlp_time() const {
+//         return time_mlp;
+//     }
 
-    // Führt perform_mlp_on_batch asynchron aus (wartet wenn nötig)
-    void execute(PartitionConfig& config,
-                std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>*& batch,
-                size_t batch_id) {
-        std::unique_lock<std::mutex> lock(mtx);
-        // Warten wenn bereits eine Aufgabe läuft
-        completion_cv.wait(lock, [this]{ return !has_task; });
+//     // Führt perform_mlp_on_batch asynchron aus (wartet wenn nötig)
+//     void execute(PartitionConfig& config,
+//                 std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>*& batch,
+//                 size_t batch_id) {
+//         std::unique_lock<std::mutex> lock(mtx);
+//         // Warten wenn bereits eine Aufgabe läuft
+//         completion_cv.wait(lock, [this]{ return !has_task; });
 
-        // Parameter setzen und Thread starten
-        config_ptr = &config;
-        batch_ptr = &batch;
-        batch_id = batch_id;
-        has_task = true;
+//         // Parameter setzen und Thread starten
+//         config_ptr = &config;
+//         batch_ptr = &batch;
+//         batch_id = batch_id;
+//         has_task = true;
 
-        lock.unlock();
-        task_cv.notify_one();
-    }
+//         lock.unlock();
+//         task_cv.notify_one();
+//     }
 
-    // Warten bis die aktuelle MLP-Berechnung abgeschlossen ist
-    void wait_completion() {
-        std::unique_lock<std::mutex> lock(mtx);
-        completion_cv.wait(lock, [this]{ return !is_running && !has_task; });
-    }
+//     // Warten bis die aktuelle MLP-Berechnung abgeschlossen ist
+//     void wait_completion() {
+//         std::unique_lock<std::mutex> lock(mtx);
+//         completion_cv.wait(lock, [this]{ return !is_running && !has_task; });
+//     }
 
-    bool is_busy() const {
-        return is_running.load();
-    }
-};
+//     bool is_busy() const {
+//         return is_running.load();
+//     }
+// };
 

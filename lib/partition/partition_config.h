@@ -35,20 +35,17 @@ struct PartitionConfig
 
         bool restream_include_high_degree_nodes;
 
-        std::vector<PartitionID>* node_to_batch_marker;
 
         BatchIDManager* batch_manager;
         size_t max_active_batches;
 
         bool print_times;
-        bool write_node_part_order;
         bool part_adj_directly;
         size_t max_input_q_size;
 
         BPQStorageType bpq_storage_type;
         BatchExtractionStrategy batch_extraction_strategy;
 
-        std::vector<std::string> *node_part_order;
 
         BufferScoreType buffer_score_type;
         double gts_alpha;

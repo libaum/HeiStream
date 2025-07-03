@@ -17,23 +17,12 @@ using BatchNode = std::pair<LongNodeID, std::vector<LongNodeID>>;
 struct PartitionTask {
     int batch_id;
 
-    // Für Einzelknoten (Stack-allokiert)
     std::vector<BatchNode> nodes;
 
-    // Für Batches (Heap-allokiert)
-    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_batch_nodes;
+    PartitionTask() : batch_id(-1) {}
 
-
-    // Konstruktoren
-    PartitionTask() : batch_id(-1), heap_batch_nodes(nullptr) {}
-
-    // Für Einzelknoten
     PartitionTask(int bid, std::vector<BatchNode> single_nodes)
-        : batch_id(bid), nodes(std::move(single_nodes)), heap_batch_nodes(nullptr) {}
-
-    // Für Heap-Batches
-    PartitionTask(int bid, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* heap_ptr)
-        : batch_id(bid), heap_batch_nodes(heap_ptr) {}
+        : batch_id(bid), nodes(std::move(single_nodes)) {}
 };
 
 

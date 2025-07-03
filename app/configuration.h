@@ -498,7 +498,6 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.lower_global_node                 = 1;
         partition_config.upper_global_node                 = partition_config.k;
         partition_config.stream_nodes_assign               = NULL;
-        partition_config.node_to_batch_marker              = nullptr;
         partition_config.stream_blocks_weight              = NULL;
         partition_config.nmbNodes                          = 0;
         partition_config.degree_nodeBlock		   = NULL;
@@ -570,8 +569,6 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.param_enbld2                   = false;
         partition_config.param_enbld3                   = false;
 
-        partition_config.node_part_order                = nullptr;
-        partition_config.write_node_part_order          = false;
         partition_config.part_adj_directly              = true;
 
         partition_config.bpq_storage_type               = BPQ_STORAGE_UNORDERED_MAP;
@@ -622,6 +619,13 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
     partition_config.reps = 1;
     partition_config.edge_partition=false;
     partition_config.quotient_edges_count = 0;
+
+    partition_config.perm_rank = NULL;
+    partition_config.delta = NULL;
+    partition_config.has_gains = NULL;
+    partition_config.bin_id = NULL;
+    partition_config.compact_bin_id = NULL;
+
 
     // profiling for where the time is coming from
     partition_config.read_graph_time = 0;
