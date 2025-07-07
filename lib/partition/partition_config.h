@@ -49,7 +49,7 @@ struct PartitionConfig
 
         BufferScoreType buffer_score_type;
         double gts_alpha;
-        unsigned d_max;
+        LongNodeID d_max;
 
         HAAHubMode haa_hub_mode; // (nonadaptive|incforhubs|decforhubs)
         float haa_beta; // starting beta value for haa
