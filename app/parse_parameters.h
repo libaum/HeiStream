@@ -1748,7 +1748,11 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(d_max->count > 0) {
-                partition_config.d_max = d_max->ival[0];
+                if (d_max->ival[0] == -1) {
+                        partition_config.d_max = std::numeric_limits< LongNodeID >::max();
+                } else {
+                        partition_config.d_max = d_max->ival[0];
+                }
         }
 
         if (buffer_score->count > 0) {
