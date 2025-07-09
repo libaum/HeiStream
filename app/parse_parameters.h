@@ -225,7 +225,10 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "haa_theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
         struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
 
+        struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
         struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
+        struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
+
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
@@ -236,11 +239,14 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
         struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *write_npo                       = arg_lit0(NULL, "write_npo", "(Default: disabled)");
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
+        struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
+        struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 100.");
 
-        struct arg_lit *print_times                    = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
+
+        struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
+        struct arg_lit *restream_include_high_degree_nodes= arg_lit0(NULL, "include_highdeg_nodes", "Include high degree nodes in MLP when restreaming. (Default: disabled)");
 
 
         struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
@@ -342,6 +348,8 @@ int parse_parameters(int argn, char **argv,
                 bq_disc_factor,
                 buffer_score,
                 haa_hub_mode,
+                bpq_storage_type,
+                batch_extraction_strategy,
                 gts_alpha,
                 threshold_start_mlp,
                 d_max,
@@ -353,6 +361,8 @@ int parse_parameters(int argn, char **argv,
                 haa_theta,
                 cbs_theta,
                 bs_cutoff,
+                max_active_batches,
+                max_input_q_size,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -362,9 +372,9 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
-                write_npo,
                 disable_part_adj_direct,
                 print_times,
+                restream_include_high_degree_nodes,
                 parallel_mlp
         };
 
@@ -433,6 +443,8 @@ int parse_parameters(int argn, char **argv,
                 max_pq_size,
                 bq_disc_factor,
                 buffer_score,
+                bpq_storage_type,
+                batch_extraction_strategy,
                 haa_hub_mode,
                 gts_alpha,
                 threshold_start_mlp,
@@ -445,6 +457,8 @@ int parse_parameters(int argn, char **argv,
                 haa_theta,
                 cbs_theta,
                 bs_cutoff,
+                max_active_batches,
+                max_input_q_size,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -454,9 +468,9 @@ int parse_parameters(int argn, char **argv,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
-                write_npo,
                 disable_part_adj_direct,
                 print_times,
+                restream_include_high_degree_nodes,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
@@ -1673,6 +1687,20 @@ int parse_parameters(int argn, char **argv,
                 partition_config.bs_cutoff = bs_cutoff->dval[0];
         }
 
+
+        if (max_active_batches->count > 0) {
+                partition_config.max_active_batches = static_cast<size_t>(max_active_batches->ival[0]);
+        }
+        if (max_input_q_size->count > 0) {
+                int max_input_q_size_value = static_cast<size_t>(max_input_q_size->ival[0]);
+                if (max_input_q_size_value == -1) {
+                        partition_config.max_input_q_size = std::numeric_limits<size_t>::max();
+                } else {
+                        partition_config.max_input_q_size = max_input_q_size_value;
+                }
+        }
+
+
         if (param_int1->count > 0) {
                 partition_config.param_int1 = param_int1->ival[0];
         }
@@ -1704,9 +1732,6 @@ int parse_parameters(int argn, char **argv,
                 partition_config.param_enbld3 = true;
         }
 
-        if(write_npo->count > 0) {
-                partition_config.write_node_part_order = true;
-        }
         if(disable_part_adj_direct->count > 0) {
                 partition_config.part_adj_directly = false;
         }
@@ -1719,10 +1744,40 @@ int parse_parameters(int argn, char **argv,
 
 
 
+        if(restream_include_high_degree_nodes->count > 0) {
+                partition_config.restream_include_high_degree_nodes = true;
+        }
+
         if(d_direct->count > 0) {
                 partition_config.d_direct = d_direct->ival[0];
         }
 
+        if (bpq_storage_type->count > 0) {
+                if(strcmp("vec", bpq_storage_type->sval[0]) == 0) {
+                        partition_config.bpq_storage_type = BPQ_STORAGE_VECTOR;
+                } else if (strcmp("map", bpq_storage_type->sval[0]) == 0) {
+                        partition_config.bpq_storage_type = BPQ_STORAGE_UNORDERED_MAP;
+                } else {
+                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        exit(0);
+                }
+        }
+
+
+
+
+        if (batch_extraction_strategy->count > 0) {
+                if(strcmp("top_node", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
+                } else if (strcmp("complete_batch", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH;
+                } else if (strcmp("complete_batch_with_adj", batch_extraction_strategy->sval[0]) == 0) {
+                        partition_config.batch_extraction_strategy = BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ;
+                } else {
+                        fprintf(stderr, "Invalid batch extraction strategy variant: \"%s\"\n", batch_extraction_strategy->sval[0]);
+                        exit(0);
+                }
+        }
 
         if (haa_hub_mode->count > 0) {
                 if(strcmp("nonadaptive", haa_hub_mode->sval[0]) == 0) {

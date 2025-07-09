@@ -11,6 +11,7 @@
 #include "definitions.h"
 #include "data_structure/buffered_map.h"
 #include "data_structure/graph_access.h"
+#include "batch_id_manager.h"
 #include <map>
 #include <sparsehash/dense_hash_map>
 #include <sparsehash/dense_hash_set>
@@ -29,14 +30,22 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
-        int count_misc1;
-        int count_misc2;
+        LongNodeID count_misc1;
+        LongNodeID count_misc2;
+
+        bool restream_include_high_degree_nodes;
+        BatchExtractionStrategy batch_extraction_strategy;
+
+
+        BatchIDManager* batch_manager;
+        size_t max_active_batches;
 
         bool print_times;
-        bool write_node_part_order;
         bool part_adj_directly;
+        size_t max_input_q_size;
 
-        std::vector<std::string> *node_part_order;
+        BPQStorageType bpq_storage_type;
+
 
         BufferScoreType buffer_score_type;
         double gts_alpha;
@@ -67,6 +76,7 @@ struct PartitionConfig
         bool param_enbld1;
         bool param_enbld2;
         bool param_enbld3;
+
 
         float avg_degree;
 

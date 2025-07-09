@@ -20,6 +20,27 @@
 #include "stdio.h"
 
 
+// Timing macros - enable/disable with ENABLE_TIME_MEASUREMENTS flag
+#ifdef ENABLE_TIME_MEASUREMENTS
+    #define TIMING_START(timer) timer.restart()
+    #define TIMING_ACCUMULATE(var, timer) var += timer.elapsed()
+    #define TIMING_DECLARE(var) var
+    #define TIMING_INIT(var, value) var = value
+    #define TIMING_INCREMENT(counter) counter++
+    #define TIMING_MAX_UPDATE(var, value) var = std::max(var.load(), value)
+    #define TIMING_LOAD(var) var.load()
+    #define TIMING_ADD(var, value) var += value
+#else
+    #define TIMING_START(timer) ((void)0)
+    #define TIMING_ACCUMULATE(var, timer) ((void)0)
+    #define TIMING_DECLARE(var) var
+    #define TIMING_INIT(var, value) var = value
+    #define TIMING_INCREMENT(counter) ((void)0)
+    #define TIMING_MAX_UPDATE(var, value) ((void)0)
+    #define TIMING_LOAD(var) 0
+    #define TIMING_ADD(var, value) ((void)0)
+#endif
+
 // allows us to disable most of the output during partitioning
 #ifdef KAFFPAOUTPUT
         #define PRINT(x) x
@@ -57,6 +78,9 @@ const NodeID UNASSIGNED                = std::numeric_limits<NodeID>::max();
 const NodeID ASSIGNED                  = std::numeric_limits<NodeID>::max()-1;
 const PartitionID INVALID_PARTITION    = std::numeric_limits<PartitionID>::max();
 const PartitionID TO_BE_PARTITIONED    = std::numeric_limits<PartitionID>::max()-1;
+
+const PartitionID UNPROCESSED          = std::numeric_limits<PartitionID>::max();
+const PartitionID PROCESSED_BEFORE     = std::numeric_limits<PartitionID>::max()-1;
 const PartitionID BOUNDARY_STRIPE_NODE = std::numeric_limits<PartitionID>::max();
 const int NOTINQUEUE 		       = std::numeric_limits<int>::max();
 const int ROOT 			       = 0;
@@ -118,6 +142,18 @@ typedef enum {
         BUFFER_SCORE_NSS,
         BUFFER_SCORE_GTS
 } BufferScoreType;
+
+
+typedef enum {
+    BPQ_STORAGE_UNORDERED_MAP,
+    BPQ_STORAGE_VECTOR
+} BPQStorageType;
+
+typedef enum {
+        BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE,
+        BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH,
+        BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ
+} BatchExtractionStrategy;
 
 typedef enum {
         HAA_NONADAPTIVE,

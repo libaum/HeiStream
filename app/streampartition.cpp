@@ -1,4 +1,3 @@
-// current best: ex2_v1.2
 /******************************************************************************
  * streampartition.cpp
  * *
@@ -21,6 +20,7 @@
 #include <optional>
 #include <cmath>
 
+#include "definitions.h"
 #include "balance_configuration.h"
 #include "data_structure/graph_access.h"
 #include "data_structure/priority_queues/bucket_pq.h"
@@ -37,24 +37,12 @@
 #include "partition/uncoarsening/refinement/label_propagation_refinement/label_propagation_refinement.h"
 #include "tools/flat_buffer_writer.h"
 #include "mlp_thread_manager.cpp"
+#include "batch_id_manager.h"
 
 
 long getMaxRSS();
 
 std::string extractBaseFilename(const std::string &fullPath);
-
-void write_node_part_order_to_file(std::vector<std::string> &node_part_order) {
-    std::ofstream order_file("hs_node_part_order");
-    if (!order_file.is_open()) {
-        std::cerr << "Failed to open node_part_order file for writing" << std::endl;
-        return;
-    }
-
-    for (const auto& entry : node_part_order) {
-        order_file << entry << "\n";
-    }
-    order_file.close();
-}
 
 int main(int argn, char **argv) {
     /* std::cout << R"(
@@ -73,17 +61,17 @@ int main(int argn, char **argv) {
     )" << std::endl; */
 
     timer processing_t, io_t, t_mlp, first_phase_t, second_phase_t, part_single_node_t, buffer_add_node_t, wait_for_mlp_t;
-    double global_mapping_time = 0;
-    double buffer_io_time = 0;
-    double io_time = 0;
-    double buffer_add_node_time = 0;
-    double model_construction_time = 0;
-    double first_phase_time = 0;
-    double second_phase_time = 0;
-    double updating_adj_time = 0;
-    double part_single_node_time = 0;
-    double mlp_time = 0;
-    double wait_for_mlp_finish_time = 0;
+    TIMING_DECLARE(double global_mapping_time) = 0;
+    TIMING_DECLARE(double buffer_io_time) = 0;
+    TIMING_DECLARE(double io_time) = 0;
+    TIMING_DECLARE(double buffer_add_node_time) = 0;
+    TIMING_DECLARE(double model_construction_time) = 0;
+    TIMING_DECLARE(double first_phase_time) = 0;
+    TIMING_DECLARE(double second_phase_time) = 0;
+    TIMING_DECLARE(double updating_adj_time) = 0;
+    TIMING_DECLARE(double part_single_node_time) = 0;
+    TIMING_DECLARE(double mlp_time) = 0;
+    TIMING_DECLARE(double wait_for_mlp_finish_time) = 0;
 
     PartitionConfig partition_config;
     std::string graph_filename;
@@ -119,14 +107,6 @@ int main(int argn, char **argv) {
     partition_config.graph_filename = graph_filename;
     partition_config.stream_input = true;
 
-
-
-    if (partition_config.write_node_part_order) {
-        partition_config.node_part_order = new std::vector<std::string>();
-    } else {
-        partition_config.node_part_order = nullptr;
-    }
-
     int &passes = partition_config.num_streams_passes;
     partition_config.count_misc1 = 0;
     partition_config.count_misc2 = 0;
@@ -136,14 +116,14 @@ int main(int argn, char **argv) {
         MLPThreadManager mlp_thread_manager;
 
         // ***************************** IO operations ***************************************
-        io_t.restart();
+        TIMING_START(io_t);
         graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);
 
         double avg_block_size = static_cast<double>(partition_config.number_of_nodes) / partition_config.k;
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
-        io_time += io_t.elapsed();
+        TIMING_ACCUMULATE(io_time, io_t);
 
-        first_phase_t.restart();
+        TIMING_START(first_phase_t);
         Buffer buffer(partition_config, partition_config.max_pq_size);
 
         std::vector<std::string> lines(1);
@@ -154,7 +134,7 @@ int main(int argn, char **argv) {
         bool use_mlp = partition_config.stream_buffer_len != 1;
         while (partition_config.remaining_stream_nodes) {
 
-            io_t.restart();
+            TIMING_START(io_t);
             // Load a line from the stream
             std::getline(*(partition_config.stream_in), lines[0]);
             if (lines[0][0] == '%') { // skip comments in the file
@@ -167,7 +147,7 @@ int main(int argn, char **argv) {
             assert(global_node_id <= partition_config.number_of_nodes);
 
             ss2.simple_scan_line_fast(cur_line);
-            io_time += io_t.elapsed();
+            TIMING_ACCUMULATE(io_time, io_t);
 
             unsigned degree = cur_line.size();
 
@@ -180,9 +160,9 @@ int main(int argn, char **argv) {
                     LongNodeID min_weight = partition_config.max_block_weight;
 
                     // Wait for MLP to finish
-                    wait_for_mlp_t.restart();
+                    TIMING_START(wait_for_mlp_t);
                     mlp_thread_manager.wait_completion();
-                    wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+                    TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
                     for (PartitionID i = 0; i < partition_config.k; i++) {
                         if ((*partition_config.stream_blocks_weight)[i] < min_weight) {
@@ -196,22 +176,17 @@ int main(int argn, char **argv) {
 
                 } else {
 
-                    if (partition_config.write_node_part_order) {
-                        std::string entry = std::to_string(global_node_id) + " " + std::to_string(-1) + " -> ";
-                        (*partition_config.node_part_order).push_back(entry);
-                    }
-
                     // Partition node directly
                     partition_config.count_misc1++;
 
                     // Wait for MLP to finish
-                    wait_for_mlp_t.restart();
+                    TIMING_START(wait_for_mlp_t);
                     mlp_thread_manager.wait_completion();
-                    wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+                    TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
-                    part_single_node_t.restart();
-                    partition_single_node(partition_config, global_node_id, cur_line, true);
-                    part_single_node_time += part_single_node_t.elapsed();
+                    TIMING_START(part_single_node_t);
+                    partition_single_node(partition_config, global_node_id, cur_line);
+                    TIMING_ACCUMULATE(part_single_node_time, part_single_node_t);
 
                     // Update neighbors
                     buffer.update_neighbours_priority(cur_line);
@@ -221,19 +196,19 @@ int main(int argn, char **argv) {
             }
 
             // Check if new node has a higher buffer score than max score in buffer
-            buffer_add_node_t.restart();
+            TIMING_START(buffer_add_node_t);
             bool added_to_buffer = buffer.addNode(global_node_id, cur_line);
-            buffer_add_node_time += buffer_add_node_t.elapsed();
+            TIMING_ACCUMULATE(buffer_add_node_time, buffer_add_node_t);
 
             if (!added_to_buffer) {
                 // Wait for MLP to finish
-                wait_for_mlp_t.restart();
+                TIMING_START(wait_for_mlp_t);
                 mlp_thread_manager.wait_completion();
-                wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+                TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
-                part_single_node_t.restart();
-                partition_single_node(partition_config, global_node_id, cur_line, true);
-                part_single_node_time += part_single_node_t.elapsed();
+                TIMING_START(part_single_node_t);
+                partition_single_node(partition_config, global_node_id, cur_line);
+                TIMING_ACCUMULATE(part_single_node_time, part_single_node_t);
 
                 buffer.update_neighbours_priority(cur_line);
             }
@@ -247,9 +222,9 @@ int main(int argn, char **argv) {
                     if (partition_config.parallel_mlp) {
 
                         // Wait for MLP to finish
-                        wait_for_mlp_t.restart();
+                        TIMING_START(wait_for_mlp_t);
                         mlp_thread_manager.wait_completion();
-                        wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+                        TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
                         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
 
@@ -257,9 +232,9 @@ int main(int argn, char **argv) {
                     } else {
                         buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
 
-                        t_mlp.restart();
+                        TIMING_START(t_mlp);
                         perform_mlp_on_batch(partition_config, batch_nodes);
-                        mlp_time += t_mlp.elapsed();
+                        TIMING_ACCUMULATE(mlp_time, t_mlp);
                     }
 
                 } else {
@@ -271,28 +246,28 @@ int main(int argn, char **argv) {
 
         }
         cur_line.clear();
-        first_phase_time += first_phase_t.elapsed();
+        TIMING_ACCUMULATE(first_phase_time, first_phase_t);
         (*partition_config.stream_in).close();
 
 
-        second_phase_t.restart();
+        TIMING_START(second_phase_t);
         if ( use_mlp ) {
             while (!buffer.isEmpty()) {
 
                 if (partition_config.parallel_mlp) {
 
                     // Wait for MLP to finish
-                    wait_for_mlp_t.restart();
+                    TIMING_START(wait_for_mlp_t);
                     mlp_thread_manager.wait_completion();
-                    wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+                    TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
                     buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
                     mlp_thread_manager.execute(partition_config, batch_nodes);
                 } else {
                     buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                    t_mlp.restart();
+                    TIMING_START(t_mlp);
                     perform_mlp_on_batch(partition_config, batch_nodes);
-                    mlp_time += t_mlp.elapsed();
+                    TIMING_ACCUMULATE(mlp_time, t_mlp);
                 }
 
 
@@ -304,13 +279,13 @@ int main(int argn, char **argv) {
         }
         if (partition_config.parallel_mlp) {
             // Wait for MLP to finish
-            wait_for_mlp_t.restart();
+            TIMING_START(wait_for_mlp_t);
             mlp_thread_manager.wait_completion();
-            wait_for_mlp_finish_time += wait_for_mlp_t.elapsed();
+            TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
             mlp_time = mlp_thread_manager.get_mlp_time();
         }
-        second_phase_time += second_phase_t.elapsed();
+        TIMING_ACCUMULATE(second_phase_time, second_phase_t);
         updating_adj_time = buffer.get_update_adj_time();
 
     }
@@ -319,6 +294,7 @@ int main(int argn, char **argv) {
 
 
     if (partition_config.print_times) {
+#ifdef ENABLE_TIME_MEASUREMENTS
         double sum_detailed;
 
         std::cout << "┌─────────────────────────┬───────────────┬───────────────┐" << std::endl;
@@ -342,6 +318,9 @@ int main(int argn, char **argv) {
         }
         std::cout << "│ Sum of detailed times   │ " << std::setw(13) << std::fixed << std::setprecision(3) << sum_detailed << " │ " << std::setw(12) << std::fixed << std::setprecision(0) << (sum_detailed / total_time * 100) << "%" << " │" << std::endl;
         std::cout << "└─────────────────────────┴───────────────┴───────────────┘" << std::endl;
+#else
+        std::cout << "Timing disabled - compile with -DENABLE_TIME_MEASUREMENTS to see detailed timing information" << std::endl;
+#endif
     }
     FlatBufferWriter fb_writer;
 
@@ -353,10 +332,6 @@ int main(int argn, char **argv) {
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
     fb_writer.updateVertexPartitionResults(total_edge_cut, qm.balance_full_stream(*partition_config.stream_blocks_weight));
 
-
-    if (partition_config.write_node_part_order) {
-        write_node_part_order_to_file(*partition_config.node_part_order);
-    }
 
     double total_time_rounded = std::round(total_time * 1000.0) / 1000.0;
     std::cout << std::fixed << std::setprecision(3) << total_time_rounded;

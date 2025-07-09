@@ -536,12 +536,18 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 	partition_config.xxx				   = 4;
 	partition_config.double_non_ghost_edges		   = true;
 	partition_config.edge_block_nodes		   = NULL;
+        partition_config.restream_include_high_degree_nodes   = false;
+
+        partition_config.batch_extraction_strategy         = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
 
         partition_config.print_times                            = false;
         partition_config.total_nodes_loaded                     = 0;
         partition_config.local_to_global_map                    = nullptr;
         partition_config.max_block_weight                       = 0;
         partition_config.buffer_score_type                      = BUFFER_SCORE_CBS;
+
+        partition_config.max_active_batches             = 1000;
+        partition_config.max_input_q_size               = 100;
 
         partition_config.haa_hub_mode                           = HAA_NONADAPTIVE;
         partition_config.haa_beta                       = 2.0f;
@@ -563,8 +569,9 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.param_enbld2                   = false;
         partition_config.param_enbld3                   = false;
 
-        partition_config.write_node_part_order          = false;
         partition_config.part_adj_directly              = true;
+
+        partition_config.bpq_storage_type               = BPQ_STORAGE_UNORDERED_MAP;
 
         partition_config.d_direct                       = 1000; //std::numeric_limits<int>::max();
 
@@ -612,6 +619,13 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
     partition_config.reps = 1;
     partition_config.edge_partition=false;
     partition_config.quotient_edges_count = 0;
+
+    partition_config.perm_rank = NULL;
+    partition_config.delta = NULL;
+    partition_config.has_gains = NULL;
+    partition_config.bin_id = NULL;
+    partition_config.compact_bin_id = NULL;
+
 
     // profiling for where the time is coming from
     partition_config.read_graph_time = 0;
