@@ -151,6 +151,11 @@ target_link_libraries(heistream ${OpenMP_CXX_LIBRARIES} flatbuffers)
 #target_link_libraries (streampartition /usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so)
 install(TARGETS heistream DESTINATION bin)
 
+add_executable(par_heistream app/streampartition_parallel.cpp $<TARGET_OBJECTS:libkaffpa> )
+target_compile_definitions(par_heistream PRIVATE "-DMODE_STREAMPARTITION")
+target_link_libraries(par_heistream ${OpenMP_CXX_LIBRARIES} flatbuffers)
+install(TARGETS par_heistream DESTINATION bin)
+
 # add_executable(heistream_edge app/streamedgepartition.cpp $<TARGET_OBJECTS:libkaffpa> )
 # target_compile_definitions(heistream_edge PRIVATE "-DMODE_STREAMPARTITION")
 # target_link_libraries(heistream_edge ${OpenMP_CXX_LIBRARIES} flatbuffers)

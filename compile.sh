@@ -19,6 +19,7 @@ if [ ! -d "deploy" ]; then
 fi
 
 cp ./build/heistream deploy/
+cp ./build/par_heistream deploy/
 # cp ./build/heistream_edge deploy/
 # rm -r build
 

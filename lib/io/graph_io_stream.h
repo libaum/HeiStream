@@ -43,7 +43,7 @@ public:
 
     virtual ~graph_io_stream();
 
-    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes);
+    static NodeID createModel(PartitionConfig &config, graph_access &G, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id);
 
     static void processNodeWeight(PartitionConfig &config, std::vector<NodeWeight> &all_nodes, NodeID node, NodeWeight weight, LongNodeID global_node);
 
@@ -59,7 +59,7 @@ public:
 
     static double getFennelWeight(PartitionConfig &partition_config);
 
-    static void writePartitionStream(PartitionConfig &config);
+    static void writePartitionStream(PartitionConfig &config, std::string filename="");
 
     static void readFirstLineStream(PartitionConfig &partition_config, std::string graph_filename, EdgeWeight &total_edge_cut);
 

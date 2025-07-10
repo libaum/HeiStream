@@ -30,7 +30,7 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     // int cnt_future_neighbors = 0;
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
-        if (adj_part < TO_BE_PARTITIONED) {
+        if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
             hash_map[adj_part]++;
         }
         // else {
@@ -326,50 +326,44 @@ public:
     }
 
     // Loads the top nodes into a batch for MLP processing
-    void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size) {
+    void loadTopNodesToBatch(std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, LongNodeID batch_size, size_t batch_id) {
         // Initialize the partition configuration
+
         config.nmbNodes = MIN(batch_size, pq.size());
         batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
 
-        // LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
+        PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
+
         // Extract the top batch_size number of nodes from the queue
         LongNodeID local_node_counter = 0;
         while (local_node_counter < config.nmbNodes && !pq.empty()) {
-            // if (config.bs_cutoff != 0.0f) {
-            //     if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
-            //         break;
-            //     }
-            // }
-
             LongNodeID node_id = pq.deleteMax();
             auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
 
-
-            // Partition the node directly if it has a high degree
-            // if (adjacents.size() > config.d_direct) {
-            //     partition_single_node(config, node_id, adjacents);
-
-            //     // Update neighbors and make buffer item invalid
-            //     update_neighbours_priority(adjacents, false);
-            //     completely_remove_node(node_id);
-            //     continue;
-            // }
-
-            (*config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
+            (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
             update_neighbours_priority(adjacents, false);
 
             (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
             completely_remove_node(node_id);
 
+            // if (config.batch_extraction_strategy == BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ) {
+            //     for (LongNodeID &adj_id : adjacents) {
+            //         if (pq.contains(adj_id) && local_node_counter < config.nmbNodes - 2) {
+            //             pq.deleteNode(adj_id);
+            //             std::vector<LongNodeID> adj_adjacents = std::move(get_adjacents(adj_id));
+            //             (*config.stream_nodes_assign)[adj_id - 1] = batch_marker;
+
+            //             update_neighbours_priority(adj_adjacents, false);
+            //             completely_remove_node(adj_id);
+            //             // batch_nodes.emplace_back(adj_id, std::move(adj_adjacents));
+            //             (*batch_nodes)[local_node_counter] = std::make_pair(adj_id, std::move(adj_adjacents));
+
+            //             local_node_counter++;
+            //         }
+            //     }
+            // }
+
             local_node_counter++;
-
-
-
-        }
-
-        if (local_node_counter < config.nmbNodes) {
-            config.nmbNodes = local_node_counter;
-            batch_nodes->resize(local_node_counter);
         }
 
         if (config.haa_hub_mode != HAA_NONADAPTIVE) {
@@ -482,6 +476,89 @@ public:
         }
         TIMING_ACCUMULATE(update_adj_time, update_adj_t);
     }
+
+    // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
+    void update_neighbours_priority_parallel(
+        std::vector<LongNodeID> &adjacents,
+        bool part_adj_directly = false,
+        std::queue<PartitionTask> *partition_queue = nullptr,
+        std::mutex *partition_mutex = nullptr,
+        std::condition_variable *partition_cv = nullptr,
+        std::vector<PartitionID> *stream_nodes_assign = nullptr) {
+
+
+    // void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
+        TIMING_START(update_adj_t);
+
+        if (part_adj_directly == true) {
+            part_adj_directly = config.part_adj_directly;
+        }
+
+        // Ensure that the adjacents contains at least one neighbor.
+        if (adjacents.size() == 0) {
+            return;
+        }
+
+        // Für Performance-Optimierung: direkter Zugriff
+        // auto& queue_map = pq.get_queue_index_map();
+        // std::unordered_map<LongNodeID, PQItem>::iterator it;
+
+        for (LongNodeID adj_id : adjacents) {
+            // it = queue_map.find(adj_id);
+            // if (it != queue_map.end()) {
+            // if (pq.contains_with_it(adj_id, it)) {
+            if (pq.contains(adj_id)) {
+                // PQItem& adj_buffer_item = it->second;
+                PQItem& adj_buffer_item = pq.getBufferItem(adj_id); // Ensure the item is loaded into the buffer
+                auto &adj_adjacents = adj_buffer_item.get_adjacents();
+                unsigned adj_degree = adj_adjacents.size();
+                adj_buffer_item.num_adj_partitioned++;
+
+                // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
+                if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
+                // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
+                    // std::cout << "Queueing directly part_adj_ready node: " << adj_id << std::endl;
+
+                    // move adj_adjacents to a new vector to avoid dangling references
+                    std::vector<LongNodeID> adj_adjacents_copy = std::move(adj_adjacents);
+
+                    pq.deleteNode(adj_id);
+                    completely_remove_node(adj_id);
+
+                    update_neighbours_priority_parallel(
+                        adj_adjacents_copy,
+                        true,
+                        partition_queue,
+                        partition_mutex,
+                        partition_cv,
+                        stream_nodes_assign
+                    );
+                    (*stream_nodes_assign)[adj_id - 1] = TO_BE_PARTITIONED;
+
+                    PartitionTask task(
+                        -1,
+                        std::vector<BatchNode>{{adj_id, std::move(adj_adjacents_copy)}}
+                    );
+
+                    {
+                        std::lock_guard<std::mutex> lock(*partition_mutex);
+                        partition_queue->push(std::move(task));
+                    }
+                    partition_cv->notify_one();
+
+
+                } else {
+                    // Update buffer score of neighbours
+                    float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
+                    pq.increaseKey(adj_id, updated_buffer_score);
+                }
+            }
+            // if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
+            // }
+        }
+        TIMING_ACCUMULATE(update_adj_time, update_adj_t);
+    }
+
 
     double get_update_adj_time() {
         return update_adj_time;
