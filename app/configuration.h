@@ -538,7 +538,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 	partition_config.edge_block_nodes		   = NULL;
         partition_config.restream_include_high_degree_nodes   = false;
 
-        partition_config.batch_extraction_strategy         = BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH;
+        partition_config.batch_extraction_strategy         = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
 
         partition_config.print_times                            = false;
         partition_config.total_nodes_loaded                     = 0;

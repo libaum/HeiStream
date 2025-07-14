@@ -27,15 +27,11 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
 
     partition_config.count_misc2++;
     std::vector<int> hash_map(partition_config.k, 0);
-    // int cnt_future_neighbors = 0;
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
         if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
             hash_map[adj_part]++;
         }
-        // else {
-        //     cnt_future_neighbors++;
-        // }
     }
 
     // Iterate over partitions to compute FENNEL scores
@@ -330,7 +326,7 @@ public:
         // Initialize the partition configuration
 
         config.nmbNodes = MIN(batch_size, pq.size());
-        batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
+        // batch_nodes = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(config.nmbNodes);
 
         PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
 
@@ -343,7 +339,8 @@ public:
             (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
             update_neighbours_priority(adjacents, false);
 
-            (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
+            // (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
+            batch_nodes->emplace_back(std::make_pair(node_id, std::move(adjacents)));
             completely_remove_node(node_id);
 
             // if (config.batch_extraction_strategy == BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ) {

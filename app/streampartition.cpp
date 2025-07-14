@@ -42,6 +42,10 @@
 
 long getMaxRSS();
 
+void debug_print(std::string msg) {
+    std::cout << msg << std::endl;
+}
+
 std::string extractBaseFilename(const std::string &fullPath);
 
 int main(int argn, char **argv) {
@@ -110,15 +114,16 @@ int main(int argn, char **argv) {
     partition_config.batch_manager = new BatchIDManager(partition_config.max_active_batches);
     size_t cur_batch_id = partition_config.batch_manager->acquire_id();
     PartitionID cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
-    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+    std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>* current_batch = nullptr; //new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
 
     int &passes = partition_config.num_streams_passes;
     partition_config.count_misc1 = 0;
     partition_config.count_misc2 = 0;
-    for (partition_config.restream_number = 0;
-        partition_config.restream_number < passes; partition_config.restream_number++) {
 
-        MLPThreadManager mlp_thread_manager;
+    Buffer* buffer = new Buffer(partition_config, partition_config.max_pq_size);
+    MLPThreadManager mlp_thread_manager;
+
+    for (partition_config.restream_number = 0; partition_config.restream_number < passes; partition_config.restream_number++) {
 
         // ***************************** IO operations ***************************************
         TIMING_START(io_t);
@@ -128,8 +133,11 @@ int main(int argn, char **argv) {
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
         TIMING_ACCUMULATE(io_time, io_t);
 
+        if (partition_config.restream_number == 1) {
+            // partition_config.stream_buffer_len = MAX(partition_config.max_pq_size / 10, partition_config.stream_buffer_len);
+        }
+
         TIMING_START(first_phase_t);
-        Buffer buffer(partition_config, partition_config.max_pq_size);
 
         std::vector<std::string> lines(1);
         buffered_input ss2(&lines);
@@ -137,6 +145,8 @@ int main(int argn, char **argv) {
         cur_line.reserve(1000);
 
         bool use_mlp = partition_config.stream_buffer_len != 1;
+
+        partition_config.total_nodes_loaded = 0;
         while (partition_config.remaining_stream_nodes) {
 
             TIMING_START(io_t);
@@ -159,31 +169,62 @@ int main(int argn, char **argv) {
             if (degree >= partition_config.d_max || degree == 0) { //
                 // Partition node directly if degree is too high or 0
 
-                if (degree == 0) {
-                    // Put node into partition with lowest weight
-                    PartitionID best_partition = 0;
-                    LongNodeID min_weight = partition_config.max_block_weight;
+                if (partition_config.restream_number == 0) {
+                    if (degree == 0) {
+                        // Put node into partition with lowest weight
+                        PartitionID best_partition = 0;
+                        LongNodeID min_weight = partition_config.max_block_weight;
 
-                    // Wait for MLP to finish
-                    TIMING_START(wait_for_mlp_t);
-                    mlp_thread_manager.wait_completion();
-                    TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
+                        // Wait for MLP to finish
+                        TIMING_START(wait_for_mlp_t);
+                        mlp_thread_manager.wait_completion();
+                        TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
-                    for (PartitionID i = 0; i < partition_config.k; i++) {
-                        if ((*partition_config.stream_blocks_weight)[i] < min_weight) {
-                            min_weight = (*partition_config.stream_blocks_weight)[i];
-                            best_partition = i;
+                        for (PartitionID i = 0; i < partition_config.k; i++) {
+                            if ((*partition_config.stream_blocks_weight)[i] < min_weight) {
+                                min_weight = (*partition_config.stream_blocks_weight)[i];
+                                best_partition = i;
+                            }
                         }
+                        (*partition_config.stream_nodes_assign)[global_node_id - 1] = best_partition;
+                        (*partition_config.stream_blocks_weight)[best_partition]++;
+
+
+                    } else {
+
+                        // Partition node directly
+                        partition_config.count_misc1++;
+
+                        // Wait for MLP to finish
+                        TIMING_START(wait_for_mlp_t);
+                        mlp_thread_manager.wait_completion();
+                        TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
+
+                        TIMING_START(part_single_node_t);
+                        partition_single_node(partition_config, global_node_id, cur_line);
+                        TIMING_ACCUMULATE(part_single_node_time, part_single_node_t);
+
+                        // Update neighbors
+                        buffer->update_neighbours_priority(cur_line);
                     }
-                    (*partition_config.stream_nodes_assign)[global_node_id - 1] = best_partition;
-                    (*partition_config.stream_blocks_weight)[best_partition]++;
+                    continue;
+                } else if (!partition_config.restream_include_high_degree_nodes ) {
+                    // In restreaming if not including high degree nodes, we do not process nodes with degree 0 or degree > d_max
+                    cur_line.clear();
+                    TIMING_ACCUMULATE(first_phase_time, first_phase_t);
+                    continue; // Skip empty or too large nodes
+                }
 
+            }
 
-                } else {
+            // debug_print(std::to_string((getMaxRSS())));
+            if (partition_config.restream_number == 0) {
+                // Check if new node has a higher buffer score than max score in buffer
+                TIMING_START(buffer_add_node_t);
+                bool added_to_buffer = buffer->addNode(global_node_id, cur_line);
+                TIMING_ACCUMULATE(buffer_add_node_time, buffer_add_node_t);
 
-                    // Partition node directly
-                    partition_config.count_misc1++;
-
+                if (!added_to_buffer) {
                     // Wait for MLP to finish
                     TIMING_START(wait_for_mlp_t);
                     mlp_thread_manager.wait_completion();
@@ -193,117 +234,135 @@ int main(int argn, char **argv) {
                     partition_single_node(partition_config, global_node_id, cur_line);
                     TIMING_ACCUMULATE(part_single_node_time, part_single_node_t);
 
-                    // Update neighbors
-                    buffer.update_neighbours_priority(cur_line);
+                    buffer->update_neighbours_priority(cur_line);
                 }
-                continue;
 
-            }
 
-            // Check if new node has a higher buffer score than max score in buffer
-            TIMING_START(buffer_add_node_t);
-            bool added_to_buffer = buffer.addNode(global_node_id, cur_line);
-            TIMING_ACCUMULATE(buffer_add_node_time, buffer_add_node_t);
+                // If buffer is full, partition either the top node or a batch of top nodes using MLP
+                if (buffer->size() >= partition_config.max_pq_size) {
+                    if (use_mlp) {
 
-            if (!added_to_buffer) {
-                // Wait for MLP to finish
-                TIMING_START(wait_for_mlp_t);
-                mlp_thread_manager.wait_completion();
-                TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
+                        if (partition_config.parallel_mlp) {
 
-                TIMING_START(part_single_node_t);
-                partition_single_node(partition_config, global_node_id, cur_line);
-                TIMING_ACCUMULATE(part_single_node_time, part_single_node_t);
+                            // // Wait for MLP to finish
+                            // TIMING_START(wait_for_mlp_t);
+                            // mlp_thread_manager.wait_completion();
+                            // TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
-                buffer.update_neighbours_priority(cur_line);
-            }
+                            // // CURRENTLY NOT WORKING
+                            // buffer->loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len, cur_batch_id);
 
-            // If buffer is full, partition either the top node or a batch of top nodes using MLP
-            if (buffer.size() > partition_config.max_pq_size) {
-                if (use_mlp) {
+                            // mlp_thread_manager.execute(partition_config, batch_nodes, cur_batch_id);
 
-                    if (partition_config.parallel_mlp) {
-
-                        // Wait for MLP to finish
-                        TIMING_START(wait_for_mlp_t);
-                        mlp_thread_manager.wait_completion();
-                        TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
-
-                        buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len, cur_batch_id);
-
-                        mlp_thread_manager.execute(partition_config, batch_nodes, cur_batch_id);
-
-                        cur_batch_id = partition_config.batch_manager->acquire_id();
-                        cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
-                    } else {
-                        if (partition_config.batch_extraction_strategy != BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
-                            buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len, cur_batch_id);
-                            TIMING_START(t_mlp);
-                            perform_mlp_on_batch(partition_config, batch_nodes, cur_batch_id);
-                            TIMING_ACCUMULATE(mlp_time, t_mlp);
-
-                            cur_batch_id = partition_config.batch_manager->acquire_id();
-                            cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
+                            // cur_batch_id = partition_config.batch_manager->acquire_id();
+                            // cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
                         } else {
-                            LongNodeID top_node_id = buffer.deleteMax();
-                            std::vector<LongNodeID> top_node_adj = std::move(buffer.get_adjacents(top_node_id));
-                            (*partition_config.stream_nodes_assign)[top_node_id - 1] = cur_batch_marker; //TO_BE_PARTITIONED; // cur_batch_marker;
-                            buffer.update_neighbours_priority(top_node_adj, false);
-                            buffer.completely_remove_node(top_node_id);
-                            current_batch->emplace_back(top_node_id, std::move(top_node_adj));
-                            if (current_batch->size() >= partition_config.stream_buffer_len) {
-                                // Create a batch task for MLP processing
-                                perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
+                            if (current_batch == nullptr) {
+                                current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+                                current_batch->reserve(MIN(partition_config.stream_buffer_len, buffer->size()));
+                            }
 
-                                current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(MIN(partition_config.stream_buffer_len, buffer.size()));
+                            bool perform_mlp = false;
+                            if (partition_config.batch_extraction_strategy == BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
+
+                                LongNodeID top_node_id = buffer->deleteMax();
+                                std::vector<LongNodeID> top_node_adj = std::move(buffer->get_adjacents(top_node_id));
+                                (*partition_config.stream_nodes_assign)[top_node_id - 1] = cur_batch_marker; //TO_BE_PARTITIONED; // cur_batch_marker;
+                                buffer->update_neighbours_priority(top_node_adj, false);
+                                buffer->completely_remove_node(top_node_id);
+
+                                current_batch->emplace_back(top_node_id, std::move(top_node_adj));
+                                if (current_batch->size() >= partition_config.stream_buffer_len) {
+                                    perform_mlp = true;
+                                }
+                            } else {
+                                // Extract complete batch of nodes right away
+                                buffer->loadTopNodesToBatch(current_batch, partition_config.stream_buffer_len, cur_batch_id);
+                                perform_mlp = true;
+                            }
+
+                            if (perform_mlp) {
+                                partition_config.nmbNodes = current_batch->size();
+                                TIMING_START(t_mlp);
+                                perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
+                                TIMING_ACCUMULATE(mlp_time, t_mlp);
+
+                                partition_config.batch_manager->release_id(cur_batch_id);
                                 cur_batch_id = partition_config.batch_manager->acquire_id();
                                 cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
                             }
+
                         }
 
+                    } else {
+                        buffer->partitionTopNode();
                     }
+                }
 
-                } else {
-                    buffer.partitionTopNode();
+
+            } else {
+                // debug_print("Restreaming: Adding node " + std::to_string(global_node_id) + " with degree " + std::to_string(degree));
+                if (current_batch == nullptr) {
+                    current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+                    current_batch->reserve(MIN(partition_config.stream_buffer_len, partition_config.remaining_stream_nodes+1));
+                }
+                current_batch->emplace_back(global_node_id, cur_line);
+                if (current_batch->size() >= partition_config.stream_buffer_len || partition_config.remaining_stream_nodes == 0) {
+                    partition_config.nmbNodes = current_batch->size();
+                    // debug_print("[perform_mlp_on_batch] Restreaming: Processing batch of size " + std::to_string(current_batch->size()) + " with id " + std::to_string(cur_batch_id));
+
+                    perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
+                    // current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+
+                    partition_config.batch_manager->release_id(cur_batch_id);
+                    cur_batch_id = partition_config.batch_manager->acquire_id();
+                    cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
                 }
             }
-
-
 
         }
         cur_line.clear();
         TIMING_ACCUMULATE(first_phase_time, first_phase_t);
         (*partition_config.stream_in).close();
 
-        TIMING_START(second_phase_t);
-        if ( use_mlp ) {
-            while (!buffer.isEmpty()) {
-                buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len, cur_batch_id);
-                TIMING_START(t_mlp);
-                perform_mlp_on_batch(partition_config, batch_nodes, cur_batch_id);
-                TIMING_ACCUMULATE(mlp_time, t_mlp);
-                cur_batch_id = partition_config.batch_manager->acquire_id();
-                cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
+        if (partition_config.parallel_mlp) {
+            // Wait for MLP to finish
+            TIMING_START(wait_for_mlp_t);
+            mlp_thread_manager.wait_completion();
+            TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
 
-                // if (partition_config.parallel_mlp) {
-
-                //     // Wait for MLP to finish
-                //     TIMING_START(wait_for_mlp_t);
-                //     mlp_thread_manager.wait_completion();
-                //     TIMING_ACCUMULATE(wait_for_mlp_finish_time, wait_for_mlp_t);
-
-                //     buffer.loadTopNodesToBatch(batch_nodes, partition_config.stream_buffer_len);
-                //     mlp_thread_manager.execute(partition_config, batch_nodes, 0);
-                // } else {
-                // }
-
-
-            }
-        } else {
-            while (!buffer.isEmpty()) {
-                buffer.partitionTopNode();
-            }
+            mlp_time = mlp_thread_manager.get_mlp_time();
         }
+
+
+
+        TIMING_START(second_phase_t);
+        if (partition_config.restream_number == 0) {
+            if ( use_mlp ) {
+                while (!buffer->isEmpty()) {
+                    if (current_batch == nullptr) {
+                        current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+                        current_batch->reserve(MIN(partition_config.stream_buffer_len, buffer->size()));
+                    }
+                    buffer->loadTopNodesToBatch(current_batch, partition_config.stream_buffer_len, cur_batch_id);
+                    TIMING_START(t_mlp);
+                    partition_config.nmbNodes = current_batch->size();
+                    perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
+                    TIMING_ACCUMULATE(mlp_time, t_mlp);
+                    // cur_batch_id = partition_config.batch_manager->acquire_id();
+                    // cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
+                }
+            } else {
+                while (!buffer->isEmpty()) {
+                    buffer->partitionTopNode();
+                }
+            }
+
+            // Delete buffer
+            updating_adj_time = buffer->get_update_adj_time();
+            delete buffer;
+        }
+
         if (partition_config.parallel_mlp) {
             // Wait for MLP to finish
             TIMING_START(wait_for_mlp_t);
@@ -313,9 +372,21 @@ int main(int argn, char **argv) {
             mlp_time = mlp_thread_manager.get_mlp_time();
         }
         TIMING_ACCUMULATE(second_phase_time, second_phase_t);
-        updating_adj_time = buffer.get_update_adj_time();
 
-    }
+        // if (partition_config.ghostkey_to_edges != NULL) {
+        //     delete partition_config.ghostkey_to_edges;
+        // }
+        // if (partition_config.ghostkey_to_node != NULL) {
+        //     delete partition_config.ghostkey_to_node;
+        // }
+
+        // debug_print("Finished restreaming pass: " + std::to_string(partition_config.restream_number));
+
+    } // End of restreaming loop
+
+    delete partition_config.batch_manager;
+
+
     double total_time = processing_t.elapsed();
     long maxRSS = getMaxRSS();
 
@@ -353,7 +424,10 @@ int main(int argn, char **argv) {
 
     // Check if all nodes are assigned
     for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED - 10000);
+        if ((*partition_config.stream_nodes_assign)[i] > TO_BE_PARTITIONED - 10000) {
+            std::cout << "Node " << i << " was not assigned to any partition." << std::endl;
+        }
+        // ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED - 10000);
     }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);

@@ -166,9 +166,8 @@ int main(int argn, char **argv) {
         partition_config.max_block_weight = static_cast<int>(std::ceil((1.0 + partition_config.imbalance / 100) * avg_block_size));
         TIMING_ACCUMULATE(io_time, io_t);
 
-        if (partition_config.restream_number) {
-            partition_config.stream_buffer_len = MAX(partition_config.max_pq_size / 10,
-                                                     partition_config.stream_buffer_len);
+        if (partition_config.restream_number == 1) {
+            // partition_config.stream_buffer_len = MAX(partition_config.max_pq_size / 10, partition_config.stream_buffer_len);
         }
 
         // Helper function to create single node partition task
@@ -283,7 +282,8 @@ int main(int argn, char **argv) {
             timer thread_timer, local_buffer_t;
 
             // Batch management variables
-            std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> current_batch; //(partition_config.stream_buffer_len);
+            std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> current_batch;
+            current_batch.reserve(partition_config.stream_buffer_len);
 
             size_t cur_batch_id = partition_config.batch_manager->acquire_id();
             PartitionID cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
@@ -296,6 +296,7 @@ int main(int argn, char **argv) {
                 PartitionTask task(cur_batch_id, std::move(current_batch));
 
                 current_batch.clear(); // Reset for next batch
+                current_batch.reserve(partition_config.stream_buffer_len);
                 {
                     std::lock_guard<std::mutex> lock(partition_mutex);
                     partition_queue.push(std::move(task));
@@ -501,7 +502,9 @@ int main(int argn, char **argv) {
                 TIMING_START(thread_timer);
 
 
+
                 if (task.batch_id == -1) {
+                    // Single node partitioning
                     LongNodeID node_id = task.nodes[0].first;
                     auto& adjacents = task.nodes[0].second;
 

@@ -124,10 +124,12 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                     edge_weight = line_numbers[col_counter++];
                 }
 
-                NodeID local_target = global_to_local_map[target - 1];
-                if (local_target != UNDEFINED_NODE) {
-                    used_edges++;
-                    edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
+                if (lower_global_node <= target && target <= upper_global_node) { // edge to current batch
+                    NodeID local_target = global_to_local_map[target - 1];
+                    if (local_target != UNDEFINED_NODE) {
+                        used_edges++;
+                        edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
+                    }
                 } else {
                     used_edges++;
                     processQuotientEdgeInBatch(config, node, target, edge_weight);
@@ -162,6 +164,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     }
 
     delete batch_nodes;
+    batch_nodes = nullptr;
 
 
     NodeID uncontracted_ghost_nodes = mapGhostKeysToNodesInBatch(config, all_edges, all_nodes, all_assigned_ghost_nodes, node_counter);
@@ -373,7 +376,7 @@ void graph_io_stream::processQuotientEdgeInBatch(PartitionConfig &config, NodeID
         exit(0);
     }
     if ((*config.edge_block_nodes)[targetGlobalPar].size() >= 1) {
-        auto &curr_element = (*config.edge_block_nodes)[targetGlobalPar][0];
+        auto &curr_element = (*config.edge_block_nodes)[targetGlobalPar].back();
         if (curr_element.first == node) {
             curr_element.second += edge_weight;
             return;
