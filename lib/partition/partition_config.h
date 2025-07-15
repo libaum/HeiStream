@@ -33,6 +33,8 @@ struct PartitionConfig
         LongNodeID count_misc1;
         LongNodeID count_misc2;
 
+        bool alt_thread_queue;
+
         bool restream_include_high_degree_nodes;
         BatchExtractionStrategy batch_extraction_strategy;
 

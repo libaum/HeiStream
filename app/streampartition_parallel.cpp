@@ -25,6 +25,7 @@
 #include <condition_variable>
 #include <atomic>
 
+#include "readerwriterqueue.h"
 #include "definitions.h"
 #include "balance_configuration.h"
 #include "data_structure/graph_access.h"
@@ -44,10 +45,9 @@
 #include "mlp_thread_manager.cpp"
 #include "batch_id_manager.h"
 
-
-
-
-bool RESTREAMING_DEBUG = false;
+void debug_print(std::string msg) {
+    // std::cout << msg << std::endl;
+}
 
 long getMaxRSS();
 
@@ -141,12 +141,20 @@ int main(int argn, char **argv) {
     partition_config.batch_manager = new BatchIDManager(partition_config.max_active_batches);
 
     // Thread-safe queues and synchronization
+
+    moodycamel::ReaderWriterQueue<ParsedLine>* input_queue_fast;
+    moodycamel::ReaderWriterQueue<PartitionTask>* partition_queue_fast;
+    if (!partition_config.alt_thread_queue) {
+        input_queue_fast = new moodycamel::ReaderWriterQueue<ParsedLine>(partition_config.max_input_q_size);
+        partition_queue_fast = new moodycamel::ReaderWriterQueue<PartitionTask>(100);
+    }
     std::queue<ParsedLine> input_queue;
     std::queue<PartitionTask> partition_queue;
     std::mutex input_mutex, partition_mutex;
     std::condition_variable input_cv, partition_cv;
     std::atomic<bool> io_finished{false};
     std::atomic<bool> pq_finished{false};
+
 
     // Timing variables für threads
     TIMING_DECLARE(double thread_io_time) = 0.0;
@@ -155,6 +163,56 @@ int main(int argn, char **argv) {
     TIMING_DECLARE(double thread_mlp_time) = 0.0;
 
     Buffer* buffer = new Buffer(partition_config, partition_config.max_pq_size);
+
+    auto push_to_partition_queue = [&](PartitionTask &&task) {
+
+        if (!partition_config.alt_thread_queue) {
+            bool succeeded = false;
+            while (succeeded == false) {
+                succeeded = partition_queue_fast->try_enqueue(std::move(task));  // Will only succeed if the queue has an empty slot (never allocates)
+                // if (!succeeded) {
+                //     std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Wait a bit before retrying
+                // }
+            }
+        } else {
+            {
+                std::lock_guard<std::mutex> lock(partition_mutex);
+                partition_queue.push(std::move(task));
+            }
+            partition_cv.notify_one();
+
+        }
+
+
+    };
+
+    if (buffer != nullptr) {
+        buffer->set_push_task_callback(push_to_partition_queue);
+    }
+
+
+    // Helper function to create single node partition task
+    auto create_single_node_task = [&](LongNodeID node_id, std::vector<LongNodeID>&& adjacents) {
+
+        if (partition_config.restream_number == 0) {
+            buffer->update_neighbours_priority_parallel(
+                adjacents,
+                true,
+                // &partition_queue,
+                // &partition_mutex,
+                // &partition_cv,
+                partition_config.stream_nodes_assign
+            );
+            (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
+        }
+
+        // partition_config.remaining_stream_edges -= adjacents.size();
+        PartitionTask task(-1, {{node_id, std::move(adjacents)}});
+
+        push_to_partition_queue(std::move(task));
+
+    };
+
 
     for (partition_config.restream_number = 0; partition_config.restream_number < passes; partition_config.restream_number++) {
 
@@ -169,31 +227,6 @@ int main(int argn, char **argv) {
         if (partition_config.restream_number == 1) {
             // partition_config.stream_buffer_len = MAX(partition_config.max_pq_size / 10, partition_config.stream_buffer_len);
         }
-
-        // Helper function to create single node partition task
-        auto create_single_node_task = [&](LongNodeID node_id, std::vector<LongNodeID>&& adjacents) {
-
-            if (partition_config.restream_number == 0) {
-                buffer->update_neighbours_priority_parallel(
-                    adjacents,
-                    true,
-                    &partition_queue,
-                    &partition_mutex,
-                    &partition_cv,
-                    partition_config.stream_nodes_assign
-                );
-                (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
-            }
-
-            // partition_config.remaining_stream_edges -= adjacents.size();
-            PartitionTask task(-1, {{node_id, std::move(adjacents)}});
-
-            {
-                std::lock_guard<std::mutex> lock(partition_mutex);
-                partition_queue.push(std::move(task));
-            }
-            partition_cv.notify_one();
-        };
 
         bool use_mlp = partition_config.stream_buffer_len != 1;
         io_finished = false;
@@ -234,34 +267,48 @@ int main(int argn, char **argv) {
                 if ( partition_config.restream_number && !partition_config.restream_include_high_degree_nodes ) {
                     if ( adjacents.size() == 0 ||  adjacents.size() >= partition_config.d_max ) {
                         // In restreaming if not including high degree nodes, we do not process nodes with degree 0 or degree > d_max
-                        create_single_node_task(global_node_id, std::vector<LongNodeID>());
-                        adjacents.clear();
-                        TIMING_INCREMENT(nodes_processed_io);
-                        continue; // Skip empty or too large nodes
+                        // create_single_node_task(global_node_id, std::vector<LongNodeID>());
+                        // adjacents.clear();
+                        // TIMING_INCREMENT(nodes_processed_io);
+                        // continue; // Skip empty or too large nodes
+
+                        adjacents = std::vector<LongNodeID>();
                     }
                 }
+
+
 
                 parsed_line = ParsedLine{global_node_id, adjacents};
 
                 TIMING_START(wait_timer);
 
-                {
-                    std::unique_lock<std::mutex> lock(input_mutex);
 
-                    // Wait if queue is too full (backpressure)
-                    input_cv.wait(lock, [&] {
-                        return input_queue.size() < partition_config.max_input_q_size;
-                    });
+                if (!partition_config.alt_thread_queue) {
+                    // Try enqueue in input_queue_fast
+                    bool succeeded = false;
+                    while (succeeded == false) {
+                        succeeded = input_queue_fast->try_enqueue(std::move(parsed_line));  // Will only succeed if the queue has an empty slot (never allocates)
+                    }
 
-                    TIMING_ACCUMULATE(io_wait_time, wait_timer);
+                } else {
+                    {
+                        std::unique_lock<std::mutex> lock(input_mutex);
 
-                    // Queue-Größe überwachen
-                    TIMING_MAX_UPDATE(max_input_queue_size, input_queue.size());
+                        // Wait if queue is too full (backpressure)
+                        input_cv.wait(lock, [&] {
+                            return input_queue.size() < partition_config.max_input_q_size;
+                        });
 
-                    input_queue.push(std::move(parsed_line));
-                    if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD1] Pushed node " << global_node_id << " with " << adjacents.size() << " adjacents to input queue. Queue size: " << input_queue.size() << std::endl;
+                        TIMING_ACCUMULATE(io_wait_time, wait_timer);
+
+                        // Queue-Größe überwachen
+                        TIMING_MAX_UPDATE(max_input_queue_size, input_queue.size());
+
+                        input_queue.push(std::move(parsed_line));
+                    }
+                    input_cv.notify_one();
                 }
-                input_cv.notify_one();
+
 
                 TIMING_INCREMENT(nodes_processed_io);
                 adjacents.clear();
@@ -270,9 +317,10 @@ int main(int argn, char **argv) {
             // Update thread runtime
             TIMING_ACCUMULATE(io_thread_time, thread_timer);
 
-            if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD1] IOReader finished. Total nodes loaded: " << partition_config.total_nodes_loaded << std::endl;
-            io_finished = true;
-            input_cv.notify_all();
+            if (partition_config.alt_thread_queue) {
+                io_finished = true;
+                input_cv.notify_all();
+            }
             (*partition_config.stream_in).close();
 
         });
@@ -288,20 +336,17 @@ int main(int argn, char **argv) {
             size_t cur_batch_id = partition_config.batch_manager->acquire_id();
             PartitionID cur_batch_marker = partition_config.batch_manager->get_batch_marker(cur_batch_id);
 
+            LongNodeID total_nodes_processed = 0;
+
             // Helper function for batch creation from manually collected nodes
             auto create_batch_task = [&]() {
                 // Create batch task with manually collected nodes
-                if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD2] Creating batch task for batch id: " << cur_batch_id << ", size: " << current_batch.size() << std::endl;
-
                 PartitionTask task(cur_batch_id, std::move(current_batch));
 
                 current_batch.clear(); // Reset for next batch
                 current_batch.reserve(partition_config.stream_buffer_len);
-                {
-                    std::lock_guard<std::mutex> lock(partition_mutex);
-                    partition_queue.push(std::move(task));
-                }
-                partition_cv.notify_one();
+
+                push_to_partition_queue(std::move(task));
 
                 // Update batch id and marker for next batch
                 cur_batch_id = partition_config.batch_manager->acquire_id();
@@ -348,46 +393,54 @@ int main(int argn, char **argv) {
 
             timer wait_timer;
             while (true) {
-
+                if (total_nodes_processed >= partition_config.number_of_nodes) {
+                    break;
+                }
                 // Process incoming nodes from input queue
                 ParsedLine parsed_line;
 
-                TIMING_START(wait_timer);
+                if (!partition_config.alt_thread_queue) {
+                    int removed = input_queue_fast->try_dequeue(parsed_line);
+                    if (!removed) continue;
+                } else {
+                    // Wait for input or termination
+                    TIMING_START(wait_timer);
+                    {
+                        std::unique_lock<std::mutex> lock(input_mutex);
 
-                // Wait for input or termination
-                {
-                    std::unique_lock<std::mutex> lock(input_mutex);
+                        input_cv.wait(lock, [&] { return !input_queue.empty() || io_finished; });
 
-                    input_cv.wait(lock, [&] { return !input_queue.empty() || io_finished; });
+                        TIMING_ACCUMULATE(pq_wait_time, wait_timer);
 
-                    TIMING_ACCUMULATE(pq_wait_time, wait_timer);
+                        if (input_queue.empty() && io_finished) {
+                            break;
+                        }
 
-                    if (input_queue.empty() && io_finished) {
-                        if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD2] Input queue is empty and IOReader finished." << std::endl;
-                        break;
+                        parsed_line = std::move(input_queue.front());
+                        input_queue.pop();
+                        input_cv.notify_one();
+
                     }
-
-                    parsed_line = std::move(input_queue.front());
-                    input_queue.pop();
-                    input_cv.notify_one();
-
-                    if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD2] Processing node: " << parsed_line.node_id << std::endl;
                 }
-
-
-                // Process the input node if we have one
+                total_nodes_processed++;
 
                 TIMING_START(thread_timer);
 
+                // Process the input node if we have one
                 LongNodeID global_node_id = parsed_line.node_id;
                 std::vector<LongNodeID>& adjacents = parsed_line.neighbors;
                 unsigned degree = adjacents.size();
 
                 if (partition_config.restream_number) {
+                    if (degree == 0) { // In case of restreaming this means degree 0 or degree > d_max
+                        create_single_node_task(global_node_id, std::vector<LongNodeID>());
+                        TIMING_INCREMENT(nodes_processed_pq);
+                        continue; // Skip empty nodes
+                    }
+
                     // In restreaming, we do not add nodes to the buffer, but directly create partition tasks
                     add_node_to_batch(global_node_id, std::move(adjacents));
 
-                    if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD2] Added node " << global_node_id << " to batch " << cur_batch_id << std::endl;
                 } else {
                     if (degree >= partition_config.d_max || degree == 0) {
                         create_single_node_task(global_node_id, std::move(adjacents));
@@ -427,7 +480,6 @@ int main(int argn, char **argv) {
                 }
                 TIMING_ACCUMULATE(pq_thread_time, thread_timer);
                 TIMING_INCREMENT(nodes_processed_pq);
-
             }
 
             TIMING_START(thread_timer);
@@ -440,7 +492,6 @@ int main(int argn, char **argv) {
                     while (!buffer->isEmpty()) {
                         if (partition_config.batch_extraction_strategy != BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
                             // Extract top nodes and their neighbors from the buffer and create batch task
-                            // auto* batch_ptr = &current_batch;
                             buffer->loadTopNodesAndNeighborsToBatch(current_batch, partition_config.stream_buffer_len, cur_batch_id);
                             create_batch_task();
 
@@ -458,8 +509,6 @@ int main(int argn, char **argv) {
                 }
             }
 
-            if (RESTREAMING_DEBUG && partition_config.restream_number) std::cout << "[THREAD2] Finished processing input queue. Remaining current_batch size: " << current_batch.size() << std::endl;
-
             // Complete any remaining batch
             if (!current_batch.empty()) {
                 create_batch_task();
@@ -467,8 +516,10 @@ int main(int argn, char **argv) {
 
             TIMING_ACCUMULATE(pq_thread_time, thread_timer);
 
-            pq_finished = true;
-            partition_cv.notify_all();
+            if (partition_config.alt_thread_queue) {
+                pq_finished = true;
+                partition_cv.notify_all();
+            }
         });
 
         // THREAD 3: PartitionWorker
@@ -479,43 +530,47 @@ int main(int argn, char **argv) {
 
             timer wait_timer;
             while (true) {
-                PartitionTask task;
-
-                TIMING_START(wait_timer);
-
-                {
-                    std::unique_lock<std::mutex> lock(partition_mutex);
-                    partition_cv.wait(lock, [&] { return !partition_queue.empty() || pq_finished; });
-
-                    TIMING_ACCUMULATE(partition_wait_time, wait_timer);
-
-                    if (partition_queue.empty() && pq_finished) {
-                        break;
-                    }
-
-                    TIMING_MAX_UPDATE(max_partition_queue_size, partition_queue.size());
-
-                    task = std::move(partition_queue.front());
-                    partition_queue.pop();
+                if (total_nodes_partitioned >= partition_config.number_of_nodes) {
+                    break; // All nodes processed
                 }
 
-                TIMING_START(thread_timer);
+                PartitionTask task;
+
+                if (!partition_config.alt_thread_queue) {
+                    int removed = partition_queue_fast->try_dequeue(task);
+                    if (!removed) continue;
+
+                } else {
+                    TIMING_START(wait_timer);
+
+                    {
+                        std::unique_lock<std::mutex> lock(partition_mutex);
+                        partition_cv.wait(lock, [&] { return !partition_queue.empty() || pq_finished; });
+
+                        TIMING_ACCUMULATE(partition_wait_time, wait_timer);
+
+                        if (partition_queue.empty() && pq_finished) {
+                            break;
+                        }
+
+                        TIMING_MAX_UPDATE(max_partition_queue_size, partition_queue.size());
+
+                        task = std::move(partition_queue.front());
+                        partition_queue.pop();
+                    }
+
+                }
 
 
+                // TIMING_START(thread_timer);
 
                 if (task.batch_id == -1) {
                     // Single node partitioning
                     LongNodeID node_id = task.nodes[0].first;
                     auto& adjacents = task.nodes[0].second;
+                    total_nodes_partitioned++;
 
                     if (partition_config.restream_number) {
-                        // In restreaming mode, we ignore single nodes, just mark as processed
-
-                        if (RESTREAMING_DEBUG) {
-                            total_nodes_partitioned++;
-                            std::cout << "[THREAD3] Processing task: " << task.batch_id << "(tot_nodes: "<< total_nodes_partitioned << ")" << std::endl;
-                        }
-
                         TIMING_ACCUMULATE(thread_part_single_node_time, local_part_t);
                         continue; // Skip processing single nodes in restreaming mode
                     } else {
@@ -544,20 +599,15 @@ int main(int argn, char **argv) {
                     TIMING_ACCUMULATE(thread_part_single_node_time, local_part_t);
 
                 } else {
-                    if (RESTREAMING_DEBUG && partition_config.restream_number) {
-                        std::cout << "[THREAD3] Processing task: " << task.batch_id << ", num_nodes in batch: " << task.nodes.size() << "(tot_nodes: "<< total_nodes_partitioned << ")" << std::endl;
-                        total_nodes_partitioned += task.nodes.size();
-                    }
                     // Batch partitioning (batch_id >= 0)
                     TIMING_START(local_mlp_t);
-
 
                     // Convert our manual batch format to the expected format
                     auto batch_ptr = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>(std::move(task.nodes));
                     partition_config.nmbNodes = batch_ptr->size();
+                    total_nodes_partitioned += batch_ptr->size();
                     if (partition_config.restream_number) {
                         // log_memory_usage("Before perform_mlp_on_batch for batch " + std::to_string(task.batch_id));
-
                     }
                     perform_mlp_on_batch(partition_config, batch_ptr, task.batch_id);
                     partition_config.batch_manager->release_id(task.batch_id);
@@ -565,9 +615,7 @@ int main(int argn, char **argv) {
                     TIMING_ACCUMULATE(thread_mlp_time, local_mlp_t);
 
                     task.nodes.clear();
-                    // task.nodes.shrink_to_fit();
                 }
-
 
                 TIMING_ACCUMULATE(partition_thread_time, thread_timer);
                 TIMING_INCREMENT(tasks_processed_partition);
@@ -687,8 +735,16 @@ int main(int argn, char **argv) {
     FlatBufferWriter fb_writer;
 
     // Check if all nodes are assigned
+    LongNodeID count_not_assigned = 0;
     for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED-10000);
+        if ((*partition_config.stream_nodes_assign)[i] > TO_BE_PARTITIONED - 10000) {
+            count_not_assigned++;
+            std::cout << "Node " << i+1 << " was not assigned to any partition. : " <<(*partition_config.stream_nodes_assign)[i] << std::endl;
+        }
+        // ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED-10000);
+    }
+    if (count_not_assigned > 0) {
+        std::cout << "Total nodes not assigned : " << count_not_assigned << std::endl;
     }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);

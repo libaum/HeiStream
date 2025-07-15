@@ -229,6 +229,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
         struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
 
+        struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
@@ -363,6 +364,7 @@ int parse_parameters(int argn, char **argv,
                 bs_cutoff,
                 max_active_batches,
                 max_input_q_size,
+                alt_thread_queue,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -459,6 +461,7 @@ int parse_parameters(int argn, char **argv,
                 bs_cutoff,
                 max_active_batches,
                 max_input_q_size,
+                alt_thread_queue,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -470,6 +473,7 @@ int parse_parameters(int argn, char **argv,
                 param_enbld3,
                 disable_part_adj_direct,
                 print_times,
+                use_queue,
                 restream_include_high_degree_nodes,
                 d_max,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
@@ -1721,6 +1725,9 @@ int parse_parameters(int argn, char **argv,
                 partition_config.param_dbl3 = param_dbl3->dval[0];
         }
 
+        if(alt_thread_queue->count > 0) {
+                partition_config.alt_thread_queue = true;
+        }
 
         if(param_enbld1->count > 0) {
                 partition_config.param_enbld1 = true;
@@ -1742,6 +1749,9 @@ int parse_parameters(int argn, char **argv,
                 partition_config.print_times = true;
         }
 
+        if(use_queue->count > 0) {
+                partition_config.use_queue = true;
+        }
 
 
         if(restream_include_high_degree_nodes->count > 0) {

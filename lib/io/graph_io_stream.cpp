@@ -172,11 +172,12 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     edge_counter += insertGhostEdgesInBatch(config, all_edges);
     edge_counter += insertQuotientEdgesInBatch(config, all_edges, uncontracted_ghost_nodes);
 
+    delete config.edge_block_nodes;
+    config.edge_block_nodes = NULL;
+
     createGraphForBatch(config, G, node_counter, edge_counter, all_edges, all_nodes, all_assigned_ghost_nodes);
 
     /* delete config.degree_nodeBlock; */
-    delete config.edge_block_nodes;
-    config.edge_block_nodes = NULL;
 
     config.total_stream_nodecounter += config.nmbNodes;
     config.total_stream_nodeweight += total_nodeweight;

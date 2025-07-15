@@ -540,6 +540,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         partition_config.batch_extraction_strategy         = BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE;
 
+        partition_config.alt_thread_queue                      = false;
         partition_config.print_times                            = false;
         partition_config.total_nodes_loaded                     = 0;
         partition_config.local_to_global_map                    = nullptr;

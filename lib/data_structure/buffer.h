@@ -103,6 +103,9 @@ private:
     timer update_adj_t;
     TIMING_DECLARE(double update_adj_time) = 0.0;
 
+    std::function<void(PartitionTask&&)> push_task_callback;
+
+
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
         :   config(partition_config),
@@ -113,6 +116,10 @@ public:
         total_degree_sum = 0;
         node_counter = 0;
         progress = 0.0;
+    }
+
+    void set_push_task_callback(std::function<void(PartitionTask&&)> callback) {
+        push_task_callback = std::move(callback);
     }
 
 
@@ -475,16 +482,10 @@ public:
     }
 
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
-    void update_neighbours_priority_parallel(
-        std::vector<LongNodeID> &adjacents,
-        bool part_adj_directly = false,
-        std::queue<PartitionTask> *partition_queue = nullptr,
-        std::mutex *partition_mutex = nullptr,
-        std::condition_variable *partition_cv = nullptr,
-        std::vector<PartitionID> *stream_nodes_assign = nullptr) {
+    void update_neighbours_priority_parallel(std::vector<LongNodeID> &adjacents,
+                                             bool part_adj_directly = false,
+                                             std::vector<PartitionID> *stream_nodes_assign = nullptr) {
 
-
-    // void update_neighbours_priority(std::vector<LongNodeID> &adjacents, bool part_adj_directly = false) {
         TIMING_START(update_adj_t);
 
         if (part_adj_directly == true) {
@@ -514,7 +515,6 @@ public:
                 // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
                 if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
                 // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
-                    // std::cout << "Queueing directly part_adj_ready node: " << adj_id << std::endl;
 
                     // move adj_adjacents to a new vector to avoid dangling references
                     std::vector<LongNodeID> adj_adjacents_copy = std::move(adj_adjacents);
@@ -525,9 +525,6 @@ public:
                     update_neighbours_priority_parallel(
                         adj_adjacents_copy,
                         true,
-                        partition_queue,
-                        partition_mutex,
-                        partition_cv,
                         stream_nodes_assign
                     );
                     (*stream_nodes_assign)[adj_id - 1] = TO_BE_PARTITIONED;
@@ -537,12 +534,9 @@ public:
                         std::vector<BatchNode>{{adj_id, std::move(adj_adjacents_copy)}}
                     );
 
-                    {
-                        std::lock_guard<std::mutex> lock(*partition_mutex);
-                        partition_queue->push(std::move(task));
+                    if (push_task_callback) {
+                        push_task_callback(std::move(task));
                     }
-                    partition_cv->notify_one();
-
 
                 } else {
                     // Update buffer score of neighbours
@@ -550,8 +544,6 @@ public:
                     pq.increaseKey(adj_id, updated_buffer_score);
                 }
             }
-            // if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
-            // }
         }
         TIMING_ACCUMULATE(update_adj_time, update_adj_t);
     }
