@@ -62,12 +62,7 @@ struct PartitionConfig
 
         float cbs_theta;
 
-        float bs_cutoff;
-        float threshold_start_mlp;
-
         bool parallel_mlp;
-
-        unsigned d_direct;
 
         int param_int1;
         int param_int2;

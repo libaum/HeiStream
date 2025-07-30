@@ -319,11 +319,6 @@ public:
         completely_remove_node(node_id);
     }
 
-    bool max_value_below_cutoff() {
-        // std::cout << "Max value: " << pq.maxValue() << " " << pq.maxValue() / 100.0f  << " " << config.bs_cutoff << std::endl;
-        return pq.maxValue() / (float) config.bq_disc_factor < config.bs_cutoff;
-    }
-
     bool max_value_above_1 (float val=0.0f) {
         return pq.maxValue() > val * config.bq_disc_factor;
     }
@@ -389,11 +384,6 @@ public:
         // Extract the top batch_size number of nodes from the queue
         LongNodeID local_node_counter = 0;
         while (local_node_counter < config.nmbNodes && !pq.empty()) {
-            // if (config.bs_cutoff != 0.0f) {
-            //     if (local_node_counter > min_batch_size && max_value_below_cutoff()) {
-            //         break;
-            //     }
-            // }
 
             LongNodeID node_id = pq.deleteMax();
             std::vector<LongNodeID> adjacents = std::move(get_adjacents(node_id));

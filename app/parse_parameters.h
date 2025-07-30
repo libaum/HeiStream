@@ -207,13 +207,10 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *automatic_buffer_len		     = arg_lit0(NULL, "automatic_buffer_len", "Automatically choose buffer size for fastest performance. (Default: disabled)");
         struct arg_int *xxx				     = arg_int0(NULL, "xxx", NULL, "tuning factor for size of coarsest graph. Default 4.");
 
-        struct arg_int *first_phase_buffer              = arg_int0(NULL, "first_phase_buffer", NULL, "Buffer size (number of nodes) of first pass partitioning if priority queue is full. Default 1.");
-        struct arg_int *second_phase_buffer             = arg_int0(NULL, "second_phase_buffer", NULL, "Buffer size (number of nodes) of second pass multilevel partitioning: Default 32768.");
         struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
         struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
         struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anr|cms|nss|gts). Default: cbs" );
         struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
-        struct arg_dbl *threshold_start_mlp             = arg_dbl0(NULL, "th_mlp", NULL, "Threshold for the start of the multilevel partitioning. Default 0.0.");
 
         struct arg_dbl *cbs_theta                       = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
 
@@ -226,7 +223,6 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
 
         struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
-        struct arg_dbl *bs_cutoff                       = arg_dbl0(NULL, "bs_cutoff", NULL, "Cutoff value of buffer score. Default 0.");
         struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
 
         struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
@@ -249,9 +245,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
         struct arg_lit *restream_include_high_degree_nodes= arg_lit0(NULL, "include_highdeg_nodes", "Include high degree nodes in MLP when restreaming. (Default: disabled)");
 
-
-        struct arg_int *d_direct                         = arg_int0(NULL, "d_direct", NULL, "Maximum degree to be partitioned directly instead of with batch. Default 1000.");
-        struct arg_int *d_max                           = arg_int0(NULL, "d_max", NULL, "Maximum degree to be inserted into queue. Default 1000.");
+        struct arg_int *d_max                           = arg_int0(NULL, "d_max", NULL, "Maximum degree to be inserted into queue. Default 10000.");
 
 
         // Stream Edge Partition
@@ -339,7 +333,7 @@ int parse_parameters(int argn, char **argv,
                 stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
                 initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx, benchmark,
                 light_evaluator, label_propagation_iterations, label_propagation_iterations_refinement, graph_translation_specs, no_relabel,
-                input_header_absent, end, first_phase_buffer, second_phase_buffer,
+                input_header_absent, end,
                 max_flow_improv_steps, max_initial_ns_tries, region_factor_node_separators,
                 most_balanced_flows_node_sep, sep_flows_disabled, sep_fm_disabled, sep_loc_fm_disabled, sep_greedy_disabled,
                 sep_fm_unsucc_steps, sep_num_fm_reps, sep_loc_fm_unsucc_steps, sep_num_loc_fm_reps, sep_loc_fm_no_snodes,
@@ -352,16 +346,13 @@ int parse_parameters(int argn, char **argv,
                 bpq_storage_type,
                 batch_extraction_strategy,
                 gts_alpha,
-                threshold_start_mlp,
                 d_max,
                 haa_beta,
                 haa_beta_min,
                 haa_beta_max,
                 haa_tau,
-                d_direct,
                 haa_theta,
                 cbs_theta,
-                bs_cutoff,
                 max_active_batches,
                 max_input_q_size,
                 alt_thread_queue,
@@ -440,8 +431,6 @@ int parse_parameters(int argn, char **argv,
                 label_propagation_iterations,
                 label_propagation_iterations_refinement,
                 xxx,
-                first_phase_buffer,
-                second_phase_buffer,
                 max_pq_size,
                 bq_disc_factor,
                 buffer_score,
@@ -449,16 +438,13 @@ int parse_parameters(int argn, char **argv,
                 batch_extraction_strategy,
                 haa_hub_mode,
                 gts_alpha,
-                threshold_start_mlp,
                 parallel_mlp,
                 haa_beta,
                 haa_beta_min,
                 haa_beta_max,
                 haa_tau,
-                d_direct,
                 haa_theta,
                 cbs_theta,
-                bs_cutoff,
                 max_active_batches,
                 max_input_q_size,
                 alt_thread_queue,
@@ -1638,13 +1624,6 @@ int parse_parameters(int argn, char **argv,
                 partition_config.stream_buffer_len = (LongNodeID) stream_buffer->ival[0];
         }
 
-        if(first_phase_buffer->count > 0) {
-                partition_config.first_phase_buffer_len = (LongNodeID) first_phase_buffer->ival[0];
-        }
-
-        if(second_phase_buffer->count > 0) {
-                partition_config.second_phase_buffer_len = (LongNodeID) second_phase_buffer->ival[0];
-        }
 
         if(max_pq_size->count > 0) {
                 partition_config.max_pq_size = max_pq_size->ival[0];
@@ -1656,10 +1635,6 @@ int parse_parameters(int argn, char **argv,
 
         if(gts_alpha->count > 0) {
                 partition_config.gts_alpha = gts_alpha->dval[0];
-        }
-
-        if(threshold_start_mlp->count > 0) {
-                partition_config.threshold_start_mlp = threshold_start_mlp->dval[0];
         }
 
         if(haa_beta->count > 0) {
@@ -1685,10 +1660,6 @@ int parse_parameters(int argn, char **argv,
 
         if(haa_tau->count > 0) {
                 partition_config.haa_tau = haa_tau->ival[0];
-        }
-
-        if(bs_cutoff->count > 0) {
-                partition_config.bs_cutoff = bs_cutoff->dval[0];
         }
 
 
@@ -1758,17 +1729,13 @@ int parse_parameters(int argn, char **argv,
                 partition_config.restream_include_high_degree_nodes = true;
         }
 
-        if(d_direct->count > 0) {
-                partition_config.d_direct = d_direct->ival[0];
-        }
-
         if (bpq_storage_type->count > 0) {
                 if(strcmp("vec", bpq_storage_type->sval[0]) == 0) {
                         partition_config.bpq_storage_type = BPQ_STORAGE_VECTOR;
                 } else if (strcmp("map", bpq_storage_type->sval[0]) == 0) {
                         partition_config.bpq_storage_type = BPQ_STORAGE_UNORDERED_MAP;
                 } else {
-                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        fprintf(stderr, "Invalid BPQ storage type variant: \"%s\"\n", bpq_storage_type->sval[0]);
                         exit(0);
                 }
         }
@@ -1807,7 +1774,7 @@ int parse_parameters(int argn, char **argv,
                 } else if (strcmp("sigmoidForProg", haa_hub_mode->sval[0]) == 0) {
                         partition_config.haa_hub_mode = HAA_SIGMOID_FOR_PROG;
                 } else {
-                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", buffer_score->sval[0]);
+                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", haa_hub_mode->sval[0]);
                         exit(0);
                 }
         }

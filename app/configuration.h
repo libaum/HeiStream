@@ -545,7 +545,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.total_nodes_loaded                     = 0;
         partition_config.local_to_global_map                    = nullptr;
         partition_config.max_block_weight                       = 0;
-        partition_config.buffer_score_type                      = BUFFER_SCORE_CBS;
+        partition_config.buffer_score_type                      = BUFFER_SCORE_HAA;
 
         partition_config.max_active_batches             = 1000;
         partition_config.max_input_q_size               = 100;
@@ -556,8 +556,6 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.haa_beta_max                   = 2.0f;
         partition_config.haa_tau                        = 50;
         partition_config.haa_theta                      = 1.0f;
-        partition_config.threshold_start_mlp            = 0.0f;
-        partition_config.bs_cutoff                      = 0.0f;
         partition_config.cbs_theta                      = 2.0f;
 
         partition_config.param_int1                     = 0;
@@ -574,14 +572,12 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         partition_config.bpq_storage_type               = BPQ_STORAGE_UNORDERED_MAP;
 
-        partition_config.d_direct                       = 1000; //std::numeric_limits<int>::max();
-
         partition_config.first_phase_buffer_len         = 1;
         partition_config.second_phase_buffer_len        = 8192; // 32768
         partition_config.max_pq_size                    = 65536;
         partition_config.bq_disc_factor                 = 100;
         partition_config.gts_alpha                      = 0.1f;
-        partition_config.d_max                          = 1000;
+        partition_config.d_max                          = 10000;
         partition_config.parallel_mlp                   = false;
 
     // Stream Edge Partition
