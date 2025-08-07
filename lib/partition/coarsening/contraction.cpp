@@ -1,5 +1,5 @@
 /******************************************************************************
- * contraction.cpp 
+ * contraction.cpp
  * *
  * Source of KaHIP -- Karlsruhe High Quality Partitioning.
  * Christian Schulz <christian.schulz.phone@gmail.com>
@@ -17,10 +17,10 @@ contraction::~contraction() {
 
 }
 
-// for documentation see technical reports of christian schulz  
-void contraction::contract(const PartitionConfig & partition_config, 
-                           graph_access & G, 
-                           graph_access & coarser, 
+// for documentation see technical reports of christian schulz
+void contraction::contract(const PartitionConfig & partition_config,
+                           graph_access & G,
+                           graph_access & coarser,
                            const Matching & edge_matching,
                            const CoarseMapping & coarse_mapping,
                            const NodeID & no_of_coarse_vertices,
@@ -41,7 +41,7 @@ void contraction::contract(const PartitionConfig & partition_config,
 
         std::vector<EdgeID> edge_positions(no_of_coarse_vertices, UNDEFINED_EDGE);
 
-        //we dont know the number of edges jet, so we use the old number for 
+        //we dont know the number of edges jet, so we use the old number for
         //construction of the coarser graph and then resize the field according
         //to the number of edges we really got
         coarser.start_construction(no_of_coarse_vertices, G.number_of_edges());
@@ -51,9 +51,9 @@ void contraction::contract(const PartitionConfig & partition_config,
         forall_nodes(G, n) {
                 NodeID node = permutation[n];
                 //we look only at the coarser nodes
-                if(coarse_mapping[node] != cur_no_vertices) 
+                if(coarse_mapping[node] != cur_no_vertices)
                         continue;
-                
+
                 NodeID coarseNode = coarser.new_node();
                 coarser.setNodeWeight(coarseNode, G.getNodeWeight(node));
 
@@ -63,7 +63,7 @@ void contraction::contract(const PartitionConfig & partition_config,
 
                 // do something with all outgoing edges (in auxillary graph)
                 forall_out_edges(G, e, node) {
-                        visit_edge(G, coarser, edge_positions, coarseNode, e, new_edge_targets);                        
+                        visit_edge(G, coarser, edge_positions, coarseNode, e, new_edge_targets);
                 } endfor
 
                 //this node was really matched
@@ -80,20 +80,20 @@ void contraction::contract(const PartitionConfig & partition_config,
                 forall_out_edges(coarser, e, coarseNode) {
                        edge_positions[coarser.getEdgeTarget(e)] = UNDEFINED_EDGE;
                 } endfor
-                
+
                 cur_no_vertices++;
         } endfor
 
-        ASSERT_RANGE_EQ(edge_positions, 0, edge_positions.size(), UNDEFINED_EDGE); 
+        ASSERT_RANGE_EQ(edge_positions, 0, edge_positions.size(), UNDEFINED_EDGE);
         ASSERT_EQ(no_of_coarse_vertices, cur_no_vertices);
-        
-        //this also resizes the edge fields ... 
+
+        //this also resizes the edge fields ...
         coarser.finish_construction();
 }
 
-void contraction::contract_clustering(const PartitionConfig & partition_config, 
-                              graph_access & G, 
-                              graph_access & coarser, 
+void contraction::contract_clustering(const PartitionConfig & partition_config,
+                              graph_access & G,
+                              graph_access & coarser,
                               const Matching & edge_matching,
                               const CoarseMapping & coarse_mapping,
                               const NodeID & no_of_coarse_vertices,
@@ -132,15 +132,15 @@ void contraction::contract_clustering(const PartitionConfig & partition_config,
 }
 
 
-// for documentation see technical reports of christian schulz  
-void contraction::contract_partitioned(const PartitionConfig & partition_config, 
-                                       graph_access & G, 
-                                       graph_access & coarser, 
+// for documentation see technical reports of christian schulz
+void contraction::contract_partitioned(const PartitionConfig & partition_config,
+                                       graph_access & G,
+                                       graph_access & coarser,
                                        const Matching & edge_matching,
                                        const CoarseMapping & coarse_mapping,
                                        const NodeID & no_of_coarse_vertices,
                                        const NodePermutationMap & permutation) const {
-        
+
         if(partition_config.matching_type == CLUSTER_COARSENING) {
                 return contract_clustering(partition_config, G, coarser, edge_matching, coarse_mapping, no_of_coarse_vertices, permutation);
         }
@@ -153,7 +153,7 @@ void contraction::contract_partitioned(const PartitionConfig & partition_config,
 
         std::vector<EdgeID> edge_positions(no_of_coarse_vertices, UNDEFINED_EDGE);
 
-        //we dont know the number of edges jet, so we use the old number for 
+        //we dont know the number of edges jet, so we use the old number for
         //construction of the coarser graph and then resize the field according
         //to the number of edges we really got
         coarser.set_partition_count(G.get_partition_count());
@@ -169,9 +169,9 @@ void contraction::contract_partitioned(const PartitionConfig & partition_config,
         forall_nodes(G, n) {
                 NodeID node = permutation[n];
                 //we look only at the coarser nodes
-                if(coarse_mapping[node] != cur_no_vertices) 
+                if(coarse_mapping[node] != cur_no_vertices)
                         continue;
-                
+
                 NodeID coarseNode = coarser.new_node();
                 coarser.setNodeWeight(coarseNode, G.getNodeWeight(node));
                 coarser.setPartitionIndex(coarseNode, G.getPartitionIndex(node));
@@ -181,7 +181,7 @@ void contraction::contract_partitioned(const PartitionConfig & partition_config,
                 }
                 // do something with all outgoing edges (in auxillary graph)
                 forall_out_edges(G, e, node) {
-                                visit_edge(G, coarser, edge_positions, coarseNode, e, new_edge_targets);                        
+                                visit_edge(G, coarser, edge_positions, coarseNode, e, new_edge_targets);
                 } endfor
 
                 //this node was really matched
@@ -198,14 +198,14 @@ void contraction::contract_partitioned(const PartitionConfig & partition_config,
                 forall_out_edges(coarser, e, coarseNode) {
                        edge_positions[coarser.getEdgeTarget(e)] = UNDEFINED_EDGE;
                 } endfor
-                
+
                 cur_no_vertices++;
         } endfor
 
-        ASSERT_RANGE_EQ(edge_positions, 0, edge_positions.size(), UNDEFINED_EDGE); 
+        ASSERT_RANGE_EQ(edge_positions, 0, edge_positions.size(), UNDEFINED_EDGE);
         ASSERT_EQ(no_of_coarse_vertices, cur_no_vertices);
-        
-        //this also resizes the edge fields ... 
+
+        //this also resizes the edge fields ...
         coarser.finish_construction();
 }
 

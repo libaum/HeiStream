@@ -36,6 +36,8 @@ struct PartitionConfig
 
         std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
         float ghost_importance;
+        bool sep_batch_marker;
+        LongNodeID num_ghost_nodes;
         // bool bscore_ghost;
 
         bool alt_thread_queue;

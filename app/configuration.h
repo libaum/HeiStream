@@ -562,6 +562,8 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         partition_config.batch_unpartitioned_neighbors  = NULL;
         partition_config.ghost_importance               = 0.0f;
+        partition_config.sep_batch_marker                = false;
+        partition_config.num_ghost_nodes                 = 0;
         // partition_config.bscore_ghost                     = false;
 
         partition_config.param_int1                     = 0;

@@ -30,12 +30,12 @@ public:
                                 NodeWeight weighted_degree = 0;
                                 forall_out_edges(G, e, node) {
                                         weighted_degree += G.getEdgeWeight(e);
-                                } endfor          
+                                } endfor
 
                                 edge_weights += weighted_degree;
                                 G.setNodeWeight(node, G.getNodeWeight(node) + weighted_degree);
                         } endfor
-                        
+
                 }
 
                 double epsilon  = (partition_config.imbalance)/100.0;
@@ -49,16 +49,16 @@ public:
 
                 if (partition_config.adapt_bal) {
                         partition_config.glob_block_upperbound = (1+epsilon)*largest_graph_weight/(double)partition_config.k;
-                        
+
                         if (partition_config.enable_mapping || partition_config.integrated_mapping) {
                                 partition_config.interval_sizes.resize(partition_config.group_sizes.size());
-                                partition_config.interval_sizes[0] = partition_config.group_sizes[0]; 
+                                partition_config.interval_sizes[0] = partition_config.group_sizes[0];
                                 for( unsigned i = 1; i < partition_config.interval_sizes.size(); i++) {
                                         partition_config.interval_sizes[i] = partition_config.group_sizes[i]*partition_config.interval_sizes[i-1];
                                 }
                         }
                 }
-                
+
 
 		partition_config.graph_allready_partitioned   = already_partitioned;
 		partition_config.largest_graph_weight         = largest_graph_weight;

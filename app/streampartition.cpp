@@ -267,7 +267,13 @@ int main(int argn, char **argv) {
 
                                 LongNodeID top_node_id = buffer->deleteMax();
                                 std::vector<LongNodeID> top_node_adj = std::move(buffer->get_adjacents(top_node_id));
-                                (*partition_config.stream_nodes_batch_marker)[top_node_id - 1] = cur_batch_marker; //TO_BE_PARTITIONED; // cur_batch_marker;
+
+                                if (partition_config.sep_batch_marker) {
+                                    (*partition_config.stream_nodes_batch_marker)[top_node_id - 1] = cur_batch_marker;
+                                } else {
+                                    (*partition_config.stream_nodes_assign)[top_node_id - 1] = cur_batch_marker;
+                                }
+
                                 buffer->update_neighbours_priority(top_node_adj, false);
                                 buffer->completely_remove_node(top_node_id);
 

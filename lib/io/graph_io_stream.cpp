@@ -94,6 +94,10 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     node_counter = 0;
     node = 0;
     int numb_of_edges = 0;
+    config.num_ghost_nodes = 0;
+
+    bool store_unpartitioned_neighbors = config.ghost_importance > 0 && config.restream_number == 0;
+    std::vector<PartitionID>& node_to_batch_marker = config.sep_batch_marker ? (*config.stream_nodes_batch_marker) : (*config.stream_nodes_assign);
 
     for (auto& [global_node_id, line_numbers] : *batch_nodes) {
     // while (batch_nodes->size() > 0) {
@@ -139,12 +143,13 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         } else {
             while (col_counter < line_numbers.size()) {
                 target = line_numbers[col_counter++];
-                EdgeWeight edge_weight = 1;
+                EdgeWeight edge_weight = 2;
                 if (read_ew) {
                     edge_weight = line_numbers[col_counter++];
                 }
 
-                if ((*config.stream_nodes_batch_marker)[target - 1] == batch_marker) { // edge to current batch
+                // if ((*config.stream_nodes_batch_marker)[target - 1] == batch_marker) { // edge to current batch
+                if (node_to_batch_marker[target - 1] == batch_marker) { // edge to current batch
                     NodeID local_target = global_to_local_map[target - 1];
                     if (local_target != UNDEFINED_NODE) {
                         used_edges++;                 // used_edges only counts arcs to previus nodes
@@ -158,14 +163,14 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                     } else {
                         used_edges++;
                     }
-                    if ((*config.stream_nodes_assign)[target - 1] >= config.k) { // edge to ghost nodes with temporary PartitionID
+                    if (store_unpartitioned_neighbors && (*config.stream_nodes_assign)[target - 1] >= config.k) { // edge to ghost nodes with temporary PartitionID
                         (*config.batch_unpartitioned_neighbors)[node].push_back(target);
                     }
 
                 } else { // edge to future batch
                     processGhostNeighborInBatch(config, node, target, edge_weight);
 
-                    if (config.ghost_importance > 0) {
+                    if (store_unpartitioned_neighbors) {
                         (*config.batch_unpartitioned_neighbors)[node].push_back(target);
                     }
 
@@ -391,9 +396,14 @@ bool graph_io_stream::processQuotientEdgeInBatch(PartitionConfig &config, NodeID
     // }
     bool is_ghost_neighbor = false;
     if (config.k <= targetGlobalPar && targetGlobalPar < 2 * config.k) {
+        config.num_ghost_nodes++;
         targetGlobalPar -= config.k; // adjust for ghost neighbors
-        is_ghost_neighbor = true;
+        // is_ghost_neighbor = true;
+        edge_weight = 1;
         // edge_weight = config.ghost_importance * edge_weight; // adjust for ghost importance
+
+    } else {
+        // edge_weight = 2 * edge_weight; // adjust for double non-ghost edges
     }
     if (targetGlobalPar > config.k) {
         // this can happen because of race conditions in parallel mode TODO: handle this better
@@ -406,7 +416,6 @@ bool graph_io_stream::processQuotientEdgeInBatch(PartitionConfig &config, NodeID
         auto &curr_element = (*config.edge_block_nodes)[targetGlobalPar].back();
         if (curr_element.first == node) {
             curr_element.second += edge_weight;
-            // curr_element.second += is_ghost_neighbor ? edge_weight * config.ghost_importance : edge_weight;
             return true;
         }
     }
@@ -523,13 +532,15 @@ void graph_io_stream::generalizeStreamPartition(PartitionConfig &config, graph_a
         PartitionID block = G_local.getPartitionIndex(node);
         LongNodeID global_node = (*config.local_to_global_map)[node];
         (*config.stream_nodes_assign)[global_node - 1] = block;
-        (*config.stream_nodes_batch_marker)[global_node - 1] = INVALID_PARTITION; // reset batch marker for the node
+        if (config.sep_batch_marker) {
+            (*config.stream_nodes_batch_marker)[global_node - 1] = INVALID_PARTITION; // reset batch marker for the node
+        }
         (*config.stream_blocks_weight)[block] += G_local.getNodeWeight(node) - G_local.getImplicitGhostNodes(node);
 
-        if (config.ghost_importance > 0) {
+        if (config.ghost_importance > 0 && config.restream_number == 0) {
             for (auto &ghost_target : (*config.batch_unpartitioned_neighbors)[node]) {
-                PartitionID& cur_ghost_par = (*config.stream_nodes_assign)[ghost_target - 1];
-                if (cur_ghost_par >= config.k || cur_ghost_par == INVALID_PARTITION) { // Check if  ghost neighbor
+                PartitionID cur_ghost_par = (*config.stream_nodes_assign)[ghost_target - 1];
+                if ((cur_ghost_par >= config.k && cur_ghost_par < 2 * config.k) || cur_ghost_par == INVALID_PARTITION) { // Check if  ghost neighbor
                     (*config.stream_nodes_assign)[ghost_target - 1] = block + config.k; // assign ghost neighbor to the virtual same block as the node
                 }
             }
@@ -722,7 +733,7 @@ void graph_io_stream::readFirstLineStream(PartitionConfig &partition_config, std
                                                                             INVALID_PARTITION);
     }
 
-    if (partition_config.stream_nodes_batch_marker == NULL) {
+    if (partition_config.stream_nodes_batch_marker == NULL && partition_config.sep_batch_marker) {
         partition_config.stream_nodes_batch_marker = new std::vector<PartitionID>(partition_config.remaining_stream_nodes, INVALID_PARTITION);
     }
 
@@ -804,7 +815,7 @@ void graph_io_stream::prescribeBufferInbalance(PartitionConfig &partition_config
         partition_config.imbalance = 100 * global_epsilon;
     } else {
         double current_nodes = (double)partition_config.stream_assigned_nodes + partition_config.nmbNodes +
-                               partition_config.ghost_nodes;
+                               partition_config.ghost_nodes; // + partition_config.num_ghost_nodes;
         partition_config.imbalance = 100 * partition_config.stream_n_nodes * (1 + global_epsilon) / current_nodes - 100;
         if (passes > 1) {
             partition_config.imbalance = MIN(partition_config.imbalance, partition_config.batch_inbalance);

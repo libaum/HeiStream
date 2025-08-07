@@ -230,6 +230,8 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_dbl *ghost_importance                 = arg_dbl0(NULL, "ghost_importance", NULL, "Ghost node importance factor in partitioning. Default 0.");
         // struct arg_lit *bscore_ghost                     = arg_lit0(NULL, "bscore_ghost", "Use ghost node importance in buffer score. (Default: disabled)");
+        struct arg_lit *sep_batch_marker                  = arg_lit0(NULL, "sep_batch_marker", "Use separate batch marker for batch id marking. (Default: disabled)");
+
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
@@ -369,6 +371,7 @@ int parse_parameters(int argn, char **argv,
                 param_dbl3,
                 ghost_importance,
                 // bscore_ghost,
+                sep_batch_marker,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
@@ -469,6 +472,7 @@ int parse_parameters(int argn, char **argv,
                 print_times,
                 ghost_importance,
                 // bscore_ghost,
+                sep_batch_marker,
                 use_queue,
                 restream_include_high_degree_nodes,
                 d_max,
@@ -1719,6 +1723,11 @@ int parse_parameters(int argn, char **argv,
         // if (bscore_ghost->count > 0) {
         //         partition_config.bscore_ghost = true;
         // }
+
+        if (sep_batch_marker->count > 0) {
+                partition_config.sep_batch_marker = true;
+        }
+
 
         if(alt_thread_queue->count > 0) {
                 partition_config.alt_thread_queue = true;

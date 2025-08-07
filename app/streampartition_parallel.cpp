@@ -360,7 +360,11 @@ int main(int argn, char **argv) {
                 LongNodeID node_id = buffer->deleteMax();
                 std::vector<LongNodeID> adjacents = std::move(buffer->get_adjacents(node_id));
 
-                (*partition_config.stream_nodes_batch_marker)[node_id - 1] = cur_batch_marker;
+                if (partition_config.sep_batch_marker) {
+                    (*partition_config.stream_nodes_batch_marker)[node_id - 1] = cur_batch_marker;
+                } else {
+                    (*partition_config.stream_nodes_assign)[node_id - 1] = cur_batch_marker;
+                }
                 buffer->update_neighbours_priority_parallel(adjacents, false);
                 // TODO: switch to
                 // buffer->update_neighbours_priority(

@@ -63,8 +63,6 @@ typedef uint64_t 	NodeWeight;
 // typedef double 	NodeWeight;
 typedef uint64_t 	EdgeID;
 #else
-// typedef float 	EdgeWeight;
-// typedef float 	NodeWeight;
 typedef int 		EdgeWeight;
 typedef unsigned int 	NodeWeight;
 typedef unsigned int 	EdgeID;

@@ -207,15 +207,16 @@ public:
                     PartitionID pid;
                     for (const LongNodeID& global_adj_id : adjacents) {
                         pid = (*config.stream_nodes_assign)[global_adj_id - 1];
-                        if (pid != INVALID_PARTITION) {
-                            bool is_no_ghost = pid < config.k;
-                            if (is_no_ghost) {
+                        if (pid >= config.k && pid < 2 * config.k) {
+                            cnt_adj_ghost++;
+                        } else if (pid != INVALID_PARTITION) {
+                            // bool is_no_ghost = pid < config.k || pid > 2 * config.k;
+                            // if (is_no_ghost) {
                                 cnt_adj_partitioned++;
-                            } else {
-                                // Count ghost neighbors
-                                cnt_adj_ghost++;
-                            }
-                        } else if ((*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                            // } else {
+                            //     cnt_adj_ghost++; // Count ghost neighbors
+                            // }
+                        } else if (config.sep_batch_marker && (*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
                             cnt_adj_partitioned++;
                         }
                     }
@@ -237,7 +238,7 @@ public:
                         pid = (*config.stream_nodes_assign)[global_adj_id - 1];
                         if (pid != INVALID_PARTITION) {
                             cnt_adj_partitioned++;
-                        } else if ((*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                        } else if (config.sep_batch_marker && (*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
                             cnt_adj_partitioned++;
                         }
                     }
@@ -522,16 +523,17 @@ public:
 
         PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
 
+        std::vector<PartitionID>& node_to_batch_marker = config.sep_batch_marker ? (*config.stream_nodes_batch_marker) : (*config.stream_nodes_assign);
+
         // Extract the top batch_size number of nodes from the queue
         LongNodeID local_node_counter = 0;
         while (local_node_counter < config.nmbNodes && !pq.empty()) {
             LongNodeID node_id = pq.deleteMax();
             auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
 
-            (*config.stream_nodes_batch_marker)[node_id - 1] = batch_marker;
+            node_to_batch_marker[node_id - 1] = batch_marker;
             update_neighbours_priority(adjacents, false);
 
-            // (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
             batch_nodes->emplace_back(std::make_pair(node_id, std::move(adjacents)));
             completely_remove_node(node_id);
 
@@ -569,7 +571,7 @@ public:
         // batch_nodes->clear();
 
         PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
-
+        std::vector<PartitionID>& node_to_batch_marker = config.sep_batch_marker ? (*config.stream_nodes_batch_marker) : (*config.stream_nodes_assign);
         // LongNodeID min_batch_size = MIN(config.nmbNodes, 1000);
         // Extract the top batch_size number of nodes from the queue
         LongNodeID local_node_counter = 0;
@@ -578,7 +580,9 @@ public:
             LongNodeID node_id = pq.deleteMax();
             std::vector<LongNodeID> adjacents = std::move(get_adjacents(node_id));
 
-            (*config.stream_nodes_batch_marker)[node_id - 1] = batch_marker;
+            node_to_batch_marker[node_id - 1] = batch_marker;
+            // (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
+            // (*config.stream_nodes_batch_marker)[node_id - 1] = batch_marker;
 
             update_neighbours_priority(adjacents, false);
             completely_remove_node(node_id);
@@ -588,7 +592,9 @@ public:
                     if (pq.contains(adj_id) && local_node_counter < config.nmbNodes - 2) {
                         pq.deleteNode(adj_id);
                         std::vector<LongNodeID> adj_adjacents = std::move(get_adjacents(adj_id));
-                        (*config.stream_nodes_batch_marker)[adj_id - 1] = batch_marker;
+                        node_to_batch_marker[adj_id - 1] = batch_marker;
+                        // (*config.stream_nodes_assign)[adj_id - 1] = batch_marker;
+                        // (*config.stream_nodes_batch_marker)[adj_id - 1] = batch_marker;
 
                         update_neighbours_priority(adj_adjacents, false);
                         completely_remove_node(adj_id);
