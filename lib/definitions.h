@@ -59,8 +59,12 @@ typedef unsigned int 	PartitionID;
 #ifdef MODE64BITEDGES
 typedef int64_t 	EdgeWeight;
 typedef uint64_t 	NodeWeight;
+// typedef double 	EdgeWeight;
+// typedef double 	NodeWeight;
 typedef uint64_t 	EdgeID;
 #else
+// typedef float 	EdgeWeight;
+// typedef float 	NodeWeight;
 typedef int 		EdgeWeight;
 typedef unsigned int 	NodeWeight;
 typedef unsigned int 	EdgeID;

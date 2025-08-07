@@ -93,6 +93,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_str *input_partition                      = arg_str0(NULL, "input_partition", NULL, "Input partition to use.");
         struct arg_lit *recursive_bipartitioning             = arg_lit0(NULL, "recursive_bipartitioning", "Use recursive bipartitioning instead of kway methods.");
         struct arg_lit *suppress_output                      = arg_lit0(NULL, "suppress_output", "(Default: output enabled)");
+        struct arg_lit *write_partition                      = arg_lit0(NULL, "write_partition", "(Default: output disabled)"); // TODO: only for debug reasons change back to suppress_output
         struct arg_lit *disable_max_vertex_weight_constraint = arg_lit0(NULL, "disable_max_vertex_weight_constraint", "Disables the max vertex weight constraint during the contraction.");
         struct arg_int *local_multitry_fm_alpha              = arg_int0(NULL, "local_multitry_fm_alpha", NULL, "Search limit factor alpha for multitry fm.");
         struct arg_int *local_multitry_rounds                = arg_int0(NULL, "local_multitry_rounds", NULL, "Number of rounds for local multitry fm.");
@@ -227,6 +228,9 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
 
+        struct arg_dbl *ghost_importance                 = arg_dbl0(NULL, "ghost_importance", NULL, "Ghost node importance factor in partitioning. Default 0.");
+        // struct arg_lit *bscore_ghost                     = arg_lit0(NULL, "bscore_ghost", "Use ghost node importance in buffer score. (Default: disabled)");
+
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
         struct arg_int *param_int3                      = arg_int0(NULL, "param_int3", NULL, "");
@@ -307,6 +311,7 @@ int parse_parameters(int argn, char **argv,
 
         // Store ALL allocated arg structures
         void *all_arguments[] = {
+                write_partition,
                 help, filename, user_seed, k, graph_weighted, imbalance, edge_rating_tiebreaking, matching_type, edge_rating,
                 rate_first_level_inner_outer, first_level_random_matching, aggressive_random_levels, gpa_grow_internal, match_islands,
                 stop_rule, num_vert_stop_factor, initial_partition, initial_partitioning_repetitions, disable_refined_bubbling,
@@ -362,6 +367,8 @@ int parse_parameters(int argn, char **argv,
                 param_dbl1,
                 param_dbl2,
                 param_dbl3,
+                ghost_importance,
+                // bscore_ghost,
                 param_enbld1,
                 param_enbld2,
                 param_enbld3,
@@ -448,6 +455,7 @@ int parse_parameters(int argn, char **argv,
                 max_active_batches,
                 max_input_q_size,
                 alt_thread_queue,
+                write_partition,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -459,6 +467,8 @@ int parse_parameters(int argn, char **argv,
                 param_enbld3,
                 disable_part_adj_direct,
                 print_times,
+                ghost_importance,
+                // bscore_ghost,
                 use_queue,
                 restream_include_high_degree_nodes,
                 d_max,
@@ -943,6 +953,12 @@ int parse_parameters(int argn, char **argv,
 
         if(gpa_grow_internal->count > 0) {
                 partition_config.gpa_grow_paths_between_blocks = false;
+        }
+
+        if (write_partition->count > 0) {
+                partition_config.suppress_output = false;
+        } else {
+                partition_config.suppress_output = true;
         }
 
         if(suppress_output->count > 0) {
@@ -1695,6 +1711,14 @@ int parse_parameters(int argn, char **argv,
         if (param_dbl3->count > 0) {
                 partition_config.param_dbl3 = param_dbl3->dval[0];
         }
+
+        if (ghost_importance->count > 0) {
+                partition_config.ghost_importance = ghost_importance->dval[0];
+        }
+
+        // if (bscore_ghost->count > 0) {
+        //         partition_config.bscore_ghost = true;
+        // }
 
         if(alt_thread_queue->count > 0) {
                 partition_config.alt_thread_queue = true;

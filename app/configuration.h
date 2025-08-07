@@ -498,6 +498,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.lower_global_node                 = 1;
         partition_config.upper_global_node                 = partition_config.k;
         partition_config.stream_nodes_assign               = NULL;
+        partition_config.stream_nodes_batch_marker              = NULL;
         partition_config.stream_blocks_weight              = NULL;
         partition_config.nmbNodes                          = 0;
         partition_config.degree_nodeBlock		   = NULL;
@@ -557,6 +558,11 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.haa_tau                        = 50;
         partition_config.haa_theta                      = 1.0f;
         partition_config.cbs_theta                      = 2.0f;
+
+
+        partition_config.batch_unpartitioned_neighbors  = NULL;
+        partition_config.ghost_importance               = 0.0f;
+        // partition_config.bscore_ghost                     = false;
 
         partition_config.param_int1                     = 0;
         partition_config.param_int2                     = 0;

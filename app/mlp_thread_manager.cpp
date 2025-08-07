@@ -40,6 +40,11 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     // ***************************** build model ***************************************
     G.set_partition_count(partition_config.k);
     partition_config.local_to_global_map = new std::vector<NodeID>(partition_config.nmbNodes);
+
+    if (partition_config.ghost_importance > 0.0f && partition_config.restream_number == 0) {
+        partition_config.batch_unpartitioned_neighbors = new std::vector<std::vector<LongNodeID>>(partition_config.nmbNodes);
+    }
+
     graph_io_stream::createModel(partition_config, G, batch_nodes, batch_id);
     graph_io_stream::countAssignedNodes(partition_config);
     graph_io_stream::prescribeBufferInbalance(partition_config);
@@ -55,6 +60,10 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     graph_io_stream::generalizeStreamPartition(partition_config, G);
 
     delete partition_config.local_to_global_map;
+    if (partition_config.batch_unpartitioned_neighbors != NULL) {
+        delete partition_config.batch_unpartitioned_neighbors;
+        partition_config.batch_unpartitioned_neighbors = NULL;
+    }
 }
 
 // Thread-Management für MLP

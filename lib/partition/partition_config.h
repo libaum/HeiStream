@@ -33,6 +33,11 @@ struct PartitionConfig
         LongNodeID count_misc1;
         LongNodeID count_misc2;
 
+
+        std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
+        float ghost_importance;
+        // bool bscore_ghost;
+
         bool alt_thread_queue;
 
         bool restream_include_high_degree_nodes;
@@ -542,6 +547,7 @@ struct PartitionConfig
         LongNodeID lower_global_node;
         LongNodeID upper_global_node;
         std::vector<PartitionID>* stream_nodes_assign;
+        std::vector<PartitionID>* stream_nodes_batch_marker;
         std::vector<NodeWeight>* stream_blocks_weight;
         LongNodeID nmbNodes;
         std::vector<std::vector<EdgeWeight>> *degree_nodeBlock;

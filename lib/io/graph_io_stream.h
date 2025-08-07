@@ -61,7 +61,7 @@ public:
 
     static void writePartitionStream(PartitionConfig &config, std::string filename="");
 
-    static void readFirstLineStream(PartitionConfig &partition_config, std::string graph_filename, EdgeWeight &total_edge_cut);
+    static void readFirstLineStream(PartitionConfig &partition_config, std::string graph_filename, uint64_t &total_edge_cut);
 
     static void loadRemainingLines(PartitionConfig &partition_config, LINE_BUFFER &lines);
 
@@ -81,7 +81,7 @@ public:
 
     static void processGhostNeighborInBatch(PartitionConfig &config, NodeID node, LongNodeID ghost_target, EdgeWeight edge_weight);
 
-    static void processQuotientEdgeInBatch(PartitionConfig &config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight);
+    static bool processQuotientEdgeInBatch(PartitionConfig &config, NodeID node, LongNodeID global_target, EdgeWeight edge_weight);
 
     static EdgeID insertRegularEdgeInBatch(PartitionConfig &config, std::vector<std::vector<std::pair<NodeID, EdgeWeight>>> &all_edges, NodeID node, NodeID target, EdgeWeight edge_weight);
 
@@ -109,7 +109,7 @@ public:
 
     static void prescribeBufferInbalance(PartitionConfig &partition_config);
 
-    static void streamEvaluatePartition(PartitionConfig &config, const std::string &filename, EdgeWeight &edgeCut);
+    static void streamEvaluatePartition(PartitionConfig &config, const std::string &filename, uint64_t &edgeCut);
 
     static void loadRemainingLinesToBinary(PartitionConfig &partition_config, std::vector<std::vector<LongNodeID>> *&input);
 

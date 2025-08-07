@@ -26,11 +26,15 @@ const float THETA = 2;
 inline void partition_single_node(PartitionConfig &partition_config, LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
 
     partition_config.count_misc2++;
-    std::vector<int> hash_map(partition_config.k, 0);
+    std::vector<float> hash_map(partition_config.k, 0);
     for (LongNodeID adj_id : adjacents) {
         PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
-        if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
+        if (adj_part < partition_config.k) {
+        // if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
             hash_map[adj_part]++;
+        } else if (adj_part < 2 * partition_config.k) {
+        // if (adj_part < partition_config.batch_manager->get_max_valid_partition_id()) {
+            hash_map[adj_part - partition_config.k]+= partition_config.ghost_importance; // Ghost nodes are only half as important
         }
     }
 
@@ -62,6 +66,16 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
 
     // Update partition load
     (*partition_config.stream_blocks_weight)[best_partition]++;
+
+    if (partition_config.ghost_importance > 0) {
+        for (LongNodeID adj_id : adjacents) {
+            PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
+            if ( adj_part == INVALID_PARTITION || partition_config.k <= adj_part && adj_part < 2 * partition_config.k ) {
+                // If not yet assigned, assign temp partition ID of best_partition + k
+                (*partition_config.stream_nodes_assign)[adj_id - 1] = best_partition + partition_config.k;
+            }
+        }
+    }
 
 
 }
@@ -105,10 +119,14 @@ private:
 
     std::function<void(PartitionTask&&)> push_task_callback;
 
+    const bool ghost_nodes_enabled;
+
+
 
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
         :   config(partition_config),
+            ghost_nodes_enabled(config.ghost_importance > 0.0f),
             pq(partition_config, static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, max_pq_size, partition_config.bq_disc_factor) {
 
@@ -126,10 +144,14 @@ public:
     static float get_max_buffer_score(const PartitionConfig& cfg) {
         switch (cfg.buffer_score_type) {
             case BUFFER_SCORE_ANR:
+            case BUFFER_SCORE_CMS:
+            case BUFFER_SCORE_NSS:
+            case BUFFER_SCORE_GTS:
                 return 1;
             case BUFFER_SCORE_HAA:
                 return std::max(cfg.haa_theta, 1.0f);
             case BUFFER_SCORE_CBS:
+            case BUFFER_SCORE_CBS2:
             default:
                 return 3;
         }
@@ -146,12 +168,18 @@ public:
         float buffer_score;
         assert(cnt_adj_partitioned == 0);
 
+
+        /// Eventuell TODO: adjust all stream_nodes_assign to stream_nodes_batch_marker[global_adj_id - 1] != INVALID_PARTITION
         switch (config.buffer_score_type) {
             case BUFFER_SCORE_ANR: // Assigned Neighbor Count
             {
                 for (const LongNodeID &global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
+                    PartitionID pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                    if (pid != INVALID_PARTITION) {
+                        bool is_no_ghost = pid < config.k || pid > 2 * config.k;
+                        if (is_no_ghost) {
+                            cnt_adj_partitioned++;
+                        }
                     }
                 }
                 buffer_score = cnt_adj_partitioned /  degree;
@@ -160,34 +188,187 @@ public:
             case BUFFER_SCORE_HAA:
             {
                 // Zähle, wie viele Nachbarn schon partitioniert sind.
+                // PartitionID pid;
+                // for (const LongNodeID& global_adj_id : adjacents) {
+                //     pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                //     if (pid != INVALID_PARTITION) {
+                    //         bool is_no_ghost = pid < config.k || pid > 2 * config.k;
+                    //         if (is_no_ghost) {
+                //             cnt_adj_partitioned++;
+                //         } else {
+                //             // Count ghost neighbors
+                //             cnt_adj_ghost++;
+                //         }
+                //     }
+                // }
+
+                if (ghost_nodes_enabled) {
+                    unsigned cnt_adj_ghost = 0;
+                    PartitionID pid;
+                    for (const LongNodeID& global_adj_id : adjacents) {
+                        pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                        if (pid != INVALID_PARTITION) {
+                            bool is_no_ghost = pid < config.k;
+                            if (is_no_ghost) {
+                                cnt_adj_partitioned++;
+                            } else {
+                                // Count ghost neighbors
+                                cnt_adj_ghost++;
+                            }
+                        } else if ((*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        }
+                    }
+                    /// Berechne den adaptiven Gewichtungsfaktor r(v)
+                    float degree_factor = degree / static_cast<float>(config.d_max);
+                    float r = std::pow(degree_factor, current_beta);
+
+                    // float r = fast_pow(degree / config.d_max, current_beta);
+                    // float r = fast_pow_specialized(degree / config.d_max, current_beta);
+
+                    /// Berechne den Score: für niedrige Degree (r~0) dominiert der Nachbarnanteil, für hohe Degree (r~1) dominiert der Degree selbst.
+
+                    buffer_score = (1 - r) * ( config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
+                                            + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree)) /// Add ghost neighbors to the score
+                                    + r * degree_factor;
+                } else {
+                    PartitionID pid;
+                    for (const LongNodeID& global_adj_id : adjacents) {
+                        pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                        if (pid != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        } else if ((*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        }
+                    }
+                    // Berechne den adaptiven Gewichtungsfaktor r(v)
+                    float degree_factor = degree / static_cast<float>(config.d_max);
+                    float r = std::pow(degree_factor, current_beta); /// TODO: optimize beta for 2
+
+                    // float r = fast_pow(degree / config.d_max, current_beta);
+                    // float r = fast_pow_specialized(degree / config.d_max, current_beta);
+
+                    /// Berechne den Score: für niedrige Degree (r~0) dominiert der Nachbarnanteil, für hohe Degree (r~1) dominiert der Degree selbst.
+
+                    // Add ghost neighbors to the score
+                    buffer_score = (1 - r) * config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
+                                        + r * degree_factor;
+                }
+
+                break;
+            }
+
+            case BUFFER_SCORE_CMS: // Community - Majority Score
+            {
+                std::vector<int> hash_map(config.k, 0);
+                // int cnt_future_neighbors = 0;
+                int most_common_partition_count = 0;
+                for (LongNodeID adj_id : adjacents) {
+                    PartitionID adj_part = (*config.stream_nodes_assign)[adj_id - 1];
+                    if (adj_part < TO_BE_PARTITIONED) {
+                        cnt_adj_partitioned++;
+                        hash_map[adj_part]++;
+                        if (hash_map[adj_part] > most_common_partition_count) {
+                            most_common_partition_count = hash_map[adj_part];
+                            if (most_common_partition_count > degree / 2) {
+                                break;
+                            }
+                        }
+                    }
+                }
+                buffer_score =(float) most_common_partition_count /  degree; // +  (float) degree / config.d_max;
+                break;
+            }
+
+            case BUFFER_SCORE_NSS: // Neighborhood Seen Score
+            {
+                unsigned cnt_adj_in_buffer = 0;
+                for (const LongNodeID& global_adj_id : adjacents) {
+                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
+                        cnt_adj_partitioned++;
+                    } else if (pq.contains(global_adj_id)) {
+                        cnt_adj_in_buffer++;
+                    }
+                }
+                // NOTE: Maybe account for degree somehow? higher importance to higher degree nodes exponentially or linearly? (e.g. degree / config.d_max)
+                buffer_score = (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree;
+                break;
+            }
+            case BUFFER_SCORE_GTS: // Graph Traversal Score
+            {
+                // NOTE: Maybe leave out this for performance reasons
                 for (const LongNodeID& global_adj_id : adjacents) {
                     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
                         cnt_adj_partitioned++;
                     }
                 }
-                // Berechne den adaptiven Gewichtungsfaktor r(v)
-                float r = std::pow(degree / static_cast<float>(config.d_max), current_beta);
-                // float r = fast_pow(degree / config.d_max, current_beta);
-                // float r = fast_pow_specialized(degree / config.d_max, current_beta);
+                buffer_score = (float) degree / config.d_max;
+                break;
+            }
 
-                // Berechne den Score: für niedrige Degree (r~0) dominiert der Nachbarnanteil,
-                // für hohe Degree (r~1) dominiert der Degree selbst.
-                buffer_score = (1 - r) * config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
-                              + r * (degree / static_cast<float>(config.d_max));
+            case BUFFER_SCORE_CBS3: // Cuttana buffer score 3
+            {
+                unsigned cnt_adj_in_buffer = 0;
+                for (const LongNodeID& global_adj_id : adjacents) {
+                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
+                        cnt_adj_partitioned++;
+                    } else if (pq.contains(global_adj_id)) {
+
+                        cnt_adj_in_buffer++;
+                    }
+                }
+                buffer_score = (float) degree / config.d_max + THETA * (float) cnt_adj_partitioned /  degree + (float) cnt_adj_in_buffer/ degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+                break;
+            }
+
+            case BUFFER_SCORE_CBS2: // Cuttana buffer score 2
+            {
+                unsigned cnt_adj_in_buffer = 0;
+                for (const LongNodeID& global_adj_id : adjacents) {
+                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
+                        cnt_adj_partitioned++;
+                    } else if (pq.contains(global_adj_id)) {
+
+                        cnt_adj_in_buffer++;
+                    }
+                }
+                buffer_score = (float) degree / config.d_max + THETA * (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
                 break;
             }
 
             case BUFFER_SCORE_CBS: // Cuttana buffer score
-            default: // Default to classic buffer score
             {
+                unsigned cnt_adj_ghost = 0;
+                // Zähle, wie viele Nachbarn schon partitioniert sind.
                 for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
+                    PartitionID pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                    if (pid != INVALID_PARTITION) {
+                        bool is_no_ghost = pid < config.k || pid > 2 * config.k;
+                        if (is_no_ghost) {
+                            cnt_adj_partitioned++;
+                        } else {
+                            // Count ghost neighbors
+                            cnt_adj_ghost++;
+                        }
                     }
                 }
-                buffer_score = (float) degree /  config.d_max + THETA * (float) cnt_adj_partitioned / degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+
+                // for (const LongNodeID& global_adj_id : adjacents) {
+                //     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
+                //         cnt_adj_partitioned++;
+                //     }
+                // }
+                buffer_score = degree /  config.d_max + THETA * (float) cnt_adj_partitioned / degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+                // if (config.bscore_ghost) {
+                //     // Add ghost neighbors to the score
+                //     buffer_score += THETA * config.ghost_importance * (float) cnt_adj_ghost / degree;
+                // }
                 break;
             }
+            default: // Default to classic buffer score
+                std::cerr << "Unknown buffer score type: " << config.buffer_score_type << std::endl;
+                exit(1);
+
         }
 
 
@@ -208,6 +389,15 @@ public:
                     // float r = fast_pow_specialized(degree / config.d_max, current_beta);
                     return std::min(buffer_item.buffer_score + (1 - r) * (1 / degree), 1.0f);
                 }
+            case BUFFER_SCORE_CMS:
+                buffer_item.num_adj_partitioned = 0;
+                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+            case BUFFER_SCORE_NSS:
+                buffer_item.num_adj_partitioned = 0;
+                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+            case BUFFER_SCORE_GTS:
+                return MIN(buffer_item.buffer_score + config.gts_alpha, get_max_buffer_score(config));
+
             case BUFFER_SCORE_CBS:
             default:
                 return buffer_item.buffer_score + THETA / degree;
@@ -338,7 +528,7 @@ public:
             LongNodeID node_id = pq.deleteMax();
             auto &adjacents = pq.getBufferItem(node_id).get_adjacents();
 
-            (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
+            (*config.stream_nodes_batch_marker)[node_id - 1] = batch_marker;
             update_neighbours_priority(adjacents, false);
 
             // (*batch_nodes)[local_node_counter] = std::make_pair(node_id, std::move(adjacents));
@@ -388,7 +578,7 @@ public:
             LongNodeID node_id = pq.deleteMax();
             std::vector<LongNodeID> adjacents = std::move(get_adjacents(node_id));
 
-            (*config.stream_nodes_assign)[node_id - 1] = batch_marker;
+            (*config.stream_nodes_batch_marker)[node_id - 1] = batch_marker;
 
             update_neighbours_priority(adjacents, false);
             completely_remove_node(node_id);
@@ -398,7 +588,7 @@ public:
                     if (pq.contains(adj_id) && local_node_counter < config.nmbNodes - 2) {
                         pq.deleteNode(adj_id);
                         std::vector<LongNodeID> adj_adjacents = std::move(get_adjacents(adj_id));
-                        (*config.stream_nodes_assign)[adj_id - 1] = batch_marker;
+                        (*config.stream_nodes_batch_marker)[adj_id - 1] = batch_marker;
 
                         update_neighbours_priority(adj_adjacents, false);
                         completely_remove_node(adj_id);
@@ -442,7 +632,7 @@ public:
         // std::unordered_map<LongNodeID, PQItem>::iterator it;
 
         for (LongNodeID adj_id : adjacents) {
-            if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) {
+            if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) { /// TODO: THIS IS A BUG I THINK, because a node can be assigned to a ghost partition
                 if (pq.contains(adj_id)) {
                     PQItem& adj_buffer_item = pq.getBufferItem(adj_id);
                     auto &adj_adjacents = adj_buffer_item.get_adjacents();

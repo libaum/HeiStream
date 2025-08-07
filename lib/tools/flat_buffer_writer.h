@@ -25,7 +25,7 @@
      double partition_time_;
      double total_time_;
      long maxRSS_;
-     EdgeWeight edge_cut_;
+     uint64_t edge_cut_;
      NodeID vertex_cut_;
      NodeID replicas_;
      double replication_factor_ ;
@@ -47,7 +47,7 @@
          maxRSS_ = maxRSS;
      }
 
-     void updateVertexPartitionResults(EdgeWeight & edge_cut, double balance) {
+     void updateVertexPartitionResults(uint64_t & edge_cut, double balance) {
          edge_cut_ = edge_cut;
          balance_ = balance;
      }

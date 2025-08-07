@@ -102,7 +102,7 @@ int main(int argn, char **argv) {
 
     PartitionConfig partition_config;
     std::string graph_filename;
-    EdgeWeight total_edge_cut = 0;
+    uint64_t total_edge_cut = 0;
 
     quality_metrics qm;
     balance_configuration bc;
@@ -360,7 +360,7 @@ int main(int argn, char **argv) {
                 LongNodeID node_id = buffer->deleteMax();
                 std::vector<LongNodeID> adjacents = std::move(buffer->get_adjacents(node_id));
 
-                (*partition_config.stream_nodes_assign)[node_id - 1] = cur_batch_marker;
+                (*partition_config.stream_nodes_batch_marker)[node_id - 1] = cur_batch_marker;
                 buffer->update_neighbours_priority_parallel(adjacents, false);
                 // TODO: switch to
                 // buffer->update_neighbours_priority(
@@ -573,8 +573,6 @@ int main(int argn, char **argv) {
                     if (partition_config.restream_number) {
                         TIMING_ACCUMULATE(thread_part_single_node_time, local_part_t);
                         continue; // Skip processing single nodes in restreaming mode
-                    } else {
-                        (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
                     }
 
                     // Single node partitioning
@@ -731,7 +729,7 @@ int main(int argn, char **argv) {
     // Check if all nodes are assigned
     LongNodeID count_not_assigned = 0;
     for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        if ((*partition_config.stream_nodes_assign)[i] > TO_BE_PARTITIONED - 10000) {
+        if ((*partition_config.stream_nodes_assign)[i] >= partition_config.k) {
             count_not_assigned++;
             std::cout << "Node " << i+1 << " was not assigned to any partition. : " <<(*partition_config.stream_nodes_assign)[i] << std::endl;
         }
@@ -742,14 +740,15 @@ int main(int argn, char **argv) {
     }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
-    fb_writer.updateVertexPartitionResults(total_edge_cut, qm.balance_full_stream(*partition_config.stream_blocks_weight));
-
+    double total_imbalance = qm.balance_full_stream(*partition_config.stream_blocks_weight);
+    fb_writer.updateVertexPartitionResults(total_edge_cut, total_imbalance);
 
     double total_time_rounded = std::round(total_time * 1000.0) / 1000.0;
-    std::cout << std::fixed << std::setprecision(3) << total_time_rounded;
-    std::cout << " " << maxRSS;
-    std::cout << " " << total_edge_cut;
-    std::cout << " " << std::defaultfloat << total_edge_cut / (double) partition_config.total_edges << std::endl;
+    std::cout << std::fixed << std::setprecision(3) << total_time_rounded
+                << " " << maxRSS
+                << " " << total_edge_cut
+                << " " << std::defaultfloat << total_edge_cut / (double) partition_config.total_edges
+                << " " << total_imbalance << std::endl;
 
     // write the partition to the disc
     std::stringstream filename;
@@ -760,9 +759,9 @@ int main(int argn, char **argv) {
     }
 
     if (!partition_config.suppress_output) {
-        // graph_io_stream::writePartitionStream(partition_config, filename.str());
+        graph_io_stream::writePartitionStream(partition_config, filename.str());
     } else {
-        std::cout << "No partition will be written as output." << std::endl;
+        // std::cout << "No partition will be written as output." << std::endl;
     }
 
     if (partition_config.ghostkey_to_edges != NULL) {
