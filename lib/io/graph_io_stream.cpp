@@ -96,7 +96,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     int numb_of_edges = 0;
     config.num_ghost_nodes = 0;
 
-    bool store_unpartitioned_neighbors = config.ghost_importance > 0 && config.restream_number == 0;
+
     std::vector<PartitionID>& node_to_batch_marker = config.sep_batch_marker ? (*config.stream_nodes_batch_marker) : (*config.stream_nodes_assign);
 
     for (auto& [global_node_id, line_numbers] : *batch_nodes) {
@@ -143,7 +143,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         } else {
             while (col_counter < line_numbers.size()) {
                 target = line_numbers[col_counter++];
-                EdgeWeight edge_weight = 2;
+                EdgeWeight edge_weight = config.store_unpartitioned_neighbors ? 4 : 1;
                 if (read_ew) {
                     edge_weight = line_numbers[col_counter++];
                 }
@@ -163,14 +163,14 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                     } else {
                         used_edges++;
                     }
-                    if (store_unpartitioned_neighbors && (*config.stream_nodes_assign)[target - 1] >= config.k) { // edge to ghost nodes with temporary PartitionID
+                    if (config.store_unpartitioned_neighbors && (*config.stream_nodes_assign)[target - 1] >= config.k) { // edge to ghost nodes with temporary PartitionID
                         (*config.batch_unpartitioned_neighbors)[node].push_back(target);
                     }
 
                 } else { // edge to future batch
                     processGhostNeighborInBatch(config, node, target, edge_weight);
 
-                    if (store_unpartitioned_neighbors) {
+                    if (config.store_unpartitioned_neighbors) {
                         (*config.batch_unpartitioned_neighbors)[node].push_back(target);
                     }
 
@@ -399,7 +399,7 @@ bool graph_io_stream::processQuotientEdgeInBatch(PartitionConfig &config, NodeID
         config.num_ghost_nodes++;
         targetGlobalPar -= config.k; // adjust for ghost neighbors
         // is_ghost_neighbor = true;
-        edge_weight = 1;
+        edge_weight = 2;
         // edge_weight = config.ghost_importance * edge_weight; // adjust for ghost importance
 
     } else {

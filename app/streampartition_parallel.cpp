@@ -216,6 +216,8 @@ int main(int argn, char **argv) {
 
     for (partition_config.restream_number = 0; partition_config.restream_number < passes; partition_config.restream_number++) {
 
+        partition_config.store_unpartitioned_neighbors = partition_config.ghost_importance > 0 && partition_config.restream_number == 0;
+
         // ***************************** IO operations ***************************************
         TIMING_START(io_t);
         graph_io_stream::readFirstLineStream(partition_config, graph_filename, total_edge_cut);

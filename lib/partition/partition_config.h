@@ -33,6 +33,7 @@ struct PartitionConfig
         LongNodeID count_misc1;
         LongNodeID count_misc2;
 
+        bool store_unpartitioned_neighbors;
 
         std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
         float ghost_importance;
@@ -92,8 +93,6 @@ struct PartitionConfig
         std::vector<NodeID> *local_to_global_map;
         // google::dense_hash_set<LongNodeID> *node_in_current_block_set;
 
-        LongNodeID first_phase_buffer_len;
-        LongNodeID second_phase_buffer_len;
         LongNodeID max_pq_size;
         unsigned bq_disc_factor;
 

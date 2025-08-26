@@ -87,8 +87,12 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
 		objective += alpha_gamma * weights[i] * random_functions::approx_sqrt(weights[i]); // exponent is gamma +1 because each node contributes
         }
         objective *= getFennelWeight(partition_config);
-        objective -= interiorEdges;
-	return objective*0.5;	// because edges and nonneighbors are computed twice
+        if (partition_config.store_unpartitioned_neighbors) {
+                objective -= interiorEdges * 0.5;
+        } else {
+                objective -= interiorEdges;
+        }
+	return objective * 0.5;	// because edges and nonneighbors are computed twice
 }
 
 EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config, graph_access & G, double fennel_gamma, double fennel_alpha) {
@@ -113,8 +117,13 @@ EdgeWeight quality_metrics::fennel_objective(PartitionConfig & partition_config,
 		objective += alpha_gamma * weights[i] * random_functions::approx_sqrt(weights[i]); // exponent is gamma +1 because each node contributes
         }
         objective *= getFennelWeight(partition_config);
-        objective -= interiorEdges;
-	return objective*0.5;	// because edges and nonneighbors are computed twice
+        if (partition_config.store_unpartitioned_neighbors) {
+                objective -= interiorEdges * 0.5; // Is this problem fixed with normal edge weight of 4 and ghost edge weight of 2?
+        } else {
+                objective -= interiorEdges;
+        }
+        // objective -= interiorEdges;
+	return objective * 0.5;	// because edges and nonneighbors are computed twice
 }
 
 EdgeWeight quality_metrics::ghost_edge_cut(const PartitionConfig & config, graph_access & G) {
