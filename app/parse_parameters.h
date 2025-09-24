@@ -210,17 +210,16 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
         struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
-        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anr|cms|nss|gts). Default: cbs" );
+        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anr|cms|nss|gts|haa|haa2). Default: haa" );
         struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
 
         struct arg_dbl *cbs_theta                       = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
 
-        struct arg_str *haa_hub_mode                    = arg_str0(NULL, "haa_hub_mode", NULL, "Mode for HAA (nonadaptive|incforhubs|decforhubs|incForProg|expForProg|logForProg|sinForProg|sigmoidForProg). Default: nonadaptive" );
-        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 2.0.");
-        struct arg_dbl *haa_beta_min                    = arg_dbl0(NULL, "haa_beta_min", NULL, "Min beta parameter for haa buffer score. Default 1.0.");
-        struct arg_dbl *haa_beta_max                    = arg_dbl0(NULL, "haa_beta_max", NULL, "Max beta parameter for haa buffer score. Default 2.0.");
-        struct arg_int *haa_tau                         = arg_int0(NULL, "haa_tau", NULL, "Tau value for HAA: Default 50.");
-        struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "haa_theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
+        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 1.0.");
+        struct arg_dbl *haa_theta0                       = arg_dbl0(NULL, "haa_theta0", NULL, "Theta0 parameter for haa buffer score. Default 0.0.");
+        struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
+        struct arg_dbl *haa_theta_min                    = arg_dbl0(NULL, "haa_theta_min", NULL, "Min theta parameter for haa buffer score. Default 1.0.");
+        struct arg_dbl *haa_theta_max                    = arg_dbl0(NULL, "haa_theta_max", NULL, "Max theta parameter for haa buffer score. Default 1.0.");
         struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
 
         struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
@@ -228,9 +227,11 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
 
-        struct arg_dbl *ghost_importance                 = arg_dbl0(NULL, "ghost_importance", NULL, "Ghost node importance factor in partitioning. Default 0.");
+        struct arg_dbl *ghost_importance                = arg_dbl0(NULL, "ghost_importance", NULL, "Ghost node importance factor in partitioning. Default 0.");
         // struct arg_lit *bscore_ghost                     = arg_lit0(NULL, "bscore_ghost", "Use ghost node importance in buffer score. (Default: disabled)");
-        struct arg_lit *sep_batch_marker                  = arg_lit0(NULL, "sep_batch_marker", "Use separate batch marker for batch id marking. (Default: disabled)");
+        struct arg_lit *sep_batch_marker                = arg_lit0(NULL, "sep_batch_marker", "Use separate batch marker for batch id marking. (Default: disabled)");
+
+        struct arg_int *bb_ratio                        = arg_int0(NULL, "bb_ratio", NULL, "Buffer to batch size ratio. Default: not active.");
 
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
@@ -240,8 +241,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *param_dbl2                      = arg_dbl0(NULL, "param_dbl2", NULL, "");
         struct arg_dbl *param_dbl3                      = arg_dbl0(NULL, "param_dbl3", NULL, "");
         struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
+        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld2", "(Default: disabled)");
+        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld3", "(Default: disabled)");
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
         struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
@@ -349,15 +350,14 @@ int parse_parameters(int argn, char **argv,
                 max_pq_size,
                 bq_disc_factor,
                 buffer_score,
-                haa_hub_mode,
                 bpq_storage_type,
                 batch_extraction_strategy,
                 gts_alpha,
                 d_max,
                 haa_beta,
-                haa_beta_min,
-                haa_beta_max,
-                haa_tau,
+                haa_theta_min,
+                haa_theta_max,
+                haa_theta0,
                 haa_theta,
                 cbs_theta,
                 max_active_batches,
@@ -370,6 +370,7 @@ int parse_parameters(int argn, char **argv,
                 param_dbl2,
                 param_dbl3,
                 ghost_importance,
+                bb_ratio,
                 // bscore_ghost,
                 sep_batch_marker,
                 param_enbld1,
@@ -446,13 +447,12 @@ int parse_parameters(int argn, char **argv,
                 buffer_score,
                 bpq_storage_type,
                 batch_extraction_strategy,
-                haa_hub_mode,
                 gts_alpha,
                 parallel_mlp,
                 haa_beta,
-                haa_beta_min,
-                haa_beta_max,
-                haa_tau,
+                haa_theta_min,
+                haa_theta_max,
+                haa_theta0,
                 haa_theta,
                 cbs_theta,
                 max_active_batches,
@@ -471,6 +471,7 @@ int parse_parameters(int argn, char **argv,
                 disable_part_adj_direct,
                 print_times,
                 ghost_importance,
+                bb_ratio,
                 // bscore_ghost,
                 sep_batch_marker,
                 use_queue,
@@ -1661,27 +1662,25 @@ int parse_parameters(int argn, char **argv,
                 partition_config.haa_beta = haa_beta->dval[0];
         }
 
-        if(haa_beta_min->count > 0) {
-                partition_config.haa_beta_min = haa_beta_min->dval[0];
+        if(haa_theta_min->count > 0) {
+                partition_config.haa_theta_min = haa_theta_min->dval[0];
         }
 
-        if(haa_beta_max->count > 0) {
-                partition_config.haa_beta_max = haa_beta_max->dval[0];
+        if(haa_theta_max->count > 0) {
+                partition_config.haa_theta_max = haa_theta_max->dval[0];
         }
 
         if(haa_theta->count > 0) {
                 partition_config.haa_theta = haa_theta->dval[0];
         }
 
+        if(haa_theta0->count > 0) {
+                partition_config.haa_theta0 = haa_theta0->dval[0];
+        }
 
         if(cbs_theta->count > 0) {
                 partition_config.cbs_theta = cbs_theta->dval[0];
         }
-
-        if(haa_tau->count > 0) {
-                partition_config.haa_tau = haa_tau->ival[0];
-        }
-
 
         if (max_active_batches->count > 0) {
                 partition_config.max_active_batches = static_cast<size_t>(max_active_batches->ival[0]);
@@ -1718,6 +1717,10 @@ int parse_parameters(int argn, char **argv,
 
         if (ghost_importance->count > 0) {
                 partition_config.ghost_importance = ghost_importance->dval[0];
+        }
+
+        if (bb_ratio->count > 0) {
+                partition_config.bb_ratio = bb_ratio->ival[0];
         }
 
         // if (bscore_ghost->count > 0) {
@@ -1789,29 +1792,6 @@ int parse_parameters(int argn, char **argv,
                 }
         }
 
-        if (haa_hub_mode->count > 0) {
-                if(strcmp("nonadaptive", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_NONADAPTIVE;
-                } else if (strcmp("incforhubs", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_INC_FOR_HUBS;
-                } else if (strcmp("decforhubs", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_DEC_FOR_HUBS;
-                } else if (strcmp("incForProg", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_INC_FOR_PROG;
-                } else if (strcmp("expForProg", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_EXP_FOR_PROG;
-                } else if (strcmp("logForProg", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_LOG_FOR_PROG;
-                } else if (strcmp("sinForProg", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_SIN_FOR_PROG;
-                } else if (strcmp("sigmoidForProg", haa_hub_mode->sval[0]) == 0) {
-                        partition_config.haa_hub_mode = HAA_SIGMOID_FOR_PROG;
-                } else {
-                        fprintf(stderr, "Invalid HAA hub mode variant: \"%s\"\n", haa_hub_mode->sval[0]);
-                        exit(0);
-                }
-        }
-
         if(d_max->count > 0) {
                 if (d_max->ival[0] == -1) {
                         partition_config.d_max = std::numeric_limits< LongNodeID >::max();
@@ -1823,8 +1803,8 @@ int parse_parameters(int argn, char **argv,
         if (buffer_score->count > 0) {
                 if(strcmp("cbs", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CBS;
-                } else if (strcmp("cbs2", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_CBS2;
+                } else if (strcmp("cbsq", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_CBSQ;
                 } else if (strcmp("cbs3", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CBS3;
                 } else if (strcmp("anr", buffer_score->sval[0]) == 0) {
@@ -1833,6 +1813,10 @@ int parse_parameters(int argn, char **argv,
                         partition_config.buffer_score_type = BUFFER_SCORE_ANR2;
                 } else if (strcmp("haa", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_HAA;
+                } else if (strcmp("haa2", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_HAA2;
+                } else if (strcmp("haa3", buffer_score->sval[0]) == 0) {
+                        partition_config.buffer_score_type = BUFFER_SCORE_HAA3;
                 } else if (strcmp("cms", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CMS;
                 } else if (strcmp("nss", buffer_score->sval[0]) == 0) {

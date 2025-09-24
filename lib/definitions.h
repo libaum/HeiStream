@@ -73,6 +73,7 @@ typedef unsigned int 	Count;
 typedef std::vector<NodeID> boundary_starting_nodes;
 typedef long FlowType;
 
+const unsigned UNDEFINED_BB_RATIO      = std::numeric_limits<unsigned>::max();
 const EdgeID UNDEFINED_EDGE            = std::numeric_limits<EdgeID>::max();
 const EdgeWeight UNDEFINED_EDGEWEIGHT  = std::numeric_limits<EdgeWeight>::max();
 const NodeID UNDEFINED_NODE            = std::numeric_limits<NodeID>::max();
@@ -135,11 +136,13 @@ typedef enum {
 
 typedef enum {
         BUFFER_SCORE_CBS,
-        BUFFER_SCORE_CBS2,
+        BUFFER_SCORE_CBSQ,
         BUFFER_SCORE_CBS3,
         BUFFER_SCORE_ANR,
         BUFFER_SCORE_ANR2,
         BUFFER_SCORE_HAA,
+        BUFFER_SCORE_HAA2,
+        BUFFER_SCORE_HAA3,
         BUFFER_SCORE_CMS,
         BUFFER_SCORE_NSS,
         BUFFER_SCORE_GTS
@@ -156,18 +159,6 @@ typedef enum {
         BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH,
         BATCH_EXTRACTION_STRATEGY_COMPLETE_BATCH_WITH_ADJ
 } BatchExtractionStrategy;
-
-typedef enum {
-        HAA_NONADAPTIVE,
-        HAA_INC_FOR_HUBS,
-        HAA_DEC_FOR_HUBS,
-        HAA_INC_FOR_PROG,     // Linear ansteigend mit Fortschritt
-        HAA_EXP_FOR_PROG,     // Exponentiell ansteigend mit Fortschritt
-        HAA_LOG_FOR_PROG,     // Logarithmisch ansteigend mit Fortschritt
-        HAA_SIN_FOR_PROG,     // Sinusförmig (Welle) ansteigend
-        HAA_SIGMOID_FOR_PROG  // S-förmig (sigmoid) ansteigend
-
-} HAAHubMode;
 
 
 typedef enum {

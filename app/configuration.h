@@ -553,14 +553,14 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.max_active_batches             = 1000;
         partition_config.max_input_q_size               = 100;
 
-        partition_config.haa_hub_mode                           = HAA_NONADAPTIVE;
-        partition_config.haa_beta                       = 2.0f;
-        partition_config.haa_beta_min                   = 1.0f;
-        partition_config.haa_beta_max                   = 2.0f;
-        partition_config.haa_tau                        = 50;
-        partition_config.haa_theta                      = 1.0f;
+        partition_config.haa_beta                       = 1.5f;
+        partition_config.haa_theta                       = 0.75f;
+        partition_config.haa_theta0                      = 0.0f;
+        partition_config.haa_theta_min                   = 1.0f;
+        partition_config.haa_theta_max                   = 1.0f;
         partition_config.cbs_theta                      = 2.0f;
 
+        partition_config.bb_ratio                        = UNDEFINED_BB_RATIO;
 
         partition_config.batch_unpartitioned_neighbors  = NULL;
         partition_config.ghost_importance               = 0.0f;

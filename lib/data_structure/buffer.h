@@ -18,10 +18,6 @@
 #define MIN(A, B) ((A) < (B)) ? (A) : (B)
 #define MAX(A, B) ((A) > (B)) ? (A) : (B)
 
-// CUTTANA HYPERPARAMETERS
-const float THETA = 2;
-// const int D_MAX = 1000;
-
 
 inline void partition_single_node(PartitionConfig &partition_config, LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
 
@@ -121,6 +117,9 @@ private:
 
     const bool ghost_nodes_enabled;
 
+    float b_score_dmax; /// Maximum buffer score dmax, degree factor of all degrees higher than this is counted as 1.0 in the score calculation
+    bool adaptive_theta_active;
+
 
 
 public:
@@ -130,7 +129,10 @@ public:
             pq(partition_config, static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, max_pq_size, partition_config.bq_disc_factor) {
 
+        b_score_dmax = std::min(static_cast<float>(config.d_max), 10000.0f); // Cap d_max to avoid too large values
         current_beta = config.haa_beta;
+
+        adaptive_theta_active = config.haa_theta_min < config.haa_theta_max;
         total_degree_sum = 0;
         node_counter = 0;
         progress = 0.0;
@@ -149,11 +151,14 @@ public:
             case BUFFER_SCORE_GTS:
                 return 1;
             case BUFFER_SCORE_HAA:
-                return std::max(cfg.haa_theta, 1.0f);
+                return std::max((std::max(1.0f, cfg.haa_theta)), cfg.haa_theta_max) + cfg.haa_theta0;
+            case BUFFER_SCORE_HAA2:
+            case BUFFER_SCORE_HAA3:
+                return std::max(1.0f, cfg.haa_theta);
             case BUFFER_SCORE_CBS:
-            case BUFFER_SCORE_CBS2:
+            case BUFFER_SCORE_CBSQ:
             default:
-                return 3;
+                return 1.0f + cfg.cbs_theta;
         }
     }
 
@@ -187,21 +192,46 @@ public:
             }
             case BUFFER_SCORE_HAA:
             {
-                // Zähle, wie viele Nachbarn schon partitioniert sind.
-                // PartitionID pid;
-                // for (const LongNodeID& global_adj_id : adjacents) {
-                //     pid = (*config.stream_nodes_assign)[global_adj_id - 1];
-                //     if (pid != INVALID_PARTITION) {
-                    //         bool is_no_ghost = pid < config.k || pid > 2 * config.k;
-                    //         if (is_no_ghost) {
-                //             cnt_adj_partitioned++;
-                //         } else {
-                //             // Count ghost neighbors
-                //             cnt_adj_ghost++;
-                //         }
-                //     }
-                // }
+                PartitionID pid;
+                if (!ghost_nodes_enabled) {
+                    for (const LongNodeID& global_adj_id : adjacents) {
+                        pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                        if (pid != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        } else if (config.sep_batch_marker && (*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        }
+                    }
+                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                    buffer_score = std::pow(degree_factor, current_beta)
+                                    + (config.haa_theta0 + config.haa_theta * (1 - degree_factor)) * (static_cast<float>(cnt_adj_partitioned) / degree);
 
+                    // buffer_score = (config.haa_theta0 + config.haa_theta * (1 - degree_factor)) * (static_cast<float>(cnt_adj_partitioned) / degree) + std::pow(degree_factor, current_beta); //std::pow(degree_factor, current_beta);
+                } else {
+
+                    unsigned cnt_adj_ghost = 0;
+                    for (const LongNodeID& global_adj_id : adjacents) {
+                        pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                        if (pid >= config.k && pid < 2 * config.k) {
+                            cnt_adj_ghost++;
+                        } else if (pid != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        } else if (config.sep_batch_marker && (*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                            cnt_adj_partitioned++;
+                        }
+                    }
+
+                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                    buffer_score = std::pow(degree_factor, current_beta)
+                                    + (config.haa_theta0 + config.haa_theta * (1 - degree_factor)) * (static_cast<float>(cnt_adj_partitioned) / degree
+                                    + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree)); /// Add ghost neighbors to the score
+                }
+
+                break;
+            }
+
+            case BUFFER_SCORE_HAA2:
+            {
                 if (ghost_nodes_enabled) {
                     unsigned cnt_adj_ghost = 0;
                     PartitionID pid;
@@ -220,18 +250,30 @@ public:
                             cnt_adj_partitioned++;
                         }
                     }
+
                     /// Berechne den adaptiven Gewichtungsfaktor r(v)
-                    float degree_factor = degree / static_cast<float>(config.d_max);
+
+                    // ALTERNATIVE IMPLEMENTATION
+                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
                     float r = std::pow(degree_factor, current_beta);
 
-                    // float r = fast_pow(degree / config.d_max, current_beta);
-                    // float r = fast_pow_specialized(degree / config.d_max, current_beta);
+                    // OPTIMIZATION FOR BETA = 2
+                    // float r = degree_factor * degree_factor; // Direct calculation avoiding intermediate variable
+
+
+                    // float r = fast_pow(degree / b_score_dmax, current_beta);
+                    // float r = fast_pow_specialized(degree / b_score_dmax, current_beta);
 
                     /// Berechne den Score: für niedrige Degree (r~0) dominiert der Nachbarnanteil, für hohe Degree (r~1) dominiert der Degree selbst.
 
-                    buffer_score = (1 - r) * ( config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
-                                            + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree)) /// Add ghost neighbors to the score
-                                    + r * degree_factor;
+                    // buffer_score = (1 - r) * ( config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
+                    //                         + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree)) /// Add ghost neighbors to the score
+                    //                 + r * degree_factor;
+
+                    buffer_score = degree_factor
+                                    + config.haa_theta * (1 - degree_factor) * (static_cast<float>(cnt_adj_partitioned) / degree)
+                                    + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree); /// Add ghost neighbors to the score
+
                 } else {
                     PartitionID pid;
                     for (const LongNodeID& global_adj_id : adjacents) {
@@ -243,21 +285,47 @@ public:
                         }
                     }
                     // Berechne den adaptiven Gewichtungsfaktor r(v)
-                    float degree_factor = degree / static_cast<float>(config.d_max);
-                    float r = std::pow(degree_factor, current_beta); /// TODO: optimize beta for 2
-
-                    // float r = fast_pow(degree / config.d_max, current_beta);
-                    // float r = fast_pow_specialized(degree / config.d_max, current_beta);
 
                     /// Berechne den Score: für niedrige Degree (r~0) dominiert der Nachbarnanteil, für hohe Degree (r~1) dominiert der Degree selbst.
+                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                    float ANR = (static_cast<float>(cnt_adj_partitioned) / degree);
 
-                    // Add ghost neighbors to the score
-                    buffer_score = (1 - r) * config.haa_theta * (static_cast<float>(cnt_adj_partitioned) / degree)
-                                        + r * degree_factor;
+                    buffer_score = degree_factor + config.haa_theta * (1 - degree_factor) * ANR;
                 }
 
                 break;
             }
+
+
+            case BUFFER_SCORE_HAA3:
+            {
+                PartitionID pid;
+                for (const LongNodeID& global_adj_id : adjacents) {
+                    pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                    if (pid != INVALID_PARTITION) {
+                        cnt_adj_partitioned++;
+                    } else if (config.sep_batch_marker && (*config.stream_nodes_batch_marker)[global_adj_id - 1] != INVALID_PARTITION) {
+                        cnt_adj_partitioned++;
+                    }
+                }
+                // x = D / float(D_MAX)
+                // phi = 1 - ANR# **gamma
+                // p = 2 - ANR
+                // deg_term = (1.0 - phi)*x + phi*(x**p)
+
+                // Score = deg_term + THETA1*(1.0 - deg_term)*ANR
+
+                float deg_factor = std::min(degree / b_score_dmax, 1.0f);
+                float ANR = (static_cast<float>(cnt_adj_partitioned) / degree);
+                float phi = 1 - ANR;
+                float p = 2 - ANR;
+                float deg_term = (1.0f - phi) * deg_factor + phi * std::pow(deg_factor, p);
+                buffer_score = deg_term + config.haa_theta * (1.0f - deg_term) * ANR;
+
+                break;
+            }
+
+
 
             case BUFFER_SCORE_CMS: // Community - Majority Score
             {
@@ -266,7 +334,7 @@ public:
                 int most_common_partition_count = 0;
                 for (LongNodeID adj_id : adjacents) {
                     PartitionID adj_part = (*config.stream_nodes_assign)[adj_id - 1];
-                    if (adj_part < TO_BE_PARTITIONED) {
+                    if (adj_part < TO_BE_PARTITIONED - 10000) {
                         cnt_adj_partitioned++;
                         hash_map[adj_part]++;
                         if (hash_map[adj_part] > most_common_partition_count) {
@@ -277,7 +345,7 @@ public:
                         }
                     }
                 }
-                buffer_score =(float) most_common_partition_count /  degree; // +  (float) degree / config.d_max;
+                buffer_score =(float) most_common_partition_count /  degree; // +  (float) degree / b_score_dmax;
                 break;
             }
 
@@ -291,7 +359,7 @@ public:
                         cnt_adj_in_buffer++;
                     }
                 }
-                // NOTE: Maybe account for degree somehow? higher importance to higher degree nodes exponentially or linearly? (e.g. degree / config.d_max)
+                // NOTE: Maybe account for degree somehow? higher importance to higher degree nodes exponentially or linearly? (e.g. degree / b_score_dmax)
                 buffer_score = (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree;
                 break;
             }
@@ -303,7 +371,7 @@ public:
                         cnt_adj_partitioned++;
                     }
                 }
-                buffer_score = (float) degree / config.d_max;
+                buffer_score = std::min(degree / b_score_dmax, 1.0f);
                 break;
             }
 
@@ -318,22 +386,28 @@ public:
                         cnt_adj_in_buffer++;
                     }
                 }
-                buffer_score = (float) degree / config.d_max + THETA * (float) cnt_adj_partitioned /  degree + (float) cnt_adj_in_buffer/ degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+                buffer_score = std::min(degree / b_score_dmax, 1.0f) + config.cbs_theta * (float) cnt_adj_partitioned /  degree + (float) cnt_adj_in_buffer/ degree; // Range: [0, 3] (first term: [0, 1], second term: [0, config.cbs_theta])
                 break;
             }
 
-            case BUFFER_SCORE_CBS2: // Cuttana buffer score 2
+            case BUFFER_SCORE_CBSQ: // Cuttana buffer score 2
             {
-                unsigned cnt_adj_in_buffer = 0;
+                unsigned cnt_adj_ghost = 0;
+                // Zähle, wie viele Nachbarn schon partitioniert sind.
                 for (const LongNodeID& global_adj_id : adjacents) {
-                    if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                        cnt_adj_partitioned++;
-                    } else if (pq.contains(global_adj_id)) {
-
-                        cnt_adj_in_buffer++;
+                    PartitionID pid = (*config.stream_nodes_assign)[global_adj_id - 1];
+                    if (pid != INVALID_PARTITION) {
+                        bool is_no_ghost = pid < config.k || pid > 2 * config.k;
+                        if (is_no_ghost) {
+                            cnt_adj_partitioned++;
+                        } else {
+                            // Count ghost neighbors
+                            cnt_adj_ghost++;
+                        }
                     }
                 }
-                buffer_score = (float) degree / config.d_max + THETA * (float) (cnt_adj_partitioned + cnt_adj_in_buffer) /  degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+
+                buffer_score = std::min(std::pow(degree / b_score_dmax, current_beta), 1.0f) + config.cbs_theta * (float) cnt_adj_partitioned / degree; // Range: [0, 3] (first term: [0, 1], second term: [0, config.cbs_theta])
                 break;
             }
 
@@ -354,15 +428,10 @@ public:
                     }
                 }
 
-                // for (const LongNodeID& global_adj_id : adjacents) {
-                //     if ((*config.stream_nodes_assign)[global_adj_id - 1] != INVALID_PARTITION) {
-                //         cnt_adj_partitioned++;
-                //     }
-                // }
-                buffer_score = degree /  config.d_max + THETA * (float) cnt_adj_partitioned / degree; // Range: [0, 3] (first term: [0, 1], second term: [0, THETA])
+                buffer_score = std::min(degree / b_score_dmax, 1.0f) + config.cbs_theta * (float) cnt_adj_partitioned / degree; // Range: [0, 3] (first term: [0, 1], second term: [0, config.cbs_theta])
                 // if (config.bscore_ghost) {
                 //     // Add ghost neighbors to the score
-                //     buffer_score += THETA * config.ghost_importance * (float) cnt_adj_ghost / degree;
+                //     buffer_score += config.cbs_theta * config.ghost_importance * (float) cnt_adj_ghost / degree;
                 // }
                 break;
             }
@@ -385,10 +454,24 @@ public:
                 return buffer_item.buffer_score + 1.0 /  degree;
             case BUFFER_SCORE_HAA:
                 {
-                    float r = std::pow(degree / static_cast<float>(config.d_max), current_beta);
-                    // float r = fast_pow(degree / config.d_max, current_beta);
-                    // float r = fast_pow_specialized(degree / config.d_max, current_beta);
-                    return std::min(buffer_item.buffer_score + (1 - r) * (1 / degree), 1.0f);
+                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                    return buffer_item.buffer_score + config.haa_theta * (1.0 - degree_factor) * (1.0 / degree);
+
+                    // buffer_item.num_adj_partitioned = 0;
+                    // return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+
+
+                    // float r = std::pow(degree_factor, current_beta);
+                    // return buffer_item.buffer_score + (1 - r) * (1 / degree);
+                }
+            case BUFFER_SCORE_HAA2:
+                {
+                    return buffer_item.buffer_score + config.haa_theta * (1.0 - std::min(degree / b_score_dmax, 1.0f)) * (1.0 / degree);
+                }
+            case BUFFER_SCORE_HAA3:
+                {
+                    buffer_item.num_adj_partitioned = 0;
+                    return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
                 }
             case BUFFER_SCORE_CMS:
                 buffer_item.num_adj_partitioned = 0;
@@ -401,7 +484,7 @@ public:
 
             case BUFFER_SCORE_CBS:
             default:
-                return buffer_item.buffer_score + THETA / degree;
+                return buffer_item.buffer_score + config.cbs_theta / degree;
         }
     }
 
@@ -409,79 +492,16 @@ public:
         return static_cast<float>(total_degree_sum) / node_counter;
     }
 
-    void update_beta(double tau = 50.0) {
-        // progress = static_cast<float>(node_counter) / config.number_of_nodes;
-        // current_beta = 1.5 * (1 + (avg_degree / config.d_max));
-        switch (config.haa_hub_mode) {
-            case HAA_INC_FOR_HUBS:
-                current_beta = config.haa_beta_min + (config.haa_beta_max - config.haa_beta_min) * std::exp(- get_avg_degree() / config.haa_tau);
-                break;
-            case HAA_DEC_FOR_HUBS:
-                current_beta =  config.haa_beta_min - (config.haa_beta_max - config.haa_beta_min) * std::exp(- get_avg_degree() / config.haa_tau);
-                break;
-            case HAA_INC_FOR_PROG:
-                current_beta = config.haa_beta_min +
-                            progress * (config.haa_beta_max - config.haa_beta_min);
-                break;
-
-            case HAA_EXP_FOR_PROG:
-                // Exponentiell ansteigend mit Fortschritt
-                {
-                    float exponent = config.haa_tau > 0.0 ? config.haa_tau : 2.0f;
-                    current_beta = config.haa_beta_min +
-                                    std::pow(progress, exponent) *
-                                    (config.haa_beta_max - config.haa_beta_min);
-                }
-                break;
-
-            case HAA_LOG_FOR_PROG:
-                // Logarithmisch ansteigend (schnell am Anfang, langsam am Ende)
-                {
-                    // Logarithmische Kurve, die bei 0 beginnt und bei 1 endet
-                    float log_prog = progress < 0.01f ? 0.0f :
-                                    std::log(1.0f + 99.0f * progress) / std::log(100.0f);
-                    current_beta = config.haa_beta_min +
-                                  log_prog * (config.haa_beta_max - config.haa_beta_min);
-                }
-                break;
-
-            case HAA_SIN_FOR_PROG:
-                // Sinusförmig variierend (Welle)
-                {
-                    // Sinuswelle zwischen min und max, abhängig vom Fortschritt
-                    // Komplett ein Zyklus über den gesamten Stream
-                    float sin_val = (std::sin(progress * 2.0f * M_PI) + 1.0f) / 2.0f;
-                    current_beta = config.haa_beta_min +
-                                  sin_val * (config.haa_beta_max - config.haa_beta_min);
-                }
-                break;
-
-            case HAA_SIGMOID_FOR_PROG:
-                // S-förmig ansteigend (langsam am Anfang und Ende, schnell in der Mitte)
-                {
-                    // Sigmoid-Funktion, skaliert auf [0,1]
-                    float x = (progress - 0.5f) * 10.0f; // Skalieren auf [-5, 5]
-                    float sigmoid = 1.0f / (1.0f + std::exp(-x));
-                    current_beta = config.haa_beta_min +
-                                  sigmoid * (config.haa_beta_max - config.haa_beta_min);
-                }
-                break;
-
-            case HAA_NONADAPTIVE:
-                break;
-        }
-    }
-
     // Adds a node to the buffer or partition directly if buffer score is higher than max score
     bool addNode(LongNodeID global_node_id, std::vector<LongNodeID> &adjacents) {
-        if (config.haa_hub_mode != HAA_NONADAPTIVE) {
-            progress += 1.0 / config.number_of_nodes;
+
+        if (adaptive_theta_active && node_counter % 1000 == 0) { // && node_counter % 100 == 0) {
             node_counter++;
-            total_degree_sum += adjacents.size();
-            if (node_counter == 1000) { // && node_counter % 100 == 0) {
-                update_beta();
-            }
+            progress += 1000.0 / config.number_of_nodes;
+            config.haa_theta = config.haa_theta_min + progress * (config.haa_theta_max - config.haa_theta_min);
+
         }
+
 
         unsigned num_adj_partitioned = 0;
         float buffer_score = calc_buffer_score(global_node_id, adjacents, num_adj_partitioned);
@@ -557,9 +577,6 @@ public:
             local_node_counter++;
         }
 
-        if (config.haa_hub_mode != HAA_NONADAPTIVE) {
-            update_beta();
-        }
     }
 
 
@@ -614,9 +631,6 @@ public:
             batch_nodes.resize(local_node_counter);
         }
 
-        if (config.haa_hub_mode != HAA_NONADAPTIVE) {
-            update_beta();
-        }
     }
 
 
@@ -646,8 +660,7 @@ public:
                     adj_buffer_item.num_adj_partitioned++;
 
                     // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
-                    if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
-                    // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
+                    if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) {
 			TIMING_ACCUMULATE(update_adj_time, update_adj_t);
                         pq.deleteNode(adj_id);
                         partition_single_node(config, adj_id, adj_adjacents);
@@ -699,8 +712,7 @@ public:
                 adj_buffer_item.num_adj_partitioned++;
 
                 // Check if all neighbours of the neighbour are partitioned, if so, partition the neighbour
-                if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) { //&& config.buffer_score_type != BUFFER_SCORE_CBS2
-                // if (part_adj_directly && adj_degree > config.param_int1 && adj_degree == adj_buffer_item.num_adj_partitioned && config.buffer_score_type != BUFFER_SCORE_CBS2) {
+                if (part_adj_directly && adj_degree > 3 && adj_degree == adj_buffer_item.num_adj_partitioned ) {
 
                     // move adj_adjacents to a new vector to avoid dangling references
                     std::vector<LongNodeID> adj_adjacents_copy = std::move(adj_adjacents);

@@ -33,6 +33,8 @@ struct PartitionConfig
         LongNodeID count_misc1;
         LongNodeID count_misc2;
 
+        unsigned bb_ratio; /// Buffer to batch size ratio
+
         bool store_unpartitioned_neighbors;
 
         std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
@@ -56,17 +58,15 @@ struct PartitionConfig
 
         BPQStorageType bpq_storage_type;
 
-
         BufferScoreType buffer_score_type;
         double gts_alpha;
         LongNodeID d_max;
 
-        HAAHubMode haa_hub_mode; // (nonadaptive|incforhubs|decforhubs)
-        float haa_beta; // starting beta value for haa
-        float haa_beta_min; // only relevant for incforhubs and decforhubs
-        float haa_beta_max; // only relevant for incforhubs and decforhubs
+        float haa_beta; // Beta parameter for haa
+        float haa_theta_min; // minimum theta value for haa
+        float haa_theta_max; // maximum theta value for haa
         float haa_theta;
-        int haa_tau;
+        float haa_theta0;
 
         float cbs_theta;
 

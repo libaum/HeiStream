@@ -162,6 +162,10 @@ int main(int argn, char **argv) {
     TIMING_DECLARE(double thread_part_single_node_time) = 0.0;
     TIMING_DECLARE(double thread_mlp_time) = 0.0;
 
+    if  (partition_config.bb_ratio != UNDEFINED_BB_RATIO) {
+        partition_config.stream_buffer_len = partition_config.max_pq_size / partition_config.bb_ratio;
+    }
+
     Buffer* buffer = new Buffer(partition_config, partition_config.max_pq_size);
 
     auto push_to_partition_queue = [&](PartitionTask &&task) {
