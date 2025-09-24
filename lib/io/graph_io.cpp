@@ -313,17 +313,6 @@ int graph_io::readGraphWeighted(graph_access & G, const std::string & filename) 
                 exit(0);
         }
 
-        bool read_ew = false;
-        bool read_nw = false;
-
-        if(ew == 1) {
-                read_ew = true;
-        } else if (ew == 11) {
-                read_ew = true;
-                read_nw = true;
-        } else if (ew == 10) {
-                read_nw = true;
-        }
         nmbEdges *= 2; //since we have forward and backward edges
 
         NodeID node_counter   = 0;
@@ -344,15 +333,6 @@ int graph_io::readGraphWeighted(graph_access & G, const std::string & filename) 
                 std::stringstream ss(line);
 
                 NodeWeight weight = 1;
-                if( read_nw ) {
-                        ss >> weight;
-                        total_nodeweight += weight;
-                        if( total_nodeweight > (long long) std::numeric_limits<NodeWeight>::max()) {
-                                std::cerr <<  "The sum of the node weights is too large (it exceeds the node weight type)."  << std::endl;
-                                std::cerr <<  "Currently not supported. Please scale your node weights."  << std::endl;
-                                exit(0);
-                        }
-                }
                 G.setNodeWeight(node, weight);
 
                 NodeID target;
@@ -363,9 +343,6 @@ int graph_io::readGraphWeighted(graph_access & G, const std::string & filename) 
                         }
 
                         EdgeWeight edge_weight = 1;
-                        if( read_ew ) {
-                                ss >> edge_weight;
-                        }
                         edge_counter++;
                         EdgeID e = G.new_edge(node, target-1);
 

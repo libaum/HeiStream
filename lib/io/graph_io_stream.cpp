@@ -32,8 +32,6 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     NodeID node_counter = 0;
     EdgeID edge_counter = 0;
     LongEdgeID used_edges = 0;
-    bool read_ew = false;
-    bool read_nw = false;
     // LongEdgeID nmbEdges = 2 * config.remaining_stream_edges;
     LongNodeID target;
     NodeWeight weight;
@@ -67,18 +65,6 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 //         exit(0);
 //     }
 
-    switch (config.remaining_stream_ew) {
-    case 1:
-        read_ew = true;
-        break;
-    case 10:
-        read_nw = true;
-        break;
-    case 11:
-        read_ew = true;
-        read_nw = true;
-        break;
-    }
 
     /* config.degree_nodeBlock = new std::vector<std::vector<EdgeWeight>> (config.nmbNodes, std::vector<EdgeWeight>(config.k,0)); */
     /* config.edge_block_nodes = new std::vector<std::vector<NodeID>> (config.k, std::vector<NodeID>()); */
@@ -110,14 +96,6 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         global_to_local_map[global_node_id - 1] = node;
 
         weight = 1;
-        if (read_nw) {
-            weight = line_numbers[col_counter++];
-            if (total_nodeweight > std::numeric_limits<NodeWeight>::max()) {
-                std::cerr << "The sum of the node weights is too large (it exceeds the node weight type)." << std::endl;
-                std::cerr << "Currently not supported. Please scale your node weights." << std::endl;
-                exit(0);
-            }
-        }
         total_nodeweight += weight;
         processNodeWeight(config, all_nodes, node, weight, global_node_id);
 
@@ -125,9 +103,6 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
             while (col_counter < line_numbers.size()) {
                 target = line_numbers[col_counter++];
                 EdgeWeight edge_weight = 1;
-                if (read_ew) {
-                    edge_weight = line_numbers[col_counter++];
-                }
 
                 if (lower_global_node <= target && target <= upper_global_node) { // edge to current batch
                     NodeID local_target = global_to_local_map[target - 1];
@@ -144,9 +119,6 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
             while (col_counter < line_numbers.size()) {
                 target = line_numbers[col_counter++];
                 EdgeWeight edge_weight = config.store_unpartitioned_neighbors ? 4 : 1;
-                if (read_ew) {
-                    edge_weight = line_numbers[col_counter++];
-                }
 
                 // if ((*config.stream_nodes_batch_marker)[target - 1] == batch_marker) { // edge to current batch
                 if (node_to_batch_marker[target - 1] == batch_marker) { // edge to current batch
@@ -849,16 +821,6 @@ void graph_io_stream::streamEvaluatePartition(PartitionConfig &config, const std
     ss >> nmbNodes;
     ss >> nmbEdges;
     ss >> ew;
-    bool read_ew = false;
-    bool read_nw = false;
-    if (ew == 1) {
-        read_ew = true;
-    } else if (ew == 11) {
-        read_ew = true;
-        read_nw = true;
-    } else if (ew == 10) {
-        read_nw = true;
-    }
     NodeID target;
     NodeWeight total_nodeweight = 0;
     EdgeWeight total_edgeweight = 0;
@@ -878,17 +840,10 @@ void graph_io_stream::streamEvaluatePartition(PartitionConfig &config, const std
         LongNodeID col_counter = 0;
 
         NodeWeight weight = 1;
-        if (read_nw) {
-            weight = line_numbers[col_counter++];
-            total_nodeweight += weight;
-        }
         while (col_counter < line_numbers.size()) {
             target = line_numbers[col_counter++];
             target = target - 1;
             EdgeWeight edge_weight = 1;
-            if (read_ew) {
-                edge_weight = line_numbers[col_counter++];
-            }
             total_edgeweight += edge_weight;
             PartitionID partitionIDTarget = (*config.stream_nodes_assign)[target];
             if (partitionIDSource != partitionIDTarget) {
@@ -1422,16 +1377,6 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
         ss >> nmbNodes;
         ss >> nmbEdges;
         ss >> ew;
-        bool read_ew = false;
-        bool read_nw = false;
-        if (ew == 1) {
-            read_ew = true;
-        } else if (ew == 11) {
-            read_ew = true;
-            read_nw = true;
-        } else if (ew == 10) {
-            read_nw = true;
-        }
         NodeID target;
         NodeWeight total_nodeweight = 0;
         EdgeWeight total_edgeweight = 0;
@@ -1453,17 +1398,10 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
             LongNodeID col_counter = 0;
 
             NodeWeight weight = 1;
-            if (read_nw) {
-                weight = line_numbers[col_counter++];
-                total_nodeweight += weight;
-            }
             while (col_counter < line_numbers.size()) {
                 target = line_numbers[col_counter++];
                 target = target - 1;
                 EdgeWeight edge_weight = 1;
-                if (read_ew) {
-                    edge_weight = line_numbers[col_counter++];
-                }
                 total_edgeweight += edge_weight;
                 const EdgeID e = G_temp.new_edge(node, target);
                 G_temp.setEdgeWeight(e, 1);
