@@ -1,14 +1,35 @@
+# BuffCut
+
+⚠️ **Work in Progress** ⚠️
+
+BuffCut is a **buffered streaming graph partitioner** developed as part of my master's thesis.
+Its design is motivated by the limitations of existing methods under **adversarial or poor node orderings**,
+where BuffCut achieves more robust partition quality through a combination of prioritized buffering
+and multilevel refinement.
+
+BuffCut is implemented in C++ and builds on the open-source repository of
+[HeiStream](https://github.com/KaHIP/HeiStream), but has since been **extended and modified**
+to integrate new buffering, prioritization, and parallelization techniques.
+
+At the moment, this repository still contains parts of the original HeiStream README and structure.
+Over the coming days, the documentation will be updated, the codebase cleaned up,
+and usage instructions for BuffCut provided here.
+
+For now, BuffCut can be built and executed using the same steps as HeiStream,
+but note that the repository is under active restructuring.
+
+
 # HeiStream & HeiStreamE
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/315a384a931d4136a89a4b2846ae0475)](https://app.codacy.com/gh/KaHIP/HeiStream/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 HeiStream is a buffered streaming algorithm to heuristically solve the graph partitioning problem: dividing the nodes of a graph into k disjoint blocks of roughly the same size while minimizing the number of edges running between blocks.
-HeiStream is a first attempt to close a gap observed in the space of available partitioning algorithms. 
-On the one hand, there are streaming algorithms that have been adopted to partition massive graph data on small machines. 
-In the streaming model, vertices arrive one at a time including their neighborhood and then have to be assigned directly to a block. 
-These algorithms can partition huge graphs quickly with little memory, but they produce partitions with low solution quality. 
+HeiStream is a first attempt to close a gap observed in the space of available partitioning algorithms.
+On the one hand, there are streaming algorithms that have been adopted to partition massive graph data on small machines.
+In the streaming model, vertices arrive one at a time including their neighborhood and then have to be assigned directly to a block.
+These algorithms can partition huge graphs quickly with little memory, but they produce partitions with low solution quality.
 On the other hand, there are offline (shared-memory) multilevel algorithms that produce partitions with high quality but also need a machine with enough
-memory to partition huge networks. 
+memory to partition huge networks.
 HeiStream uses a buffered streaming computational model and a multilevel algorithm, which allows it to compute significantly improved partitions of huge graphs using a single machine with little memory.
 
 <p align="center">
@@ -17,13 +38,13 @@ HeiStream uses a buffered streaming computational model and a multilevel algorit
   width="601" >
 </p>
 
-The image above illustrates the overall structure of HeiStream. 
-It slides through the streamed graph G by repeating the following successive operations until all the nodes of G are assigned to blocks. 
-First, it loads a batch containing the desired number of nodes alongside with their adjacency lists. 
-Second, it builds a model B to be partitined. 
-This model represents the already partitioned vertices as well as the nodes of the current batch. 
-Third, it partitions B with a multilevel partitioning algorithm to optimize for the Fennel objective function. 
-Finally, it permanently assigns the nodes from the current batch to blocks. 
+The image above illustrates the overall structure of HeiStream.
+It slides through the streamed graph G by repeating the following successive operations until all the nodes of G are assigned to blocks.
+First, it loads a batch containing the desired number of nodes alongside with their adjacency lists.
+Second, it builds a model B to be partitined.
+This model represents the already partitioned vertices as well as the nodes of the current batch.
+Third, it partitions B with a multilevel partitioning algorithm to optimize for the Fennel objective function.
+Finally, it permanently assigns the nodes from the current batch to blocks.
 
 ### HeiStreamE
 
@@ -47,8 +68,8 @@ Our experiments demonstrate that HeiStreamE produces the best solution quality (
 
 ### Requirements
 
-* C++-14 ready compiler 
-* CMake 
+* C++-14 ready compiler
+* CMake
 * Scons (http://www.scons.org/)
 * Argtable (http://argtable.sourceforge.net/)
 
@@ -87,7 +108,7 @@ For a description of the graph format, please have a look at the [KaHiP manual](
 
 ## Edge Balancing
 
-HeiStream was not designed to balance edges, but we have implemented a temporary solution to allow this. 
+HeiStream was not designed to balance edges, but we have implemented a temporary solution to allow this.
 If you want to balance edges instead of nodes, you can enable the --balance_edges flag within your command for executing HeiStream.
 
 ## Running HeiStreamE

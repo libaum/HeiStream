@@ -32,7 +32,7 @@
 
 class bucket_pq {
 public:
-    bucket_pq(PartitionConfig& partition_config, const EdgeWeight &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size, unsigned bq_disc_factor);
+    bucket_pq(PartitionConfig& partition_config, const unsigned &gain_span, LongNodeID max_node_id, LongNodeID max_pq_size, unsigned bq_disc_factor);
 
     ~bucket_pq() = default;
 
@@ -66,7 +66,7 @@ public:
 
 private:
     LongNodeID m_elements;
-    EdgeWeight m_gain_span;
+    unsigned m_gain_span;
     unsigned m_max_idx; // points to the non-empty bucket with the largest gain
     unsigned disc_factor;
     PartitionConfig &config;
@@ -122,7 +122,7 @@ private:
     };
 };
 
-inline bucket_pq::bucket_pq(PartitionConfig& partition_config, const EdgeWeight &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size, unsigned bq_disc_factor)
+inline bucket_pq::bucket_pq(PartitionConfig& partition_config, const unsigned &buffer_score_span_input, LongNodeID num_nodes, LongNodeID max_pq_size, unsigned bq_disc_factor)
     : config(partition_config), m_elements(0), m_gain_span(buffer_score_span_input), m_max_idx(0), disc_factor(bq_disc_factor) {
 
     // Storage-Typ zur Runtime wählen
@@ -171,7 +171,7 @@ inline void bucket_pq::update_insert(LongNodeID node, float buffer_score) {
 
     START_TIMER(stats.update_insert);
 
-    unsigned new_bucket_idx = discretize_score(buffer_score);
+    unsigned new_bucket_idx = std::min(discretize_score(buffer_score), m_gain_span - 1);
     assert(0 <= new_bucket_idx && new_bucket_idx < m_gain_span);
 
     if (new_bucket_idx > m_max_idx) {

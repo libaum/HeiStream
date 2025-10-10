@@ -93,7 +93,6 @@ int parse_parameters(int argn, char **argv,
         struct arg_str *input_partition                      = arg_str0(NULL, "input_partition", NULL, "Input partition to use.");
         struct arg_lit *recursive_bipartitioning             = arg_lit0(NULL, "recursive_bipartitioning", "Use recursive bipartitioning instead of kway methods.");
         struct arg_lit *suppress_output                      = arg_lit0(NULL, "suppress_output", "(Default: output enabled)");
-        struct arg_lit *write_partition                      = arg_lit0(NULL, "write_partition", "(Default: output disabled)"); // TODO: only for debug reasons change back to suppress_output
         struct arg_lit *disable_max_vertex_weight_constraint = arg_lit0(NULL, "disable_max_vertex_weight_constraint", "Disables the max vertex weight constraint during the contraction.");
         struct arg_int *local_multitry_fm_alpha              = arg_int0(NULL, "local_multitry_fm_alpha", NULL, "Search limit factor alpha for multitry fm.");
         struct arg_int *local_multitry_rounds                = arg_int0(NULL, "local_multitry_rounds", NULL, "Number of rounds for local multitry fm.");
@@ -233,6 +232,8 @@ int parse_parameters(int argn, char **argv,
 
         struct arg_int *bb_ratio                        = arg_int0(NULL, "bb_ratio", NULL, "Buffer to batch size ratio. Default: not active.");
 
+        struct arg_lit *ghost_neighbors_enabled          = arg_lit0(NULL, "enable_ghost", "Enable ghost nodes in multi-level partitioning. (Default: disabled)");
+        struct arg_int *default_weight_non_ghost        = arg_int0(NULL, "weight_non_ghost", NULL, "Weight of non-ghost nodes in multi-level partitioning if ghost neighbors are activated. Default: 5.");
 
         struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
         struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
@@ -246,7 +247,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
 
         struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
-        struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 100.");
+        struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 1000.");
 
 
         struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
@@ -314,7 +315,6 @@ int parse_parameters(int argn, char **argv,
 
         // Store ALL allocated arg structures
         void *all_arguments[] = {
-                write_partition,
                 help, filename, user_seed, k, graph_weighted, imbalance, edge_rating_tiebreaking, matching_type, edge_rating,
                 rate_first_level_inner_outer, first_level_random_matching, aggressive_random_levels, gpa_grow_internal, match_islands,
                 stop_rule, num_vert_stop_factor, initial_partition, initial_partitioning_repetitions, disable_refined_bubbling,
@@ -363,6 +363,8 @@ int parse_parameters(int argn, char **argv,
                 max_active_batches,
                 max_input_q_size,
                 alt_thread_queue,
+                ghost_neighbors_enabled,
+                default_weight_non_ghost,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -458,7 +460,8 @@ int parse_parameters(int argn, char **argv,
                 max_active_batches,
                 max_input_q_size,
                 alt_thread_queue,
-                write_partition,
+                ghost_neighbors_enabled,
+                default_weight_non_ghost,
                 param_int1,
                 param_int2,
                 param_int3,
@@ -960,11 +963,6 @@ int parse_parameters(int argn, char **argv,
                 partition_config.gpa_grow_paths_between_blocks = false;
         }
 
-        if (write_partition->count > 0) {
-                partition_config.suppress_output = false;
-        } else {
-                partition_config.suppress_output = true;
-        }
 
         if(suppress_output->count > 0) {
                 suppress_program_output = true;
@@ -1694,6 +1692,19 @@ int parse_parameters(int argn, char **argv,
                 }
         }
 
+        if(ghost_neighbors_enabled->count > 0) {
+                partition_config.ghost_neighbors_enabled = true;
+                partition_config.sep_batch_marker = true; // enable batch marker when ghost neighbors are enabled
+        }
+
+        if (default_weight_non_ghost->count > 0) {
+                int default_weight_non_ghost_value = static_cast<size_t>(default_weight_non_ghost->ival[0]);
+                if (default_weight_non_ghost_value != 0) {
+                        partition_config.default_weight_non_ghost = default_weight_non_ghost_value;
+                } else {
+                        std::cout << "Warning: --default_weight_non_ghost cannot be 0, setting to default value" << std::endl;
+                }
+        }
 
         if (param_int1->count > 0) {
                 partition_config.param_int1 = param_int1->ival[0];
@@ -1718,6 +1729,9 @@ int parse_parameters(int argn, char **argv,
         if (ghost_importance->count > 0) {
                 partition_config.ghost_importance = ghost_importance->dval[0];
         }
+
+
+
 
         if (bb_ratio->count > 0) {
                 partition_config.bb_ratio = bb_ratio->ival[0];

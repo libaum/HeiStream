@@ -41,8 +41,9 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
     G.set_partition_count(partition_config.k);
     partition_config.local_to_global_map = new std::vector<NodeID>(partition_config.nmbNodes);
 
-    if (partition_config.ghost_importance > 0.0f && partition_config.restream_number == 0) {
+    if (partition_config.ghost_neighbors_enabled) {
         partition_config.batch_unpartitioned_neighbors = new std::vector<std::vector<LongNodeID>>(partition_config.nmbNodes);
+        // partition_config.batch_unpartitioned_neighbors = new std::vector<std::pair<unsigned int, std::vector<LongNodeID>>>(partition_config.nmbNodes);
     }
 
     graph_io_stream::createModel(partition_config, G, batch_nodes, batch_id);

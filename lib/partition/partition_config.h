@@ -35,10 +35,12 @@ struct PartitionConfig
 
         unsigned bb_ratio; /// Buffer to batch size ratio
 
-        bool store_unpartitioned_neighbors;
-
         std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
+
+        bool ghost_neighbors_enabled;
+        EdgeWeight default_weight_non_ghost;
         float ghost_importance;
+        float inv_ghost_importance;
         bool sep_batch_marker;
         LongNodeID num_ghost_nodes;
         // bool bscore_ghost;

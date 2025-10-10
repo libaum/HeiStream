@@ -197,15 +197,17 @@ int main(int argn, char **argv) {
 
     // Helper function to create single node partition task
     auto create_single_node_task = [&](LongNodeID node_id, std::vector<LongNodeID>&& adjacents) {
-
         if (partition_config.restream_number == 0) {
+            // Check if node_id is currently active as ghost neighbor
+            bool is_active_ghost_neighbor = false;
+            if (partition_config.ghost_neighbors_enabled) {
+                is_active_ghost_neighbor = partition_config.k <= (*partition_config.stream_nodes_assign)[node_id - 1]
+                                                && (*partition_config.stream_nodes_assign)[node_id - 1] < 2 * partition_config.k;
+            }
             buffer->update_neighbours_priority_parallel(
                 adjacents,
                 true,
-                // &partition_queue,
-                // &partition_mutex,
-                // &partition_cv,
-                partition_config.stream_nodes_assign
+                is_active_ghost_neighbor
             );
             (*partition_config.stream_nodes_assign)[node_id - 1] = TO_BE_PARTITIONED;
         }
@@ -220,7 +222,6 @@ int main(int argn, char **argv) {
 
     for (partition_config.restream_number = 0; partition_config.restream_number < passes; partition_config.restream_number++) {
 
-        partition_config.store_unpartitioned_neighbors = partition_config.ghost_importance > 0 && partition_config.restream_number == 0;
 
         // ***************************** IO operations ***************************************
         TIMING_START(io_t);
@@ -366,21 +367,19 @@ int main(int argn, char **argv) {
                 LongNodeID node_id = buffer->deleteMax();
                 std::vector<LongNodeID> adjacents = std::move(buffer->get_adjacents(node_id));
 
+                // Check if node_id is currently active as ghost neighbor
+                bool is_active_ghost_neighbor = false;
+                if (partition_config.ghost_neighbors_enabled) {
+                    is_active_ghost_neighbor = partition_config.k <= (*partition_config.stream_nodes_assign)[node_id - 1]
+                                                    && (*partition_config.stream_nodes_assign)[node_id - 1] < 2 * partition_config.k;
+                }
+
+                buffer->update_neighbours_priority_parallel(adjacents, false, is_active_ghost_neighbor);
                 if (partition_config.sep_batch_marker) {
                     (*partition_config.stream_nodes_batch_marker)[node_id - 1] = cur_batch_marker;
                 } else {
                     (*partition_config.stream_nodes_assign)[node_id - 1] = cur_batch_marker;
                 }
-                buffer->update_neighbours_priority_parallel(adjacents, false);
-                // TODO: switch to
-                // buffer->update_neighbours_priority(
-                //     adjacents,
-                //     true,
-                //     &partition_queue,
-                //     &partition_mutex,
-                //     &partition_cv,
-                //     partition_config.stream_nodes_assign
-                // );
 
                 buffer->completely_remove_node(node_id);
                 return {node_id, std::move(adjacents)};
@@ -739,15 +738,15 @@ int main(int argn, char **argv) {
     // Check if all nodes are assigned
     LongNodeID count_not_assigned = 0;
     for (LongNodeID i = 0; i < partition_config.number_of_nodes; i++) {
-        if ((*partition_config.stream_nodes_assign)[i] >= partition_config.k) {
-            count_not_assigned++;
-            std::cout << "Node " << i+1 << " was not assigned to any partition. : " <<(*partition_config.stream_nodes_assign)[i] << std::endl;
-        }
-        // ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED-10000);
+        // if ((*partition_config.stream_nodes_assign)[i] >= partition_config.k) {
+        //     count_not_assigned++;
+        //     std::cout << "Node " << i+1 << " was not assigned to any partition. : " <<(*partition_config.stream_nodes_assign)[i] << std::endl;
+        // }
+        ASSERT_TRUE((*partition_config.stream_nodes_assign)[i] < TO_BE_PARTITIONED-10000);
     }
-    if (count_not_assigned > 0) {
-        std::cout << "Total nodes not assigned : " << count_not_assigned << std::endl;
-    }
+    // if (count_not_assigned > 0) {
+    //     std::cout << "Total nodes not assigned : " << count_not_assigned << std::endl;
+    // }
 
     graph_io_stream::streamEvaluatePartition(partition_config, graph_filename, total_edge_cut);
     double total_imbalance = qm.balance_full_stream(*partition_config.stream_blocks_weight);

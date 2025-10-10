@@ -63,7 +63,7 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
     // Update partition load
     (*partition_config.stream_blocks_weight)[best_partition]++;
 
-    if (partition_config.ghost_importance > 0) {
+    if (partition_config.ghost_neighbors_enabled) {
         for (LongNodeID adj_id : adjacents) {
             PartitionID adj_part = (*partition_config.stream_nodes_assign)[adj_id - 1];
             if ( adj_part == INVALID_PARTITION || partition_config.k <= adj_part && adj_part < 2 * partition_config.k ) {
@@ -72,8 +72,6 @@ inline void partition_single_node(PartitionConfig &partition_config, LongNodeID 
             }
         }
     }
-
-
 }
 
 // Effiziente Implementierung von pow für Fließkomma-Exponenten
@@ -115,8 +113,6 @@ private:
 
     std::function<void(PartitionTask&&)> push_task_callback;
 
-    const bool ghost_nodes_enabled;
-
     float b_score_dmax; /// Maximum buffer score dmax, degree factor of all degrees higher than this is counted as 1.0 in the score calculation
     bool adaptive_theta_active;
 
@@ -125,7 +121,6 @@ private:
 public:
     Buffer(PartitionConfig &partition_config, LongNodeID max_pq_size)
         :   config(partition_config),
-            ghost_nodes_enabled(config.ghost_importance > 0.0f),
             pq(partition_config, static_cast<unsigned>(std::floor(get_max_buffer_score(partition_config) * partition_config.bq_disc_factor)) + 1,
                 partition_config.number_of_nodes, max_pq_size, partition_config.bq_disc_factor) {
 
@@ -193,7 +188,7 @@ public:
             case BUFFER_SCORE_HAA:
             {
                 PartitionID pid;
-                if (!ghost_nodes_enabled) {
+                if (!config.ghost_neighbors_enabled) {
                     for (const LongNodeID& global_adj_id : adjacents) {
                         pid = (*config.stream_nodes_assign)[global_adj_id - 1];
                         if (pid != INVALID_PARTITION) {
@@ -203,6 +198,9 @@ public:
                         }
                     }
                     float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+
+                    /// OPTIMIZATION for BETA = 2
+                    // buffer_score = degree_factor * degree_factor
                     buffer_score = std::pow(degree_factor, current_beta)
                                     + (config.haa_theta0 + config.haa_theta * (1 - degree_factor)) * (static_cast<float>(cnt_adj_partitioned) / degree);
 
@@ -222,6 +220,9 @@ public:
                     }
 
                     float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+
+                     /// OPTIMIZATION for BETA = 2
+                    // buffer_score = degree_factor * degree_factor
                     buffer_score = std::pow(degree_factor, current_beta)
                                     + (config.haa_theta0 + config.haa_theta * (1 - degree_factor)) * (static_cast<float>(cnt_adj_partitioned) / degree
                                     + config.ghost_importance * (static_cast<float>(cnt_adj_ghost) / degree)); /// Add ghost neighbors to the score
@@ -232,7 +233,7 @@ public:
 
             case BUFFER_SCORE_HAA2:
             {
-                if (ghost_nodes_enabled) {
+                if (config.ghost_neighbors_enabled) {
                     unsigned cnt_adj_ghost = 0;
                     PartitionID pid;
                     for (const LongNodeID& global_adj_id : adjacents) {
@@ -441,44 +442,45 @@ public:
 
         }
 
-
         return buffer_score;
     }
 
-    float calc_updated_buffer_score(LongNodeID node_id, PQItem& buffer_item)  {
+    float calc_updated_buffer_score(LongNodeID node_id, PQItem& buffer_item, bool is_active_ghost_neighbor = false) {
         const std::vector<LongNodeID>& adjacents = buffer_item.get_adjacents();
         float degree = static_cast<float>(adjacents.size());
 
         switch (config.buffer_score_type) {
             case BUFFER_SCORE_ANR:
                 return buffer_item.buffer_score + 1.0 /  degree;
+
             case BUFFER_SCORE_HAA:
                 {
-                    float degree_factor = std::min(degree / b_score_dmax, 1.0f);
-                    return buffer_item.buffer_score + config.haa_theta * (1.0 - degree_factor) * (1.0 / degree);
-
-                    // buffer_item.num_adj_partitioned = 0;
-                    // return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
-
-
-                    // float r = std::pow(degree_factor, current_beta);
-                    // return buffer_item.buffer_score + (1 - r) * (1 / degree);
+                    if (!config.ghost_neighbors_enabled) {
+                        float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                        return buffer_item.buffer_score + config.haa_theta * (1.0 - degree_factor) * (1.0 / degree);
+                    } else {
+                        // If neighboring node from which the update is triggered is an active ghost neighbor, adjust the score update accordingly
+                        float ghost_neighbor_factor = is_active_ghost_neighbor ? (config.inv_ghost_importance) : 1.0f;
+                        float degree_factor = std::min(degree / b_score_dmax, 1.0f);
+                        return buffer_item.buffer_score + ghost_neighbor_factor * config.haa_theta * (1.0 - degree_factor) * (1.0 / degree);
+                    }
                 }
+
             case BUFFER_SCORE_HAA2:
-                {
-                    return buffer_item.buffer_score + config.haa_theta * (1.0 - std::min(degree / b_score_dmax, 1.0f)) * (1.0 / degree);
-                }
+                return buffer_item.buffer_score + config.haa_theta * (1.0 - std::min(degree / b_score_dmax, 1.0f)) * (1.0 / degree);
+
             case BUFFER_SCORE_HAA3:
-                {
-                    buffer_item.num_adj_partitioned = 0;
-                    return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
-                }
+                buffer_item.num_adj_partitioned = 0;
+                return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+
             case BUFFER_SCORE_CMS:
                 buffer_item.num_adj_partitioned = 0;
                 return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+
             case BUFFER_SCORE_NSS:
                 buffer_item.num_adj_partitioned = 0;
                 return calc_buffer_score(node_id, adjacents, buffer_item.num_adj_partitioned);
+
             case BUFFER_SCORE_GTS:
                 return MIN(buffer_item.buffer_score + config.gts_alpha, get_max_buffer_score(config));
 
@@ -652,7 +654,7 @@ public:
         // std::unordered_map<LongNodeID, PQItem>::iterator it;
 
         for (LongNodeID adj_id : adjacents) {
-            if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) { /// TODO: THIS IS A BUG I THINK, because a node can be assigned to a ghost partition
+            // if ((*config.stream_nodes_assign)[adj_id - 1] == INVALID_PARTITION) { /// TODO: THIS IS A BUG I THINK, because a node can be assigned to a ghost partition
                 if (pq.contains(adj_id)) {
                     PQItem& adj_buffer_item = pq.getBufferItem(adj_id);
                     auto &adj_adjacents = adj_buffer_item.get_adjacents();
@@ -675,7 +677,7 @@ public:
                         pq.increaseKey(adj_id, updated_buffer_score);
                     }
                 }
-            }
+            // }
         }
         TIMING_ACCUMULATE(update_adj_time, update_adj_t);
     }
@@ -683,9 +685,10 @@ public:
     // Update the priority value of the neighbours of the node that was just partitioned in the priority queue
     void update_neighbours_priority_parallel(std::vector<LongNodeID> &adjacents,
                                              bool part_adj_directly = false,
-                                             std::vector<PartitionID> *stream_nodes_assign = nullptr) {
+                                             bool is_active_ghost_neighbor = false) {
 
         TIMING_START(update_adj_t);
+
 
         if (part_adj_directly == true) {
             part_adj_directly = config.part_adj_directly;
@@ -720,12 +723,19 @@ public:
                     pq.deleteNode(adj_id);
                     completely_remove_node(adj_id);
 
+                    bool adj_is_active_ghost_neighbor = false;
+                    if (config.ghost_neighbors_enabled) {
+                        // Check if adj is active ghost neighbor
+                        adj_is_active_ghost_neighbor = config.k <= (*config.stream_nodes_assign)[adj_id - 1]
+                                                        && (*config.stream_nodes_assign)[adj_id - 1] < 2 * config.k;
+                    }
+
                     update_neighbours_priority_parallel(
                         adj_adjacents_copy,
                         true,
-                        stream_nodes_assign
+                        adj_is_active_ghost_neighbor
                     );
-                    (*stream_nodes_assign)[adj_id - 1] = TO_BE_PARTITIONED;
+                    (*config.stream_nodes_assign)[adj_id - 1] = TO_BE_PARTITIONED;
 
                     PartitionTask task(
                         -1,
@@ -737,8 +747,9 @@ public:
                     }
 
                 } else {
+
                     // Update buffer score of neighbours
-                    float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item);
+                    float updated_buffer_score = calc_updated_buffer_score(adj_id, adj_buffer_item, is_active_ghost_neighbor);
                     pq.increaseKey(adj_id, updated_buffer_score);
                 }
             }

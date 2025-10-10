@@ -159,17 +159,17 @@ set(LIBKAFFPA_SOURCE_FILES
 add_library(libkaffpa OBJECT ${LIBKAFFPA_SOURCE_FILES})
 
 # generate targets for each binary
-add_executable(heistream app/streampartition.cpp $<TARGET_OBJECTS:libkaffpa> )
-target_compile_definitions(heistream PRIVATE "-DMODE_STREAMPARTITION")
-target_link_libraries(heistream ${OpenMP_CXX_LIBRARIES} flatbuffers)
+add_executable(buffcut app/streampartition.cpp $<TARGET_OBJECTS:libkaffpa> )
+target_compile_definitions(buffcut PRIVATE "-DMODE_STREAMPARTITION")
+target_link_libraries(buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers)
 #target_link_libraries (streampartition /usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so)
-install(TARGETS heistream DESTINATION bin)
+install(TARGETS buffcut DESTINATION bin)
 
 
-add_executable(par_heistream app/streampartition_parallel.cpp $<TARGET_OBJECTS:libkaffpa> )
-target_compile_definitions(par_heistream PRIVATE "-DMODE_STREAMPARTITION")
-target_link_libraries(par_heistream ${OpenMP_CXX_LIBRARIES} flatbuffers readerwriterqueue)
-install(TARGETS par_heistream DESTINATION bin)
+add_executable(par_buffcut app/streampartition_parallel.cpp $<TARGET_OBJECTS:libkaffpa> )
+target_compile_definitions(par_buffcut PRIVATE "-DMODE_STREAMPARTITION")
+target_link_libraries(par_buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers readerwriterqueue)
+install(TARGETS par_buffcut DESTINATION bin)
 
 # add_executable(heistream_edge app/streamedgepartition.cpp $<TARGET_OBJECTS:libkaffpa> )
 # target_compile_definitions(heistream_edge PRIVATE "-DMODE_STREAMPARTITION")

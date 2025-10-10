@@ -18,8 +18,8 @@ if [ ! -d "deploy" ]; then
   mkdir deploy
 fi
 
-cp ./build/heistream deploy/
-cp ./build/par_heistream deploy/
+cp ./build/buffcut deploy/
+cp ./build/par_buffcut deploy/
 # cp ./build/heistream_edge deploy/
 # rm -r build
 
