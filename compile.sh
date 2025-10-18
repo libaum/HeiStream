@@ -1,7 +1,7 @@
 #!/bin/bash
 
 NCORES=12
-ENABLE_TIME_MEASUREMENTS=${1:-OFF}  # Default: OFF, kann über Parameter überschrieben werden
+ENABLE_TIME_MEASUREMENTS=${1:-OFF}  # Default: OFF
 unamestr=`uname`
 
 # rm -rf build
@@ -20,7 +20,6 @@ fi
 
 cp ./build/buffcut deploy/
 cp ./build/par_buffcut deploy/
-# cp ./build/heistream_edge deploy/
 # rm -r build
 
 echo "Compiled with DENABLE_TIME_MEASUREMENTS=$ENABLE_TIME_MEASUREMENTS"

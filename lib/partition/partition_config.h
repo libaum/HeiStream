@@ -30,75 +30,6 @@ struct PartitionConfig
 {
         PartitionConfig() {}
 
-        LongNodeID count_misc1;
-        LongNodeID count_misc2;
-
-        unsigned bb_ratio; /// Buffer to batch size ratio
-
-        std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
-
-        bool ghost_neighbors_enabled;
-        EdgeWeight default_weight_non_ghost;
-        float ghost_importance;
-        float inv_ghost_importance;
-        bool sep_batch_marker;
-        LongNodeID num_ghost_nodes;
-        // bool bscore_ghost;
-
-        bool alt_thread_queue;
-
-        bool restream_include_high_degree_nodes;
-        BatchExtractionStrategy batch_extraction_strategy;
-
-
-        BatchIDManager* batch_manager;
-        size_t max_active_batches;
-
-        bool print_times;
-        bool part_adj_directly;
-        size_t max_input_q_size;
-
-        BPQStorageType bpq_storage_type;
-
-        BufferScoreType buffer_score_type;
-        double gts_alpha;
-        LongNodeID d_max;
-
-        float haa_beta; // Beta parameter for haa
-        float haa_theta_min; // minimum theta value for haa
-        float haa_theta_max; // maximum theta value for haa
-        float haa_theta;
-        float haa_theta0;
-
-        float cbs_theta;
-
-        bool parallel_mlp;
-
-        int param_int1;
-        int param_int2;
-        int param_int3;
-        float param_dbl1;
-        float param_dbl2;
-        float param_dbl3;
-        bool param_enbld1;
-        bool param_enbld2;
-        bool param_enbld3;
-
-
-        float avg_degree;
-
-        LongNodeID max_block_weight;
-
-        LongNodeID total_nodes_loaded;
-        LongNodeID number_of_nodes;
-
-        std::vector<NodeID> *local_to_global_map;
-        // google::dense_hash_set<LongNodeID> *node_in_current_block_set;
-
-        LongNodeID max_pq_size;
-        unsigned bq_disc_factor;
-
-
         //============================================================
         //=======================MATCHING=============================
         //============================================================
@@ -534,8 +465,39 @@ struct PartitionConfig
         //========== Stream Partition ===========
         //=======================================
 
+        float param_dbl1;
+        bool param_enbld1;
+        std::vector<std::vector<LongNodeID>>* batch_unpartitioned_neighbors;
+        bool ghost_neighbors_enabled;
+        EdgeWeight default_weight_non_ghost;
+        float ghost_weight;
+        float inv_ghost_weight; // Inverse ghost weight for buffer score updates
+        bool sep_batch_marker;
+        LongNodeID num_ghost_nodes;
+        bool restream_include_high_degree_nodes;
+        bool alt_thread_queue;
+        BatchExtractionStrategy batch_extraction_strategy;
+        BatchIDManager* batch_manager;
+        size_t max_active_batches;
+        bool print_times;
+        bool part_adj_directly;
+        size_t max_input_q_size;
+        BPQStorageType bpq_storage_type;
+        BufferScoreType buffer_score_type;
+        LongNodeID d_max;
+        float haa_beta; // Beta parameter for haa
+        float haa_theta;
+        float cbs_theta;
+        LongNodeID max_block_weight;
+        LongNodeID total_nodes_loaded;
+        LongNodeID number_of_nodes;
+        std::vector<NodeID> *local_to_global_map;
+        unsigned bb_ratio; /// Buffer to batch size ratio
+        LongNodeID max_buffer_size;
+        unsigned bq_disc_factor;
+
         bool stream_input;
-        LongNodeID stream_buffer_len;
+        LongNodeID batch_size;
         LongNodeID remaining_stream_nodes;
         LongEdgeID remaining_stream_edges;
         LongNodeID total_nodes;

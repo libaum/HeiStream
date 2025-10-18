@@ -209,7 +209,7 @@ struct PartitionConfiguration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::T
   int32_t seed() const {
     return GetField<int32_t>(VT_SEED, 0);
   }
-  uint64_t stream_buffer() const {
+  uint64_t batch_size() const {
     return GetField<uint64_t>(VT_STREAM_BUFFER, 0);
   }
   int32_t model_mode() const {
@@ -239,8 +239,8 @@ struct PartitionConfigurationBuilder {
   void add_seed(int32_t seed) {
     fbb_.AddElement<int32_t>(PartitionConfiguration::VT_SEED, seed, 0);
   }
-  void add_stream_buffer(uint64_t stream_buffer) {
-    fbb_.AddElement<uint64_t>(PartitionConfiguration::VT_STREAM_BUFFER, stream_buffer, 0);
+  void add_stream_buffer(uint64_t batch_size) {
+    fbb_.AddElement<uint64_t>(PartitionConfiguration::VT_STREAM_BUFFER, batch_size, 0);
   }
   void add_model_mode(int32_t model_mode) {
     fbb_.AddElement<int32_t>(PartitionConfiguration::VT_MODEL_MODE, model_mode, 0);
@@ -263,11 +263,11 @@ inline ::flatbuffers::Offset<PartitionConfiguration> CreatePartitionConfiguratio
     ::flatbuffers::FlatBufferBuilder &_fbb,
     uint32_t k = 0,
     int32_t seed = 0,
-    uint64_t stream_buffer = 0,
+    uint64_t batch_size = 0,
     int32_t model_mode = 0,
     int32_t alpha = 0) {
   PartitionConfigurationBuilder builder_(_fbb);
-  builder_.add_stream_buffer(stream_buffer);
+  builder_.add_stream_buffer(batch_size);
   builder_.add_alpha(alpha);
   builder_.add_model_mode(model_mode);
   builder_.add_seed(seed);

@@ -105,7 +105,7 @@ int main(int argn, char **argv) {
         while (partition_config.remaining_stream_nodes) {
             // nmbNodes = buffer size (delta) or remaining nodes in final batch
             partition_config.nmbNodes =
-                            MIN(partition_config.stream_buffer_len,
+                            MIN(partition_config.batch_size,
                                 partition_config.remaining_stream_graph_nodes);
 
             // ****** Graph IO + Model Construction ******

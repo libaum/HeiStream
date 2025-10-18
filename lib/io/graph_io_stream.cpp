@@ -374,7 +374,7 @@ bool graph_io_stream::processQuotientEdgeInBatch(PartitionConfig &config, NodeID
     if (config.k <= targetGlobalPar && targetGlobalPar < 2 * config.k) { // Check if is ghost neighbor
         config.num_ghost_nodes++;
         targetGlobalPar -= config.k; // adjust for ghost neighbors
-        // edge_weight = config.ghost_importance * edge_weight; // adjust for ghost importance
+        // edge_weight = config.ghost_weight * edge_weight; // adjust for ghost importance
         edge_weight = 1; // adjust for ghost importance
 
     } else {
@@ -670,13 +670,10 @@ double graph_io_stream::getFennelWeight(PartitionConfig &partition_config) {
     return fennel_weight;
 }
 
-void graph_io_stream::writePartitionStream(PartitionConfig &config, std::string filename) {
-    if (filename == "") {
-        filename = config.filename_output;
-    }
-    std::ofstream f(filename.c_str());
+void graph_io_stream::writePartitionStream(PartitionConfig &config) {
+    std::ofstream f(config.filename_output.c_str());
     std::cout << "Partition completed." << std::endl;
-    std::cout << "Writing partition to " << filename << " ... " << std::endl;
+    std::cout << "Writing partition to " << config.filename_output << " ... " << std::endl;
 
     for (LongNodeID node = 0; node < config.stream_nodes_assign->size(); node++) {
         f << (*config.stream_nodes_assign)[node] << "\n";
@@ -761,10 +758,10 @@ void graph_io_stream::readFirstLineStream(PartitionConfig &partition_config, std
     partition_config.quotient_nodes = partition_config.k;
 
     total_edge_cut = 0;
-    if (partition_config.stream_buffer_len == 0) { // signal of partial restream standard buffer size
-        partition_config.stream_buffer_len = (LongNodeID)ceil(partition_config.remaining_stream_nodes / (double)partition_config.k);
+    if (partition_config.batch_size == 0) { // signal of partial restream standard buffer size
+        partition_config.batch_size = (LongNodeID)ceil(partition_config.remaining_stream_nodes / (double)partition_config.k);
     }
-    partition_config.nmbNodes = MIN(partition_config.stream_buffer_len, partition_config.remaining_stream_nodes);
+    partition_config.nmbNodes = MIN(partition_config.batch_size, partition_config.remaining_stream_nodes);
     partition_config.n_batches = ceil(partition_config.remaining_stream_nodes / (double)partition_config.nmbNodes);
     partition_config.curr_batch = 0;
     //	partition_config.stream_global_epsilon = (partition_config.imbalance)/100.;
@@ -772,8 +769,8 @@ void graph_io_stream::readFirstLineStream(PartitionConfig &partition_config, std
     partition_config.ghost_neighbors_enabled = partition_config.ghost_neighbors_enabled && partition_config.restream_number == 0;
     if (partition_config.ghost_neighbors_enabled) {
 
-        partition_config.ghost_importance = 1.0f / partition_config.default_weight_non_ghost;
-        partition_config.inv_ghost_importance = 1.0f - partition_config.ghost_importance;
+        partition_config.ghost_weight = 1.0f / partition_config.default_weight_non_ghost;
+        partition_config.inv_ghost_weight = 1.0f - partition_config.ghost_weight;
     }
 
     delete lines;
@@ -1023,11 +1020,11 @@ void graph_io_stream::readFirstLineStreamEdge(PartitionConfig &partition_config,
     partition_config.quotient_nodes = partition_config.k;
 
     total_edge_cut = 0;
-    if (partition_config.stream_buffer_len == 0) { // signal of partial restream standard buffer size
-        partition_config.stream_buffer_len = (LongNodeID)
+    if (partition_config.batch_size == 0) { // signal of partial restream standard buffer size
+        partition_config.batch_size = (LongNodeID)
             ceil(partition_config.remaining_stream_nodes / (double)partition_config.k);
     }
-    partition_config.nmbNodes = MIN(partition_config.stream_buffer_len, partition_config.remaining_stream_nodes);
+    partition_config.nmbNodes = MIN(partition_config.batch_size, partition_config.remaining_stream_nodes);
     partition_config.n_batches = ceil(partition_config.remaining_stream_nodes / (double)partition_config.nmbNodes);
     partition_config.curr_batch = 0;
 }
@@ -1495,7 +1492,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
     std::vector<PartitionID> edge_partition(nmbEdges * 2, -1);
     NodeID edgeCount = 0;
     NodeID remaining_nodes = nmbNodes;
-    NodeID batchSize = MIN(config.stream_buffer_len, remaining_nodes);
+    NodeID batchSize = MIN(config.batch_size, remaining_nodes);
     NodeID lower_node = 0;
     NodeID upper_node = lower_node + batchSize;
     // NodeID incremental_edge_ID = 0;
@@ -1522,7 +1519,7 @@ void graph_io_stream::streamEvaluatePartitionEdgeBatch(PartitionConfig &config, 
         }
         lower_node = upper_node;
         remaining_nodes = remaining_nodes - batchSize;
-        batchSize = MIN(config.stream_buffer_len, remaining_nodes);
+        batchSize = MIN(config.batch_size, remaining_nodes);
         upper_node = lower_node + batchSize;
     }
 
@@ -1640,7 +1637,7 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
     }
 
     NodeID remaining_nodes = nmbNodes;
-    NodeID batch_size = MIN(config.stream_buffer_len, remaining_nodes);
+    NodeID batch_size = MIN(config.batch_size, remaining_nodes);
     NodeID lower_node = 0;
     NodeID upper_node = lower_node + batch_size;
     NodeID node, target;
@@ -1694,7 +1691,7 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
             if (incremental_edge_counter != 0) {
                 lower_node = upper_node;
                 remaining_nodes = remaining_nodes - batch_size;
-                batch_size = MIN(config.stream_buffer_len, remaining_nodes);
+                batch_size = MIN(config.batch_size, remaining_nodes);
                 upper_node = lower_node + batch_size;
             }
         }
@@ -1743,7 +1740,7 @@ void graph_io_stream::streamEvaluateEdgePartition(PartitionConfig &config, const
             node_counter = 0;
             lower_node = upper_node;
             remaining_nodes = remaining_nodes - batch_size;
-            batch_size = MIN(config.stream_buffer_len, remaining_nodes);
+            batch_size = MIN(config.batch_size, remaining_nodes);
             upper_node = lower_node + batch_size;
         }
     }

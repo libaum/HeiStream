@@ -137,12 +137,8 @@ typedef enum {
 typedef enum {
         BUFFER_SCORE_CBS,
         BUFFER_SCORE_CBSQ,
-        BUFFER_SCORE_CBS3,
         BUFFER_SCORE_ANR,
-        BUFFER_SCORE_ANR2,
         BUFFER_SCORE_HAA,
-        BUFFER_SCORE_HAA2,
-        BUFFER_SCORE_HAA3,
         BUFFER_SCORE_CMS,
         BUFFER_SCORE_NSS,
         BUFFER_SCORE_GTS

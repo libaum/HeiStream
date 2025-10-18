@@ -59,7 +59,7 @@ public:
 
     static double getFennelWeight(PartitionConfig &partition_config);
 
-    static void writePartitionStream(PartitionConfig &config, std::string filename="");
+    static void writePartitionStream(PartitionConfig &config);
 
     static void readFirstLineStream(PartitionConfig &partition_config, std::string graph_filename, uint64_t &total_edge_cut);
 

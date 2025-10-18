@@ -184,7 +184,8 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *adapt_bal                            = arg_lit0(NULL, "adapt_bal", "Use adaptive balancing to improve balancing during inital construction. (Default: disabled)");
 
         // Stream Partition
-        struct arg_int *stream_buffer                        = arg_int0(NULL, "stream_buffer", NULL, "Buffer size (number of nodes) for stream partitioning or mapping: Default 32768.");
+        struct arg_int *max_buffer_size                      = arg_int0(NULL, "buffer_size", NULL, "Maximum bucket priority queue (buffer) size: Default 131072.");
+        struct arg_int *batch_size                           = arg_int0(NULL, "batch_size", NULL, "Batch size (number of nodes processed in one batch using multilevel partitioning): Default 16384.");
         struct arg_lit *use_fennel_objective                 = arg_lit0(NULL, "use_fennel_objective", "Use Fennel objetcive function in the local search. (Default: disabled)");
         struct arg_lit *fennel_contraction                   = arg_lit0(NULL, "fennel_contraction", "Contract graph based on Fennel's objetcive function. (Default: disabled)");
         struct arg_str *fennel_dynamics			     = arg_str0(NULL, "fennel_dynamics", NULL, "Dynamic behavior of Fennel objective in local search (original|double|linear|quadratic|midlinear|midquadratic|midconstant|edgecut). (Default: original)");
@@ -207,54 +208,28 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *automatic_buffer_len		     = arg_lit0(NULL, "automatic_buffer_len", "Automatically choose buffer size for fastest performance. (Default: disabled)");
         struct arg_int *xxx				     = arg_int0(NULL, "xxx", NULL, "tuning factor for size of coarsest graph. Default 4.");
 
-        struct arg_int *max_pq_size                     = arg_int0(NULL, "max_pq_size", NULL, "Maximum bucket priority queue size: Default 1000000.");
-        struct arg_int *bq_disc_factor                  = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 100.");
-        struct arg_str *buffer_score                    = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (cbs|cbs2|anr|cms|nss|gts|haa|haa2). Default: haa" );
-        struct arg_dbl *gts_alpha                       = arg_dbl0(NULL, "gts_alpha", NULL, "Alpha parameter for GTS buffer score. Default 0.1.");
-
-        struct arg_dbl *cbs_theta                       = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
-
-        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 1.0.");
-        struct arg_dbl *haa_theta0                       = arg_dbl0(NULL, "haa_theta0", NULL, "Theta0 parameter for haa buffer score. Default 0.0.");
-        struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "theta", NULL, "Theta parameter for haa buffer score. Default 1.0.");
-        struct arg_dbl *haa_theta_min                    = arg_dbl0(NULL, "haa_theta_min", NULL, "Min theta parameter for haa buffer score. Default 1.0.");
-        struct arg_dbl *haa_theta_max                    = arg_dbl0(NULL, "haa_theta_max", NULL, "Max theta parameter for haa buffer score. Default 1.0.");
-        struct arg_lit *parallel_mlp                    = arg_lit0(NULL, "parallel_mlp", "Run MLP parallel. (Default: disabled)");
-
-        struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
-        struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
-
-        struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
-
-        struct arg_dbl *ghost_importance                = arg_dbl0(NULL, "ghost_importance", NULL, "Ghost node importance factor in partitioning. Default 0.");
-        // struct arg_lit *bscore_ghost                     = arg_lit0(NULL, "bscore_ghost", "Use ghost node importance in buffer score. (Default: disabled)");
-        struct arg_lit *sep_batch_marker                = arg_lit0(NULL, "sep_batch_marker", "Use separate batch marker for batch id marking. (Default: disabled)");
-
-        struct arg_int *bb_ratio                        = arg_int0(NULL, "bb_ratio", NULL, "Buffer to batch size ratio. Default: not active.");
-
+        struct arg_int *bq_disc_factor                       = arg_int0(NULL, "bq_disc_factor", NULL, "Discretization factor for bucket pq: Default 1000.");
+        struct arg_str *buffer_score                         = arg_str0(NULL, "b_score", NULL, "Buffer score used in PQ (haa|cbs|cbsq|anr|cms|nss|gts). Default: haa" );
+        struct arg_dbl *cbs_theta                            = arg_dbl0(NULL, "cbs_theta", NULL, "Theta parameter for cbs buffer score. Default 2.0.");
+        struct arg_dbl *haa_beta                        = arg_dbl0(NULL, "haa_beta", NULL, "Beta parameter for haa buffer score. Default 2.0.");
+        struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "theta", NULL, "Theta parameter for haa buffer score. Default 0.75.");
         struct arg_lit *ghost_neighbors_enabled          = arg_lit0(NULL, "enable_ghost", "Enable ghost nodes in multi-level partitioning. (Default: disabled)");
         struct arg_int *default_weight_non_ghost        = arg_int0(NULL, "weight_non_ghost", NULL, "Weight of non-ghost nodes in multi-level partitioning if ghost neighbors are activated. Default: 5.");
-
-        struct arg_int *param_int1                      = arg_int0(NULL, "param_int1", NULL, "");
-        struct arg_int *param_int2                      = arg_int0(NULL, "param_int2", NULL, "");
-        struct arg_int *param_int3                      = arg_int0(NULL, "param_int3", NULL, "");
-        struct arg_dbl *param_dbl1                      = arg_dbl0(NULL, "param_dbl1", NULL, "");
-        struct arg_dbl *param_dbl2                      = arg_dbl0(NULL, "param_dbl2", NULL, "");
-        struct arg_dbl *param_dbl3                      = arg_dbl0(NULL, "param_dbl3", NULL, "");
-        struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
-        struct arg_lit *param_enbld2                    = arg_lit0(NULL, "param_enbld2", "(Default: disabled)");
-        struct arg_lit *param_enbld3                    = arg_lit0(NULL, "param_enbld3", "(Default: disabled)");
-        struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
-
-        struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1.");
+        struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1000.");
         struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 1000.");
-
-
         struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
         struct arg_lit *restream_include_high_degree_nodes= arg_lit0(NULL, "include_highdeg_nodes", "Include high degree nodes in MLP when restreaming. (Default: disabled)");
-
         struct arg_int *d_max                           = arg_int0(NULL, "d_max", NULL, "Maximum degree to be inserted into queue. Default 10000.");
 
+        struct arg_lit *disable_part_adj_direct         = arg_lit0(NULL, "disable_part_adj_direct", "(Default: enabled)");
+        struct arg_str *batch_extraction_strategy       = arg_str0(NULL, "batch_extr_strat", NULL, "Batch extraction strategy (top_node|complete_batch|complete_batch_with_adj). Default: top_node" );
+        struct arg_str *bpq_storage_type                = arg_str0(NULL, "bpq_storage_type", NULL, "Storage type in bucket PQ (map|vec). Default: map" );
+        struct arg_lit *alt_thread_queue               = arg_lit0(NULL, "alt_thread_queue", "Use alternative thread queue which uses slightly less memory but more running time. (Default: disabled)");
+        struct arg_dbl *ghost_weight                = arg_dbl0(NULL, "ghost_weight", NULL, "Ghost node importance factor in partitioning. Default 0.");
+        struct arg_lit *sep_batch_marker                = arg_lit0(NULL, "sep_batch_marker", "Use separate batch marker for batch id marking. (Default: disabled)");
+        struct arg_int *bb_ratio                        = arg_int0(NULL, "bb_ratio", NULL, "Buffer to batch size ratio. Default: not active.");
+        struct arg_dbl *param_dbl1                      = arg_dbl0(NULL, "param_dbl1", NULL, "");
+        struct arg_lit *param_enbld1                    = arg_lit0(NULL, "param_enbld1", "(Default: disabled)");
 
         // Stream Edge Partition
         struct arg_lit *benchmark =
@@ -336,7 +311,7 @@ int parse_parameters(int argn, char **argv,
                 qap_blabel_propagation, qap_alabel_propagation, qap_multitry_fm, qap_bmultitry_fm, qap_kway_fm, qap_bkway_fm, qap_quotient_ref,
                 qap_bquotient_ref, qap_0quotient_ref, quotient_more_mem, disable_bipartition_gp_local_search, enable_mapping, hierarchy_parameter_string,
                 distance_parameter_string, online_distances, map_construction_algorithm, skip_map_ls, delta_gains, use_bin_id, use_compact_bin_id,
-                full_matrix, enable_convergence_map, qap_label_iterations, adapt_bal, stream_buffer, use_fennel_objective, fennel_contraction,
+                full_matrix, enable_convergence_map, qap_label_iterations, adapt_bal, batch_size, use_fennel_objective, fennel_contraction,
                 ram_stream, write_log, stream_output_progress, fennel_dynamics, fennel_batch_order, ghost_nodes_procedure, stream_initial_bisections,
                 stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
                 initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx, benchmark,
@@ -347,17 +322,13 @@ int parse_parameters(int argn, char **argv,
                 sep_fm_unsucc_steps, sep_num_fm_reps, sep_loc_fm_unsucc_steps, sep_num_loc_fm_reps, sep_loc_fm_no_snodes,
                 sep_num_vert_stop, sep_full_boundary_ip, sep_edge_rating_during_ip, sep_faster_ns, convert_direct, use_queue, dynamic_alpha, batch_alpha,
                 minimal_mode, include_weights, parallel_nodes, num_split_edges, past_subset_size, tau, reps, filename_output, cluster_upperbound,
-                max_pq_size,
+                max_buffer_size,
                 bq_disc_factor,
                 buffer_score,
                 bpq_storage_type,
                 batch_extraction_strategy,
-                gts_alpha,
                 d_max,
                 haa_beta,
-                haa_theta_min,
-                haa_theta_max,
-                haa_theta0,
                 haa_theta,
                 cbs_theta,
                 max_active_batches,
@@ -365,23 +336,14 @@ int parse_parameters(int argn, char **argv,
                 alt_thread_queue,
                 ghost_neighbors_enabled,
                 default_weight_non_ghost,
-                param_int1,
-                param_int2,
-                param_int3,
                 param_dbl1,
-                param_dbl2,
-                param_dbl3,
-                ghost_importance,
-                bb_ratio,
-                // bscore_ghost,
-                sep_batch_marker,
                 param_enbld1,
-                param_enbld2,
-                param_enbld3,
+                ghost_weight,
+                bb_ratio,
+                sep_batch_marker,
                 disable_part_adj_direct,
                 print_times,
-                restream_include_high_degree_nodes,
-                parallel_mlp
+                restream_include_high_degree_nodes
         };
 
 
@@ -424,7 +386,7 @@ int parse_parameters(int argn, char **argv,
                 hierarchy_parameter_string,  distance_parameter_string, online_distances, filename_output,
                 map_construction_algorithm, skip_map_ls, delta_gains, use_bin_id, use_compact_bin_id, full_matrix,
                 matching_type, global_cycle_iterations, suppress_output, kway_fm_limits, enable_convergence_map,
-                qap_label_iterations, adapt_bal, stream_buffer, use_fennel_objective,
+                qap_label_iterations, adapt_bal, batch_size, use_fennel_objective,
 		fennel_contraction, ram_stream, write_log, stream_output_progress, fennel_dynamics, fennel_batch_order,
 		ghost_nodes_procedure, stream_initial_bisections, stream_allow_ghostnodes, ghost_nodes_threshold,
 		num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs, initial_part_fennel,
@@ -432,7 +394,7 @@ int parse_parameters(int argn, char **argv,
 #elif defined MODE_STREAMPARTITION
                 k, imbalance,
                 filename_output,
-                stream_buffer,
+                batch_size,
                 ram_stream,
                 write_log,
                 stream_output_progress,
@@ -444,39 +406,26 @@ int parse_parameters(int argn, char **argv,
                 label_propagation_iterations,
                 label_propagation_iterations_refinement,
                 xxx,
-                max_pq_size,
+                max_buffer_size,
                 bq_disc_factor,
                 buffer_score,
-                bpq_storage_type,
-                batch_extraction_strategy,
-                gts_alpha,
-                parallel_mlp,
+                // bpq_storage_type,
+                // batch_extraction_strategy,
+                // alt_thread_queue,
+                // ghost_weight,
+                // sep_batch_marker,
+                // bb_ratio,
+                // disable_part_adj_direct,
                 haa_beta,
-                haa_theta_min,
-                haa_theta_max,
-                haa_theta0,
                 haa_theta,
                 cbs_theta,
                 max_active_batches,
                 max_input_q_size,
-                alt_thread_queue,
                 ghost_neighbors_enabled,
                 default_weight_non_ghost,
-                param_int1,
-                param_int2,
-                param_int3,
                 param_dbl1,
-                param_dbl2,
-                param_dbl3,
                 param_enbld1,
-                param_enbld2,
-                param_enbld3,
-                disable_part_adj_direct,
                 print_times,
-                ghost_importance,
-                bb_ratio,
-                // bscore_ghost,
-                sep_batch_marker,
                 use_queue,
                 restream_include_high_degree_nodes,
                 d_max,
@@ -1639,41 +1588,25 @@ int parse_parameters(int argn, char **argv,
                 partition_config.adapt_bal = true;
         }
 
-        if(stream_buffer->count>0) {
-                partition_config.stream_buffer_len = (LongNodeID) stream_buffer->ival[0];
+        if(batch_size->count>0) {
+                partition_config.batch_size = (LongNodeID) batch_size->ival[0];
         }
 
 
-        if(max_pq_size->count > 0) {
-                partition_config.max_pq_size = max_pq_size->ival[0];
+        if(max_buffer_size->count > 0) {
+                partition_config.max_buffer_size = max_buffer_size->ival[0];
         }
 
         if(bq_disc_factor->count > 0) {
                 partition_config.bq_disc_factor = bq_disc_factor->ival[0];
         }
 
-        if(gts_alpha->count > 0) {
-                partition_config.gts_alpha = gts_alpha->dval[0];
-        }
-
         if(haa_beta->count > 0) {
                 partition_config.haa_beta = haa_beta->dval[0];
         }
 
-        if(haa_theta_min->count > 0) {
-                partition_config.haa_theta_min = haa_theta_min->dval[0];
-        }
-
-        if(haa_theta_max->count > 0) {
-                partition_config.haa_theta_max = haa_theta_max->dval[0];
-        }
-
         if(haa_theta->count > 0) {
                 partition_config.haa_theta = haa_theta->dval[0];
-        }
-
-        if(haa_theta0->count > 0) {
-                partition_config.haa_theta0 = haa_theta0->dval[0];
         }
 
         if(cbs_theta->count > 0) {
@@ -1706,40 +1639,21 @@ int parse_parameters(int argn, char **argv,
                 }
         }
 
-        if (param_int1->count > 0) {
-                partition_config.param_int1 = param_int1->ival[0];
-        }
-        if (param_int2->count > 0) {
-                partition_config.param_int2 = param_int2->ival[0];
-        }
-        if (param_int3->count > 0) {
-                partition_config.param_int3 = param_int3->ival[0];
-        }
-
         if (param_dbl1->count > 0) {
                 partition_config.param_dbl1 = param_dbl1->dval[0];
         }
-        if (param_dbl2->count > 0) {
-                partition_config.param_dbl2 = param_dbl2->dval[0];
-        }
-        if (param_dbl3->count > 0) {
-                partition_config.param_dbl3 = param_dbl3->dval[0];
+
+        if(param_enbld1->count > 0) {
+                partition_config.param_enbld1 = true;
         }
 
-        if (ghost_importance->count > 0) {
-                partition_config.ghost_importance = ghost_importance->dval[0];
+        if (ghost_weight->count > 0) {
+                partition_config.ghost_weight = ghost_weight->dval[0];
         }
-
-
-
 
         if (bb_ratio->count > 0) {
                 partition_config.bb_ratio = bb_ratio->ival[0];
         }
-
-        // if (bscore_ghost->count > 0) {
-        //         partition_config.bscore_ghost = true;
-        // }
 
         if (sep_batch_marker->count > 0) {
                 partition_config.sep_batch_marker = true;
@@ -1750,21 +1664,10 @@ int parse_parameters(int argn, char **argv,
                 partition_config.alt_thread_queue = true;
         }
 
-        if(param_enbld1->count > 0) {
-                partition_config.param_enbld1 = true;
-        }
-        if(param_enbld2->count > 0) {
-                partition_config.param_enbld2 = true;
-        }
-        if(param_enbld3->count > 0) {
-                partition_config.param_enbld3 = true;
-        }
 
         if(disable_part_adj_direct->count > 0) {
                 partition_config.part_adj_directly = false;
         }
-
-
 
         if(print_times->count > 0) {
                 partition_config.print_times = true;
@@ -1780,18 +1683,17 @@ int parse_parameters(int argn, char **argv,
         }
 
         if (bpq_storage_type->count > 0) {
-                if(strcmp("vec", bpq_storage_type->sval[0]) == 0) {
-                        partition_config.bpq_storage_type = BPQ_STORAGE_VECTOR;
-                } else if (strcmp("map", bpq_storage_type->sval[0]) == 0) {
+                if (strcmp("map", bpq_storage_type->sval[0]) == 0) {
                         partition_config.bpq_storage_type = BPQ_STORAGE_UNORDERED_MAP;
-                } else {
+                }
+                // else if(strcmp("vec", bpq_storage_type->sval[0]) == 0) {
+                //         partition_config.bpq_storage_type = BPQ_STORAGE_VECTOR;
+                // }
+                else {
                         fprintf(stderr, "Invalid BPQ storage type variant: \"%s\"\n", bpq_storage_type->sval[0]);
                         exit(0);
                 }
         }
-
-
-
 
         if (batch_extraction_strategy->count > 0) {
                 if(strcmp("top_node", batch_extraction_strategy->sval[0]) == 0) {
@@ -1819,18 +1721,10 @@ int parse_parameters(int argn, char **argv,
                         partition_config.buffer_score_type = BUFFER_SCORE_CBS;
                 } else if (strcmp("cbsq", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CBSQ;
-                } else if (strcmp("cbs3", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_CBS3;
                 } else if (strcmp("anr", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_ANR;
-                } else if (strcmp("anr2", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_ANR2;
                 } else if (strcmp("haa", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_HAA;
-                } else if (strcmp("haa2", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_HAA2;
-                } else if (strcmp("haa3", buffer_score->sval[0]) == 0) {
-                        partition_config.buffer_score_type = BUFFER_SCORE_HAA3;
                 } else if (strcmp("cms", buffer_score->sval[0]) == 0) {
                         partition_config.buffer_score_type = BUFFER_SCORE_CMS;
                 } else if (strcmp("nss", buffer_score->sval[0]) == 0) {
@@ -1842,11 +1736,6 @@ int parse_parameters(int argn, char **argv,
                         exit(0);
                 }
         }
-
-        if(parallel_mlp->count > 0) {
-                partition_config.parallel_mlp = true;
-        }
-
 
         if(use_fennel_objective->count > 0) {
                 partition_config.use_fennel_objective = true;
@@ -2028,10 +1917,10 @@ int parse_parameters(int argn, char **argv,
         }
 
         if(automatic_buffer_len->count > 0) {
-		if(stream_buffer->count>0) {
-                        std::cout << "--stream_buffer_len cannot be used together with --automatic_buffer_len." << std::endl;
+		if(batch_size->count>0) {
+                        std::cout << "--batch_size cannot be used together with --automatic_buffer_len." << std::endl;
 		}
-                partition_config.stream_buffer_len = 1024 + partition_config.k*2500;
+                partition_config.batch_size = 1024 + partition_config.k*2500;
         }
 
         if( xxx->count > 0) {

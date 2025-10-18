@@ -3,18 +3,10 @@ include(CheckCXXCompilerFlag)
 include(FetchContent)
 
 option(ENABLE_TIME_MEASUREMENTS "Enable time measurements for debugging" OFF)
-option(ENABLE_BPQ_TIME_MEASUREMENTS "Enable BucketPQ time measurements for debugging" OFF)
-
 
 if(ENABLE_TIME_MEASUREMENTS)
     add_definitions(-DENABLE_TIME_MEASUREMENTS)
 endif()
-
-if(ENABLE_BPQ_TIME_MEASUREMENTS)
-    add_definitions(-DENABLE_BPQ_TIME_MEASUREMENTS)
-endif()
-
-
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_program(CCACHE_PROGRAM ccache)

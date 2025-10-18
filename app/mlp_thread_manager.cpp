@@ -30,9 +30,8 @@ void log_memory_usage(const std::string& tag) {
     }
 }
 
-// A function to do multi-level partitioning the nodes in the batch (input)
+// Performs multi-level partitioning on the nodes contained in the batch
 void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>> *&batch_nodes, size_t batch_id) {
-// void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<LongNodeID> *&input_idxs, Buffer &buffer) {
     // Initialize the partition configuration
     graph_access G = graph_access();
     quality_metrics qm;
@@ -43,7 +42,6 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
 
     if (partition_config.ghost_neighbors_enabled) {
         partition_config.batch_unpartitioned_neighbors = new std::vector<std::vector<LongNodeID>>(partition_config.nmbNodes);
-        // partition_config.batch_unpartitioned_neighbors = new std::vector<std::pair<unsigned int, std::vector<LongNodeID>>>(partition_config.nmbNodes);
     }
 
     graph_io_stream::createModel(partition_config, G, batch_nodes, batch_id);

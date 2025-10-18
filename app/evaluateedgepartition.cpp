@@ -80,7 +80,7 @@ int main(int argn, char **argv) {
 
     std::string baseFilename = extractBaseFilename(graph_filename);
     std::string outputFileNameStream;
-    outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.stream_buffer_len) + ".bin";
+    outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.batch_size) + ".bin";
 
     std::fstream file(outputFileNameStream, std::ios::binary | std::ios::in | std::ios::out);
 
@@ -120,7 +120,7 @@ int main(int argn, char **argv) {
     const PartitionInfo::PartitionConfiguration* config = edgePartition->partition_configuration();
     uint32_t k = config->k();
     int seed = config->seed();
-    uint64_t streamBuffer = config->stream_buffer();
+    uint64_t streamBuffer = config->batch_size();
     int modelMode = config->model_mode();
     int alpha = config->alpha();
     std::cout << "Blocks = k: " << k << std::endl;
@@ -200,7 +200,7 @@ int main(int argn, char **argv) {
                                                edgePartition->graph_metadata()->num_edges()),
                 GraphPartitionInfoInfo::CreatePartitionConfiguration(builder, edgePartition->partition_configuration()->k(),
                                                         edgePartition->partition_configuration()->seed(),
-                                                        edgePartition->partition_configuration()->stream_buffer(),
+                                                        edgePartition->partition_configuration()->batch_size(),
                                                         edgePartition->partition_configuration()->model_mode(),
                                                         edgePartition->partition_configuration()->alpha()),
                 PartitionInfo::CreateRunTime(builder, edgePartition->runtime()->io_time(),
@@ -219,7 +219,7 @@ int main(int argn, char **argv) {
         int bufferSize = builder.GetSize();
         file.close();
 
-        std::string outputFileNameStream_w = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.stream_buffer_len) + "_stats.bin";
+        std::string outputFileNameStream_w = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.batch_size) + "_stats.bin";
         const char* outputFileName = outputFileNameStream_w.c_str();
         FILE* file_w = fopen(outputFileName, "wb");
         fwrite(bufferPointer, 1, bufferSize, file_w);

@@ -17,7 +17,7 @@ table GraphMetadata {
 table PartitionConfiguration {
     k: uint;
     seed: int;
-    stream_buffer: ulong;
+    batch_size: ulong;
     model_mode:int; //-1 = minimal mode
     alpha:int; // 0 = batch alpha, 1 = static alpha, 2 = dynamic alpha
 }

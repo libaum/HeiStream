@@ -486,7 +486,7 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         // Stream Partition
         partition_config.stream_input                      = false;
-        partition_config.stream_buffer_len                 = 16384; //32768;
+        partition_config.batch_size                 = 16384; //32768;
         partition_config.remaining_stream_nodes            = UNDEFINED_LONGNODE;
         partition_config.remaining_stream_edges            = UNDEFINED_LONGEDGE;
         partition_config.remaining_stream_ew               = 0;
@@ -553,42 +553,29 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
 
         partition_config.haa_beta                       = 2.0f;
         partition_config.haa_theta                       = 0.75f;
-        partition_config.haa_theta0                      = 0.0f;
-        partition_config.haa_theta_min                   = 1.0f;
-        partition_config.haa_theta_max                   = 1.0f;
         partition_config.cbs_theta                      = 2.0f;
 
         /// Ghost neighbor handling
         partition_config.ghost_neighbors_enabled         = false;
         partition_config.default_weight_non_ghost       = 5;
-        partition_config.ghost_importance               = 0.0f;
+        partition_config.ghost_weight                   = 0.0f;
         partition_config.sep_batch_marker                = false;
 
         partition_config.bb_ratio                        = UNDEFINED_BB_RATIO;
 
         partition_config.batch_unpartitioned_neighbors  = NULL;
         partition_config.num_ghost_nodes                 = 0;
-        // partition_config.bscore_ghost                     = false;
 
-        partition_config.param_int1                     = 0;
-        partition_config.param_int2                     = 0;
-        partition_config.param_int3                     = 0;
         partition_config.param_dbl1                     = 0;
-        partition_config.param_dbl2                     = 0;
-        partition_config.param_dbl3                     = 0;
         partition_config.param_enbld1                   = false;
-        partition_config.param_enbld2                   = false;
-        partition_config.param_enbld3                   = false;
 
         partition_config.part_adj_directly              = true;
 
         partition_config.bpq_storage_type               = BPQ_STORAGE_UNORDERED_MAP;
 
-        partition_config.max_pq_size                    = 131072;
+        partition_config.max_buffer_size                = 131072;
         partition_config.bq_disc_factor                 = 1000;
-        partition_config.gts_alpha                      = 0.1f;
         partition_config.d_max                          = 10000;
-        partition_config.parallel_mlp                   = false;
 
     // Stream Edge Partition
     partition_config.remaining_stream_nodes_OG = UNDEFINED_LONGNODE;    // new

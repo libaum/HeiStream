@@ -83,7 +83,7 @@
             builder, filenameOffset, partition_config.total_nodes, partition_config.total_edges);
 
         auto configdata = PartitionInfo::CreatePartitionConfiguration(
-            builder, partition_config.k, partition_config.seed, partition_config.stream_buffer_len,
+            builder, partition_config.k, partition_config.seed, partition_config.batch_size,
             partition_config.minimal_mode ? -1 : 0,
             partition_config.batch_alpha ? 0 : 0);
 
@@ -119,7 +119,7 @@
          int bufferSize = builder.GetSize();
 
          std::string outputFileNameStream;
-         outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.stream_buffer_len) + "_" + std::to_string(partition_config.max_pq_size) + ".bin";
+         outputFileNameStream = baseFilename + "_" + std::to_string(partition_config.k) + "_" + std::to_string(partition_config.batch_size) + "_" + std::to_string(partition_config.max_buffer_size) + ".bin";
          const char* outputFileName = outputFileNameStream.c_str();
          if(partition_config.write_log) {
              FILE *file = fopen(outputFileName, "wb");
@@ -130,7 +130,7 @@
          if (!SUPPRESS_OUTPUT){
              std::cout << "Blocks = k: " << partition_config.k << std::endl;
              std::cout << "Seed: " << partition_config.seed << std::endl;
-             std::cout << "Stream Buffer: " << partition_config.stream_buffer_len << std::endl;
+             std::cout << "Stream Buffer: " << partition_config.batch_size << std::endl;
              std::cout << "Graph: " << baseFilename << std::endl;
              std::cout << "Nodes (n): " << partition_config.total_nodes << std::endl;
              std::cout << "Edges (m): " << partition_config.total_edges << std::endl;
