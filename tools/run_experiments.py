@@ -2,19 +2,31 @@
 """
 Utility to launch BuffCut experiments described by JSON configs.
 
-Example:
+Features:
+    * Sequential execution (default)
+    * Dry-run listing of commands
+    * Plan-only mode that emits per-run JSON tasks for GNU parallel
+    * Single-task execution with optional memory limits (used by parallel wrapper)
+
+Example sequential run:
     python tools/run_experiments.py --config experiments/configs/buffer_sweep.json
+
+Example parallel workflow:
+    python tools/run_experiments.py --config ... --plan-output-dir /tmp/tasks --plan-only
+    parallel --jobs 4 python tools/run_experiments.py --run-task {} --memory-limit-mb 8000 ::: /tmp/tasks/*.json
 """
 
 import argparse
 import json
 import os
+import resource
+import signal
 import subprocess
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Any, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 
 def parse_cli() -> argparse.Namespace:
@@ -23,9 +35,8 @@ def parse_cli() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config",
-        required=True,
         type=Path,
-        help="Path to the JSON configuration that defines the experiment.",
+        help="Path to the JSON experiment definition (required unless --run-task is used).",
     )
     parser.add_argument(
         "--results-root",
@@ -49,6 +60,28 @@ def parse_cli() -> argparse.Namespace:
         "--keep-going",
         action="store_true",
         help="Continue executing remaining runs even if one fails.",
+    )
+    parser.add_argument(
+        "--plan-output-dir",
+        type=Path,
+        help="Directory where per-run task JSON files should be written for GNU parallel.",
+    )
+    parser.add_argument(
+        "--plan-only",
+        action="store_true",
+        help="Only create task files (requires --plan-output-dir) without executing runs.",
+    )
+    parser.add_argument(
+        "--run-task",
+        type=Path,
+        help="Execute a single task JSON (produced via --plan-output-dir).",
+    )
+    parser.add_argument(
+        "--memory-limit-mb",
+        type=int,
+        default=None,
+        help="Limit each run to the given amount of RAM (MB). When exceeded, the run is killed "
+        "and the metadata marks the termination signal.",
     )
     return parser.parse_args()
 
@@ -92,7 +125,7 @@ def ensure_executable(path: Path) -> Path:
         raise SystemExit(f"Executable '{path}' does not exist. Build the project first.")
     if not os.access(path, os.X_OK):
         raise SystemExit(f"Executable '{path}' is not marked as executable.")
-    return path
+    return path.resolve()
 
 
 def snapshot_config(config: Dict[str, Any], experiment_root: Path) -> None:
@@ -105,18 +138,14 @@ def write_meta(meta: Dict[str, Any], path: Path) -> None:
     path.write_text(json.dumps(meta, indent=2) + "\n")
 
 
-def run_experiments(cfg: Dict[str, Any], args: argparse.Namespace) -> None:
+def enumerate_tasks(
+    cfg: Dict[str, Any],
+    binary_path: Path,
+    results_root: Path,
+) -> List[Dict[str, Any]]:
     experiment_name = cfg.get("experiment_name")
     if not experiment_name:
         raise SystemExit("Config must contain 'experiment_name'.")
-
-    binary_path = args.binary or cfg.get("base_command")
-    if not binary_path:
-        raise SystemExit("Config must specify 'base_command' or pass --binary.")
-    binary_path = ensure_executable(Path(binary_path)).resolve()
-
-    results_root = args.results_root / experiment_name
-    snapshot_config(cfg, results_root)
 
     graphs = cfg.get("graphs", [])
     if not graphs:
@@ -133,6 +162,9 @@ def run_experiments(cfg: Dict[str, Any], args: argparse.Namespace) -> None:
         k_values = [int(k) for k in k_values]
     else:
         k_values = [None]
+
+    tasks: List[Dict[str, Any]] = []
+    task_id = 0
 
     for graph in graphs:
         graph_name = graph.get("name")
@@ -156,19 +188,22 @@ def run_experiments(cfg: Dict[str, Any], args: argparse.Namespace) -> None:
                     run_dir = run_dir / f"k_{k_value}"
                 run_dir = run_dir / variant_name
                 run_dir.mkdir(parents=True, exist_ok=True)
+
                 combined_args = merge_arg_maps(
                     [cfg.get("common_args"), graph_args, variant_args]
                 )
                 if k_value is not None:
                     combined_args["--k"] = k_value
                 if "--k" not in combined_args:
-                    raise SystemExit("No value for --k supplied (set common_args['--k'] or provide k_values).")
+                    raise SystemExit(
+                        "No value for --k supplied (set common_args['--k'] or provide k_values)."
+                    )
 
                 cmd = [str(binary_path)] + flatten_args(combined_args) + [str(graph_abs)]
 
-                timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
                 log_path = run_dir / "run.log"
-                meta = {
+                meta_path = run_dir / "run_meta.json"
+                task_meta = {
                     "experiment": experiment_name,
                     "graph": graph_name,
                     "graph_path": str(graph_abs),
@@ -177,50 +212,145 @@ def run_experiments(cfg: Dict[str, Any], args: argparse.Namespace) -> None:
                     "command": cmd,
                     "combined_args": combined_args,
                     "run_directory": str(run_dir.resolve()),
-                    "timestamp_utc": timestamp,
                 }
 
-                if args.dry_run:
-                    print("[DRY-RUN]", " ".join(cmd))
-                    continue
+                task = {
+                    "id": task_id,
+                    "command": cmd,
+                    "run_dir": str(run_dir),
+                    "log_path": str(log_path),
+                    "meta_path": str(meta_path),
+                    "meta": task_meta,
+                }
+                tasks.append(task)
+                task_id += 1
 
-                log_path.write_text(
-                    f"# Command: {' '.join(cmd)}\n# Started: {timestamp} UTC\n\n"
-                )
-                start = time.time()
-                with log_path.open("a") as log_file:
-                    result = subprocess.run(
-                        cmd,
-                        cwd=run_dir,
-                        stdout=log_file,
-                        stderr=subprocess.STDOUT,
-                        check=False,
-                    )
-                duration = time.time() - start
-                bin_files = sorted(p.name for p in run_dir.glob("*.bin"))
+    return tasks
 
-                meta.update(
-                    {
-                        "duration_seconds": duration,
-                        "returncode": result.returncode,
-                        "status": "success" if result.returncode == 0 else "failed",
-                        "bin_files": bin_files,
-                    }
-                )
-                write_meta(meta, run_dir / "run_meta.json")
 
-                if result.returncode != 0:
-                    msg = f"Run {experiment_name}/{graph_name}/k_{combined_args.get('--k')}/{variant_name} failed."
-                    if args.keep_going:
-                        print(msg, file=sys.stderr)
-                        continue
-                    raise SystemExit(msg)
+def _build_preexec(memory_limit_mb: Optional[int]):
+    if memory_limit_mb is None:
+        return None
+
+    limit_bytes = int(memory_limit_mb) * 1024 * 1024
+
+    def preexec():
+        resource.setrlimit(resource.RLIMIT_AS, (limit_bytes, limit_bytes))
+
+    return preexec
+
+
+def execute_task(task: Dict[str, Any], args: argparse.Namespace) -> None:
+    cmd = task["command"]
+    run_dir = Path(task["run_dir"])
+    log_path = Path(task["log_path"])
+    meta_path = Path(task["meta_path"])
+    meta = dict(task["meta"])
+
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    meta["timestamp_utc"] = timestamp
+
+    if args.dry_run:
+        print("[DRY-RUN]", " ".join(cmd))
+        return
+
+    header = f"# Command: {' '.join(cmd)}\n# Started: {timestamp} UTC\n\n"
+    log_path.write_text(header)
+
+    start = time.time()
+    preexec_fn = _build_preexec(args.memory_limit_mb)
+    with log_path.open("a") as log_file:
+        result = subprocess.run(
+            cmd,
+            cwd=run_dir,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            check=False,
+            preexec_fn=preexec_fn,
+        )
+    duration = time.time() - start
+
+    bin_files = sorted(p.name for p in run_dir.glob("*.bin"))
+    meta.update(
+        {
+            "duration_seconds": duration,
+            "returncode": result.returncode,
+            "status": "success" if result.returncode == 0 else "failed",
+            "bin_files": bin_files,
+        }
+    )
+    if args.memory_limit_mb is not None:
+        meta["memory_limit_mb"] = args.memory_limit_mb
+        if result.returncode < 0:
+            meta["terminated_by_signal"] = -result.returncode
+            if -result.returncode == signal.SIGKILL:
+                meta["memory_limit_exceeded"] = True
+
+    write_meta(meta, meta_path)
+
+    if result.returncode != 0 and not args.keep_going:
+        if result.returncode < 0:
+            msg = (
+                f"Run in {run_dir} terminated by signal {-result.returncode} "
+                f"(command: {' '.join(cmd)})"
+            )
+        else:
+            msg = f"Run in {run_dir} failed with exit code {result.returncode}"
+        raise SystemExit(msg)
+
+
+def write_task_files(tasks: List[Dict[str, Any]], output_dir: Path) -> List[Path]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths: List[Path] = []
+    for task in tasks:
+        graph = task["meta"]["graph"]
+        variant = task["meta"]["variant"]
+        k_val = task["meta"].get("k", 0)
+        safe_graph = graph.replace("/", "_")
+        safe_variant = variant.replace("/", "_")
+        filename = f"task_{task['id']:04d}_{safe_graph}_k{k_val}_{safe_variant}.json"
+        task_path = output_dir / filename
+        task_path.write_text(json.dumps(task, indent=2) + "\n")
+        paths.append(task_path)
+    return paths
 
 
 def main() -> None:
-    cli_args = parse_cli()
-    config = load_config(cli_args.config)
-    run_experiments(config, cli_args)
+    args = parse_cli()
+
+    if args.run_task:
+        task_data = json.loads(args.run_task.read_text())
+        execute_task(task_data, args)
+        return
+
+    if not args.config:
+        raise SystemExit("--config is required unless --run-task is supplied.")
+    if args.plan_only and not args.plan_output_dir:
+        raise SystemExit("--plan-only requires --plan-output-dir.")
+
+    cfg = load_config(args.config)
+
+    binary_path = args.binary or cfg.get("base_command")
+    if not binary_path:
+        raise SystemExit("Config must specify 'base_command' or pass --binary.")
+    binary_path = ensure_executable(Path(binary_path))
+
+    experiment_name = cfg.get("experiment_name")
+    if not experiment_name:
+        raise SystemExit("Config must contain 'experiment_name'.")
+
+    results_root = args.results_root / experiment_name
+    snapshot_config(cfg, results_root)
+    tasks = enumerate_tasks(cfg, binary_path, results_root)
+
+    if args.plan_output_dir:
+        task_files = write_task_files(tasks, args.plan_output_dir)
+        print(f"Wrote {len(task_files)} task files to {args.plan_output_dir}")
+        if args.plan_only:
+            return
+
+    for task in tasks:
+        execute_task(task, args)
 
 
 if __name__ == "__main__":

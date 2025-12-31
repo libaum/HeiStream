@@ -84,4 +84,11 @@ Configs may include `k_values: [4,8,16,32,64,128,256]` (or any list) to sweep ov
 partition counts automatically; per-graph/variant runs are spawned for every listed `k`.
 Point `tools/analyze_experiments.py` at any of these folders to obtain CSV summaries and
 per-variant averages of quality, locality, runtime, and memory consumption, including a
-breakdown by `k`.
+breakdown by `k`. For large sweeps, plan the runs and execute them with GNU parallel:
+
+```bash
+tools/run_experiments_parallel.sh experiments/configs/buffer_sweep.json deploy/buffcut 4 8192
+```
+
+The helper enforces an 8 GB limit per process (via `RLIMIT_AS`) and reports if a run
+is killed due to exceeding the cap.

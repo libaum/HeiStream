@@ -7,7 +7,7 @@ organizes results, and records metadata needed for reproducible analysis.
 ## Running an experiment
 
 1. Build a BuffCut binary (e.g., `cmake -S . -B build && cmake --build build -j`).
-2. Launch the experiment runner:
+2. Launch the experiment runner sequentially:
 
    ```bash
    python tools/run_experiments.py --config experiments/configs/buffer_sweep.json
@@ -82,3 +82,29 @@ The analyzer relies on the metadata recorded by `run_experiments.py` and uses th
 FlatBuffer reader from `tools/parse_partition_log.py`. It prints both aggregated averages
 over all `k` values and a second table broken down per `k`, which makes it easy to
 compare scalability across partition counts.
+
+## Running with GNU parallel and memory limits
+
+To fan out many runs in parallel (with a per-process RAM cap), use the planning mode plus
+the helper script:
+
+```bash
+# Plan tasks and execute them with GNU parallel (4 jobs, 8GB per run)
+tools/run_experiments_parallel.sh \
+    experiments/configs/buffer_sweep.json \
+    deploy/buffcut \
+    4 \
+    8192 \
+    /tmp/buffcut_tasks
+```
+
+Internally this:
+1. Calls `python tools/run_experiments.py --plan-output-dir ... --plan-only` to create
+   per-run task JSON files describing the command, run directory, and metadata paths.
+2. Invokes GNU parallel so each task is executed via
+   `python tools/run_experiments.py --run-task task.json --memory-limit-mb <limit>`.
+   The Python runner applies an OS-level address-space limit (RLIMIT_AS), reports if a
+   run is killed by SIGKILL due to overuse, and still writes the standard logs/metadata.
+
+You can also create the task directory manually and inspect the JSON files before
+launching GNU parallel if you need to customize the invocation further.
