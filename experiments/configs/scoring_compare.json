@@ -1,0 +1,67 @@
+{
+  "experiment_name": "scoring_compare",
+  "description": "Fixed buffer and batch sizes while comparing PQ scoring functions.",
+  "base_command": "build/buffcut",
+  "k_values": [
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "graphs": [
+    {
+      "name": "delaunay_n15",
+      "path": "examples/delaunay_n15.graph"
+    },
+    {
+      "name": "rgg_n_2_15_s0",
+      "path": "examples/rgg_n_2_15_s0.graph"
+    }
+  ],
+  "common_args": {
+    "--batch_size": 16384,
+    "--buffer_size": 131072,
+    "--num_streams_passes": 1,
+    "--write_log": true,
+    "--collect_locality_metrics": true,
+    "--use_queue": true,
+    "--use_flat_g2l_map": true,
+    "--output_filename": "/dev/null",
+    "--benchmark": true
+  },
+  "variants": [
+    {
+      "name": "score_haa",
+      "args": {
+        "--b_score": "haa"
+      }
+    },
+    {
+      "name": "score_cbs",
+      "args": {
+        "--b_score": "cbs"
+      }
+    },
+    {
+      "name": "score_cbsq",
+      "args": {
+        "--b_score": "cbsq"
+      }
+    },
+    {
+      "name": "score_nss",
+      "args": {
+        "--b_score": "nss"
+      }
+    },
+    {
+      "name": "score_gts",
+      "args": {
+        "--b_score": "gts"
+      }
+    }
+  ]
+}

@@ -195,6 +195,7 @@ int parse_parameters(int argn, char **argv,
         struct arg_lit *stream_initial_bisections	     = arg_lit0(NULL, "stream_initial_bisections", "Compute initial solution at the coarsest level for each buffer. (Default: compute preliminary Fennel)");
         struct arg_lit *stream_output_progress		     = arg_lit0(NULL, "stream_output_progress", "Output global partition after each batch is partitioned. (Default: disabled)");
         struct arg_lit *stream_allow_ghostnodes		     = arg_lit0(NULL, "stream_allow_ghostnodes", "Improve partitioning using information about unvisited neighbors of the nodes in each batch. (Default: disabled)");
+        struct arg_lit *use_flat_g2l_map                      = arg_lit0(NULL, "use_flat_g2l_map", "Use absl::flat_hash_map for the global-to-local batch map (Default: disabled).");
         struct arg_str *ghost_nodes_procedure		     = arg_str0(NULL, "ghost_nodes_procedure", NULL, "procedure regarding ghost neighbors (contract|keep|keepthresholdcontract). (Default: contract)");
         struct arg_dbl *ghost_nodes_threshold                = arg_dbl0(NULL, "ghost_nodes_threshold", NULL, "Number of uncontracted ghost nodes allowed per batch. (Default: 1024).");
         struct arg_dbl *num_streams_passes		     = arg_dbl0(NULL, "num_streams_passes", NULL, "Number of times input graph should be streamed. (Default: 1).");
@@ -215,6 +216,9 @@ int parse_parameters(int argn, char **argv,
         struct arg_dbl *haa_theta                       = arg_dbl0(NULL, "theta", NULL, "Theta parameter for haa buffer score. Default 0.75.");
         struct arg_lit *ghost_neighbors_enabled          = arg_lit0(NULL, "enable_ghost", "Enable ghost nodes in multi-level partitioning. (Default: disabled)");
         struct arg_int *default_weight_non_ghost        = arg_int0(NULL, "weight_non_ghost", NULL, "Weight of non-ghost nodes in multi-level partitioning if ghost neighbors are activated. Default: 5.");
+        struct arg_dbl *buffer_neighbor_weight          = arg_dbl0(NULL, "buffer_neighbor_w", NULL, "Weight for buffered-neighbor score bonus. Default: 0.");
+        struct arg_dbl *batch_frontier_weight           = arg_dbl0(NULL, "batch_frontier_w", NULL, "Weight for frontier-neighbor score bonus. Default: 0.");
+        struct arg_lit *collect_locality_metrics        = arg_lit0(NULL, "collect_locality_metrics", "Compute per-batch locality metrics when writing logs. (Default: disabled)");
         struct arg_int *max_active_batches              = arg_int0(NULL, "max_batches", NULL, "Maximum number of active batches. Default: 1000.");
         struct arg_int *max_input_q_size                = arg_int0(NULL, "max_input_q_size", NULL, "Maximum size of input queue. Default: 1000.");
         struct arg_lit *print_times                     = arg_lit0(NULL, "print_times", "Print out times. (Default: disabled)");
@@ -313,7 +317,7 @@ int parse_parameters(int argn, char **argv,
                 distance_parameter_string, online_distances, map_construction_algorithm, skip_map_ls, delta_gains, use_bin_id, use_compact_bin_id,
                 full_matrix, enable_convergence_map, qap_label_iterations, adapt_bal, batch_size, use_fennel_objective, fennel_contraction,
                 ram_stream, write_log, stream_output_progress, fennel_dynamics, fennel_batch_order, ghost_nodes_procedure, stream_initial_bisections,
-                stream_allow_ghostnodes, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
+                stream_allow_ghostnodes, use_flat_g2l_map, ghost_nodes_threshold, num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs,
                 initial_part_fennel, skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx, benchmark,
                 light_evaluator, label_propagation_iterations, label_propagation_iterations_refinement, graph_translation_specs, no_relabel,
                 input_header_absent, end,
@@ -335,6 +339,9 @@ int parse_parameters(int argn, char **argv,
                 max_input_q_size,
                 alt_thread_queue,
                 ghost_neighbors_enabled,
+                buffer_neighbor_weight,
+                batch_frontier_weight,
+                collect_locality_metrics,
                 default_weight_non_ghost,
                 param_dbl1,
                 param_enbld1,
@@ -388,7 +395,8 @@ int parse_parameters(int argn, char **argv,
                 matching_type, global_cycle_iterations, suppress_output, kway_fm_limits, enable_convergence_map,
                 qap_label_iterations, adapt_bal, batch_size, use_fennel_objective,
 		fennel_contraction, ram_stream, write_log, stream_output_progress, fennel_dynamics, fennel_batch_order,
-		ghost_nodes_procedure, stream_initial_bisections, stream_allow_ghostnodes, ghost_nodes_threshold,
+		ghost_nodes_procedure, stream_initial_bisections, stream_allow_ghostnodes, use_flat_g2l_map, ghost_nodes_threshold,
+                buffer_neighbor_weight, batch_frontier_weight,
 		num_streams_passes, restream_vcycle, batch_inbalance, initial_part_multi_bfs, initial_part_fennel,
 		skip_outer_ls, use_fennel_edgecut_objectives, stream_label_rounds, automatic_buffer_len, xxx,
 #elif defined MODE_STREAMPARTITION
@@ -422,6 +430,8 @@ int parse_parameters(int argn, char **argv,
                 max_active_batches,
                 max_input_q_size,
                 ghost_neighbors_enabled,
+                buffer_neighbor_weight,
+                batch_frontier_weight,
                 default_weight_non_ghost,
                 param_dbl1,
                 param_enbld1,
@@ -429,6 +439,9 @@ int parse_parameters(int argn, char **argv,
                 use_queue,
                 restream_include_high_degree_nodes,
                 d_max,
+                use_flat_g2l_map,
+                collect_locality_metrics,
+                suppress_output,
 #elif defined MODE_SPMXV_MULTILEVELMAPPING
                 k, imbalance,
                 preconfiguration,
@@ -1761,6 +1774,22 @@ int parse_parameters(int argn, char **argv,
                 partition_config.stream_allow_ghostnodes = true;
 		partition_config.stream_whole_adjacencies = true;
 		partition_config.double_non_ghost_edges = true;
+        }
+
+        if(use_flat_g2l_map->count > 0) {
+                partition_config.use_flat_global_to_local_map = true;
+        }
+
+        if(buffer_neighbor_weight->count > 0) {
+                partition_config.buffer_neighbor_weight = buffer_neighbor_weight->dval[0];
+        }
+
+        if(batch_frontier_weight->count > 0) {
+                partition_config.batch_frontier_weight = batch_frontier_weight->dval[0];
+        }
+
+        if(collect_locality_metrics->count > 0) {
+                partition_config.collect_locality_metrics = true;
         }
 
         if(stream_initial_bisections->count > 0) {

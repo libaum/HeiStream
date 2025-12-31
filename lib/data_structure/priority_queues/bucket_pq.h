@@ -127,6 +127,9 @@ inline void bucket_pq::update_insert(LongNodeID node, float buffer_score) {
 
 
 inline void bucket_pq::insert(LongNodeID node, float buffer_score,  std::vector<LongNodeID>& adjacents, unsigned num_adj_partitioned, unsigned bucket_idx) {
+    if (bucket_idx >= m_gain_span) {
+        bucket_idx = m_gain_span - 1;
+    }
     if (bucket_idx > m_max_idx) {
         m_max_idx = bucket_idx;
     }

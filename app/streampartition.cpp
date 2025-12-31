@@ -209,12 +209,16 @@ int main(int argn, char **argv) {
                 // If buffer is full, partition either the top node or a batch of top nodes using MLP
                 if (buffer->size() >= partition_config.max_buffer_size) {
                     if (use_mlp) {
-                        if (current_batch == nullptr) {
-                            current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
-                            current_batch->reserve(MIN(partition_config.batch_size, buffer->size()));
+                    if (current_batch == nullptr) {
+                        current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
+                        current_batch->reserve(MIN(partition_config.batch_size, buffer->size()));
+                        if (partition_config.restream_number == 0) {
+                            partition_config.batch_frontier_active = true;
+                            partition_config.current_batch_marker = cur_batch_marker;
                         }
+                    }
 
-                        bool perform_mlp = false;
+                    bool perform_mlp = false;
                         if (partition_config.batch_extraction_strategy == BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
 
                             LongNodeID top_node_id = buffer->deleteMax();
@@ -244,6 +248,8 @@ int main(int argn, char **argv) {
                             TIMING_START(t_mlp);
                             perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
                             TIMING_ACCUMULATE(mlp_time, t_mlp);
+                            partition_config.batch_frontier_active = false;
+                            partition_config.current_batch_marker = INVALID_PARTITION;
 
                             partition_config.batch_manager->release_id(cur_batch_id);
                             cur_batch_id = partition_config.batch_manager->acquire_id();
@@ -264,6 +270,8 @@ int main(int argn, char **argv) {
                     partition_config.nmbNodes = current_batch->size();
 
                     perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
+                    partition_config.batch_frontier_active = false;
+                    partition_config.current_batch_marker = INVALID_PARTITION;
 
                     partition_config.batch_manager->release_id(cur_batch_id);
                     cur_batch_id = partition_config.batch_manager->acquire_id();
@@ -283,12 +291,16 @@ int main(int argn, char **argv) {
                     if (current_batch == nullptr) {
                         current_batch = new std::vector<std::pair<LongNodeID, std::vector<LongNodeID>>>();
                         current_batch->reserve(MIN(partition_config.batch_size, buffer->size()));
+                        partition_config.batch_frontier_active = true;
+                        partition_config.current_batch_marker = cur_batch_marker;
                     }
                     buffer->loadTopNodesToBatch(current_batch, partition_config.batch_size, cur_batch_id);
                     TIMING_START(t_mlp);
                     partition_config.nmbNodes = current_batch->size();
                     perform_mlp_on_batch(partition_config, current_batch, cur_batch_id);
                     TIMING_ACCUMULATE(mlp_time, t_mlp);
+                    partition_config.batch_frontier_active = false;
+                    partition_config.current_batch_marker = INVALID_PARTITION;
                 }
             } else {
                 while (!buffer->isEmpty()) {
@@ -300,6 +312,9 @@ int main(int argn, char **argv) {
             updating_adj_time = buffer->get_update_adj_time();
             delete buffer;
         }
+
+        partition_config.batch_frontier_active = false;
+        partition_config.current_batch_marker = INVALID_PARTITION;
 
         TIMING_ACCUMULATE(second_phase_time, second_phase_t);
 
@@ -356,7 +371,7 @@ int main(int argn, char **argv) {
                 << std::endl;
 
     // write the partition to the disc
-    if (!partition_config.suppress_output) {
+    if (!partition_config.benchmark) {
         graph_io_stream::writePartitionStream(partition_config);
     } else {
         std::cout << "No partition will be written as output." << std::endl;
@@ -417,6 +432,3 @@ std::string extractBaseFilename(const std::string &fullPath) {
         return fullPath.substr(0, lastDot);
     }
 }
-
-
-

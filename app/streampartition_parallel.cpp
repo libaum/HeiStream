@@ -319,6 +319,18 @@ int main(int argn, char **argv) {
 
             LongNodeID total_nodes_processed = 0;
 
+            auto activate_frontier = [&]() {
+                if (!partition_config.batch_frontier_active) {
+                    partition_config.batch_frontier_active = true;
+                    partition_config.current_batch_marker = cur_batch_marker;
+                }
+            };
+
+            auto deactivate_frontier = [&]() {
+                partition_config.batch_frontier_active = false;
+                partition_config.current_batch_marker = INVALID_PARTITION;
+            };
+
             // Helper function for batch creation from manually collected nodes
             auto create_batch_task = [&]() {
                 // Create batch task with manually collected nodes
@@ -328,6 +340,7 @@ int main(int argn, char **argv) {
                 current_batch.reserve(partition_config.batch_size);
 
                 push_to_partition_queue(std::move(task));
+                deactivate_frontier();
 
                 // Update batch id and marker for next batch
                 cur_batch_id = partition_config.batch_manager->acquire_id();
@@ -364,6 +377,7 @@ int main(int argn, char **argv) {
             // Helper function to try extracting one node for current batch
             auto add_node_to_batch = [&](LongNodeID& node_id, std::vector<LongNodeID>&& node_adjacents) -> bool {
                 // auto [node_id, node_adjacents] = extract_top_node_from_buffer();
+                activate_frontier();
                 current_batch.emplace_back(node_id, std::move(node_adjacents));
 
                 // Check if batch is complete
@@ -445,6 +459,7 @@ int main(int argn, char **argv) {
                         if (use_mlp) {
                             if (partition_config.batch_extraction_strategy != BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
                                 // Extract top nodes and their neighbors from the buffer and create batch task
+                                activate_frontier();
                                 buffer->loadTopNodesAndNeighborsToBatch(current_batch, partition_config.batch_size, cur_batch_id);
                                 create_batch_task();
 
@@ -475,6 +490,7 @@ int main(int argn, char **argv) {
                     while (!buffer->isEmpty()) {
                         if (partition_config.batch_extraction_strategy != BATCH_EXTRACTION_STRATEGY_ALWAYS_TOP_NODE) {
                             // Extract top nodes and their neighbors from the buffer and create batch task
+                            activate_frontier();
                             buffer->loadTopNodesAndNeighborsToBatch(current_batch, partition_config.batch_size, cur_batch_id);
                             create_batch_task();
 
@@ -496,6 +512,7 @@ int main(int argn, char **argv) {
             if (!current_batch.empty()) {
                 create_batch_task();
             }
+            deactivate_frontier();
 
             TIMING_ACCUMULATE(pq_thread_time, thread_timer);
 
@@ -721,7 +738,7 @@ int main(int argn, char **argv) {
                 << std::endl;
 
     // write the partition to the disc
-    if (!partition_config.suppress_output) {
+    if (!partition_config.benchmark) {
         graph_io_stream::writePartitionStream(partition_config);
     } else {
         std::cout << "No partition will be written as output." << std::endl;
@@ -779,6 +796,5 @@ std::string extractBaseFilename(const std::string &fullPath) {
         return fullPath.substr(0, lastDot);
     }
 }
-
 
 

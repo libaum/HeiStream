@@ -5,6 +5,7 @@
 #include <memory>
 #include <optional>
 #include <vector>
+#include <cmath>
 #include "timer.h"
 
 #include "definitions.h"
@@ -132,17 +133,26 @@ public:
     }
 
     static float get_max_buffer_score(const PartitionConfig& cfg) {
+        float base_score = 1.0f;
         switch (cfg.buffer_score_type) {
             case BUFFER_SCORE_ANR:
             case BUFFER_SCORE_HAA:
-                return std::max(1.0f, cfg.haa_theta);
+                base_score = std::max(1.0f, cfg.haa_theta);
+                break;
             case BUFFER_SCORE_CMS:
             case BUFFER_SCORE_NSS:
             case BUFFER_SCORE_CBSQ:
             case BUFFER_SCORE_CBS:
             default:
-                return 1.0f + cfg.cbs_theta;
+                base_score = 1.0f + cfg.cbs_theta;
+                break;
         }
+
+        if (cfg.buffer_neighbor_weight != 0.0f || cfg.batch_frontier_weight != 0.0f) {
+            base_score += std::fabs(cfg.buffer_neighbor_weight) + std::fabs(cfg.batch_frontier_weight);
+        }
+
+        return base_score;
     }
 
     // Berechnet den Score für einen Knoten
@@ -301,6 +311,38 @@ public:
                 std::cerr << "Unknown buffer score type: " << config.buffer_score_type << std::endl;
                 exit(1);
 
+        }
+
+        const bool consider_buffer_neighbors = config.buffer_neighbor_weight != 0.0f;
+        const bool consider_frontier = config.batch_frontier_weight != 0.0f && config.batch_frontier_active;
+
+        if ((consider_buffer_neighbors || consider_frontier) && degree > 0) {
+            unsigned cnt_adj_in_buffer = 0;
+            unsigned cnt_adj_frontier = 0;
+            const std::vector<PartitionID>* batch_marker_vec = nullptr;
+            if (consider_frontier) {
+                batch_marker_vec = config.sep_batch_marker ? config.stream_nodes_batch_marker : config.stream_nodes_assign;
+            }
+
+            for (const LongNodeID& global_adj_id : adjacents) {
+                if (consider_buffer_neighbors && pq.contains(global_adj_id)) {
+                    cnt_adj_in_buffer++;
+                }
+
+                if (consider_frontier && batch_marker_vec != nullptr) {
+                    PartitionID marker = (*batch_marker_vec)[global_adj_id - 1];
+                    if (marker == config.current_batch_marker) {
+                        cnt_adj_frontier++;
+                    }
+                }
+            }
+
+            if (consider_buffer_neighbors) {
+                buffer_score += config.buffer_neighbor_weight * (static_cast<float>(cnt_adj_in_buffer) / degree);
+            }
+            if (consider_frontier) {
+                buffer_score += config.batch_frontier_weight * (static_cast<float>(cnt_adj_frontier) / degree);
+            }
         }
 
         return buffer_score;

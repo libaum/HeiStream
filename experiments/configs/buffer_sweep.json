@@ -1,0 +1,61 @@
+{
+  "experiment_name": "buffer_sweep",
+  "description": "Increase buffer size while keeping batch size fixed to study locality metrics, quality, runtime, and memory.",
+  "base_command": "build/buffcut",
+  "k_values": [
+    4,
+    8,
+    16,
+    32,
+    64,
+    128,
+    256
+  ],
+  "graphs": [
+    {
+      "name": "delaunay_n15",
+      "path": "examples/delaunay_n15.graph"
+    },
+    {
+      "name": "rgg_n_2_15_s0",
+      "path": "examples/rgg_n_2_15_s0.graph"
+    }
+  ],
+  "common_args": {
+    "--batch_size": 16384,
+    "--b_score": "haa",
+    "--num_streams_passes": 1,
+    "--write_log": true,
+    "--collect_locality_metrics": true,
+    "--use_queue": true,
+    "--use_flat_g2l_map": true,
+    "--output_filename": "/dev/null",
+    "--benchmark": true
+  },
+  "variants": [
+    {
+      "name": "buffer_32k",
+      "args": {
+        "--buffer_size": 32768
+      }
+    },
+    {
+      "name": "buffer_64k",
+      "args": {
+        "--buffer_size": 65536
+      }
+    },
+    {
+      "name": "buffer_131k",
+      "args": {
+        "--buffer_size": 131072
+      }
+    },
+    {
+      "name": "buffer_262k",
+      "args": {
+        "--buffer_size": 262144
+      }
+    }
+  ]
+}

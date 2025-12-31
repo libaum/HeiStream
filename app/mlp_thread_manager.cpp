@@ -3,8 +3,6 @@
 #include <mutex>
 #include <condition_variable>
 #include <atomic>
-#include <future>
-#include <memory>
 #include <fstream>
 
 #include "partition/partition_config.h"
@@ -64,12 +62,6 @@ void perform_mlp_on_batch(PartitionConfig &partition_config, std::vector<std::pa
         partition_config.batch_unpartitioned_neighbors = NULL;
     }
 }
-
-// Thread-Management für MLP
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
 
 class MLPThreadManager {
 private:
@@ -165,4 +157,3 @@ public:
         return is_running.load();
     }
 };
-

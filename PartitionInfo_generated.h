@@ -199,9 +199,30 @@ struct PartitionConfiguration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::T
   enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
     VT_K = 4,
     VT_SEED = 6,
-    VT_STREAM_BUFFER = 8,
+    VT_BATCH_SIZE = 8,
     VT_MODEL_MODE = 10,
-    VT_ALPHA = 12
+    VT_ALPHA = 12,
+    VT_MAX_BUFFER_SIZE = 14,
+    VT_BB_RATIO = 16,
+    VT_BUFFER_SCORE_TYPE = 18,
+    VT_D_MAX = 20,
+    VT_HAA_BETA = 22,
+    VT_HAA_THETA = 24,
+    VT_CBS_THETA = 26,
+    VT_BUFFER_NEIGHBOR_WEIGHT = 28,
+    VT_BATCH_FRONTIER_WEIGHT = 30,
+    VT_NUM_STREAMS_PASSES = 32,
+    VT_RESTREAM_NUMBER = 34,
+    VT_RESTREAM_INCLUDE_HIGH_DEGREE_NODES = 36,
+    VT_RESTREAM_VCYCLE = 38,
+    VT_GHOST_NEIGHBORS_ENABLED = 40,
+    VT_GHOST_WEIGHT = 42,
+    VT_SEP_BATCH_MARKER = 44,
+    VT_BATCH_EXTRACTION_STRATEGY = 46,
+    VT_MAX_ACTIVE_BATCHES = 48,
+    VT_MAX_INPUT_Q_SIZE = 50,
+    VT_ALT_THREAD_QUEUE = 52,
+    VT_COLLECT_LOCALITY_METRICS = 54
   };
   uint32_t k() const {
     return GetField<uint32_t>(VT_K, 0);
@@ -210,7 +231,7 @@ struct PartitionConfiguration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::T
     return GetField<int32_t>(VT_SEED, 0);
   }
   uint64_t batch_size() const {
-    return GetField<uint64_t>(VT_STREAM_BUFFER, 0);
+    return GetField<uint64_t>(VT_BATCH_SIZE, 0);
   }
   int32_t model_mode() const {
     return GetField<int32_t>(VT_MODEL_MODE, 0);
@@ -218,13 +239,97 @@ struct PartitionConfiguration FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::T
   int32_t alpha() const {
     return GetField<int32_t>(VT_ALPHA, 0);
   }
+  uint64_t max_buffer_size() const {
+    return GetField<uint64_t>(VT_MAX_BUFFER_SIZE, 0);
+  }
+  uint32_t bb_ratio() const {
+    return GetField<uint32_t>(VT_BB_RATIO, 0);
+  }
+  int32_t buffer_score_type() const {
+    return GetField<int32_t>(VT_BUFFER_SCORE_TYPE, 0);
+  }
+  uint32_t d_max() const {
+    return GetField<uint32_t>(VT_D_MAX, 0);
+  }
+  float haa_beta() const {
+    return GetField<float>(VT_HAA_BETA, 0.0f);
+  }
+  float haa_theta() const {
+    return GetField<float>(VT_HAA_THETA, 0.0f);
+  }
+  float cbs_theta() const {
+    return GetField<float>(VT_CBS_THETA, 0.0f);
+  }
+  float buffer_neighbor_weight() const {
+    return GetField<float>(VT_BUFFER_NEIGHBOR_WEIGHT, 0.0f);
+  }
+  float batch_frontier_weight() const {
+    return GetField<float>(VT_BATCH_FRONTIER_WEIGHT, 0.0f);
+  }
+  int32_t num_streams_passes() const {
+    return GetField<int32_t>(VT_NUM_STREAMS_PASSES, 0);
+  }
+  int32_t restream_number() const {
+    return GetField<int32_t>(VT_RESTREAM_NUMBER, 0);
+  }
+  bool restream_include_high_degree_nodes() const {
+    return GetField<uint8_t>(VT_RESTREAM_INCLUDE_HIGH_DEGREE_NODES, 0) != 0;
+  }
+  bool restream_vcycle() const {
+    return GetField<uint8_t>(VT_RESTREAM_VCYCLE, 0) != 0;
+  }
+  bool ghost_neighbors_enabled() const {
+    return GetField<uint8_t>(VT_GHOST_NEIGHBORS_ENABLED, 0) != 0;
+  }
+  float ghost_weight() const {
+    return GetField<float>(VT_GHOST_WEIGHT, 0.0f);
+  }
+  bool sep_batch_marker() const {
+    return GetField<uint8_t>(VT_SEP_BATCH_MARKER, 0) != 0;
+  }
+  int32_t batch_extraction_strategy() const {
+    return GetField<int32_t>(VT_BATCH_EXTRACTION_STRATEGY, 0);
+  }
+  uint32_t max_active_batches() const {
+    return GetField<uint32_t>(VT_MAX_ACTIVE_BATCHES, 0);
+  }
+  uint32_t max_input_q_size() const {
+    return GetField<uint32_t>(VT_MAX_INPUT_Q_SIZE, 0);
+  }
+  bool alt_thread_queue() const {
+    return GetField<uint8_t>(VT_ALT_THREAD_QUEUE, 0) != 0;
+  }
+  bool collect_locality_metrics() const {
+    return GetField<uint8_t>(VT_COLLECT_LOCALITY_METRICS, 0) != 0;
+  }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_K, 4) &&
            VerifyField<int32_t>(verifier, VT_SEED, 4) &&
-           VerifyField<uint64_t>(verifier, VT_STREAM_BUFFER, 8) &&
+           VerifyField<uint64_t>(verifier, VT_BATCH_SIZE, 8) &&
            VerifyField<int32_t>(verifier, VT_MODEL_MODE, 4) &&
            VerifyField<int32_t>(verifier, VT_ALPHA, 4) &&
+           VerifyField<uint64_t>(verifier, VT_MAX_BUFFER_SIZE, 8) &&
+           VerifyField<uint32_t>(verifier, VT_BB_RATIO, 4) &&
+           VerifyField<int32_t>(verifier, VT_BUFFER_SCORE_TYPE, 4) &&
+           VerifyField<uint32_t>(verifier, VT_D_MAX, 4) &&
+           VerifyField<float>(verifier, VT_HAA_BETA, 4) &&
+           VerifyField<float>(verifier, VT_HAA_THETA, 4) &&
+           VerifyField<float>(verifier, VT_CBS_THETA, 4) &&
+           VerifyField<float>(verifier, VT_BUFFER_NEIGHBOR_WEIGHT, 4) &&
+           VerifyField<float>(verifier, VT_BATCH_FRONTIER_WEIGHT, 4) &&
+           VerifyField<int32_t>(verifier, VT_NUM_STREAMS_PASSES, 4) &&
+           VerifyField<int32_t>(verifier, VT_RESTREAM_NUMBER, 4) &&
+           VerifyField<uint8_t>(verifier, VT_RESTREAM_INCLUDE_HIGH_DEGREE_NODES, 1) &&
+           VerifyField<uint8_t>(verifier, VT_RESTREAM_VCYCLE, 1) &&
+           VerifyField<uint8_t>(verifier, VT_GHOST_NEIGHBORS_ENABLED, 1) &&
+           VerifyField<float>(verifier, VT_GHOST_WEIGHT, 4) &&
+           VerifyField<uint8_t>(verifier, VT_SEP_BATCH_MARKER, 1) &&
+           VerifyField<int32_t>(verifier, VT_BATCH_EXTRACTION_STRATEGY, 4) &&
+           VerifyField<uint32_t>(verifier, VT_MAX_ACTIVE_BATCHES, 4) &&
+           VerifyField<uint32_t>(verifier, VT_MAX_INPUT_Q_SIZE, 4) &&
+           VerifyField<uint8_t>(verifier, VT_ALT_THREAD_QUEUE, 1) &&
+           VerifyField<uint8_t>(verifier, VT_COLLECT_LOCALITY_METRICS, 1) &&
            verifier.EndTable();
   }
 };
@@ -239,14 +344,77 @@ struct PartitionConfigurationBuilder {
   void add_seed(int32_t seed) {
     fbb_.AddElement<int32_t>(PartitionConfiguration::VT_SEED, seed, 0);
   }
-  void add_stream_buffer(uint64_t batch_size) {
-    fbb_.AddElement<uint64_t>(PartitionConfiguration::VT_STREAM_BUFFER, batch_size, 0);
+  void add_batch_size(uint64_t batch_size) {
+    fbb_.AddElement<uint64_t>(PartitionConfiguration::VT_BATCH_SIZE, batch_size, 0);
   }
   void add_model_mode(int32_t model_mode) {
     fbb_.AddElement<int32_t>(PartitionConfiguration::VT_MODEL_MODE, model_mode, 0);
   }
   void add_alpha(int32_t alpha) {
     fbb_.AddElement<int32_t>(PartitionConfiguration::VT_ALPHA, alpha, 0);
+  }
+  void add_max_buffer_size(uint64_t max_buffer_size) {
+    fbb_.AddElement<uint64_t>(PartitionConfiguration::VT_MAX_BUFFER_SIZE, max_buffer_size, 0);
+  }
+  void add_bb_ratio(uint32_t bb_ratio) {
+    fbb_.AddElement<uint32_t>(PartitionConfiguration::VT_BB_RATIO, bb_ratio, 0);
+  }
+  void add_buffer_score_type(int32_t buffer_score_type) {
+    fbb_.AddElement<int32_t>(PartitionConfiguration::VT_BUFFER_SCORE_TYPE, buffer_score_type, 0);
+  }
+  void add_d_max(uint32_t d_max) {
+    fbb_.AddElement<uint32_t>(PartitionConfiguration::VT_D_MAX, d_max, 0);
+  }
+  void add_haa_beta(float haa_beta) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_HAA_BETA, haa_beta, 0.0f);
+  }
+  void add_haa_theta(float haa_theta) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_HAA_THETA, haa_theta, 0.0f);
+  }
+  void add_cbs_theta(float cbs_theta) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_CBS_THETA, cbs_theta, 0.0f);
+  }
+  void add_buffer_neighbor_weight(float buffer_neighbor_weight) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_BUFFER_NEIGHBOR_WEIGHT, buffer_neighbor_weight, 0.0f);
+  }
+  void add_batch_frontier_weight(float batch_frontier_weight) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_BATCH_FRONTIER_WEIGHT, batch_frontier_weight, 0.0f);
+  }
+  void add_num_streams_passes(int32_t num_streams_passes) {
+    fbb_.AddElement<int32_t>(PartitionConfiguration::VT_NUM_STREAMS_PASSES, num_streams_passes, 0);
+  }
+  void add_restream_number(int32_t restream_number) {
+    fbb_.AddElement<int32_t>(PartitionConfiguration::VT_RESTREAM_NUMBER, restream_number, 0);
+  }
+  void add_restream_include_high_degree_nodes(bool restream_include_high_degree_nodes) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_RESTREAM_INCLUDE_HIGH_DEGREE_NODES, static_cast<uint8_t>(restream_include_high_degree_nodes), 0);
+  }
+  void add_restream_vcycle(bool restream_vcycle) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_RESTREAM_VCYCLE, static_cast<uint8_t>(restream_vcycle), 0);
+  }
+  void add_ghost_neighbors_enabled(bool ghost_neighbors_enabled) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_GHOST_NEIGHBORS_ENABLED, static_cast<uint8_t>(ghost_neighbors_enabled), 0);
+  }
+  void add_ghost_weight(float ghost_weight) {
+    fbb_.AddElement<float>(PartitionConfiguration::VT_GHOST_WEIGHT, ghost_weight, 0.0f);
+  }
+  void add_sep_batch_marker(bool sep_batch_marker) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_SEP_BATCH_MARKER, static_cast<uint8_t>(sep_batch_marker), 0);
+  }
+  void add_batch_extraction_strategy(int32_t batch_extraction_strategy) {
+    fbb_.AddElement<int32_t>(PartitionConfiguration::VT_BATCH_EXTRACTION_STRATEGY, batch_extraction_strategy, 0);
+  }
+  void add_max_active_batches(uint32_t max_active_batches) {
+    fbb_.AddElement<uint32_t>(PartitionConfiguration::VT_MAX_ACTIVE_BATCHES, max_active_batches, 0);
+  }
+  void add_max_input_q_size(uint32_t max_input_q_size) {
+    fbb_.AddElement<uint32_t>(PartitionConfiguration::VT_MAX_INPUT_Q_SIZE, max_input_q_size, 0);
+  }
+  void add_alt_thread_queue(bool alt_thread_queue) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_ALT_THREAD_QUEUE, static_cast<uint8_t>(alt_thread_queue), 0);
+  }
+  void add_collect_locality_metrics(bool collect_locality_metrics) {
+    fbb_.AddElement<uint8_t>(PartitionConfiguration::VT_COLLECT_LOCALITY_METRICS, static_cast<uint8_t>(collect_locality_metrics), 0);
   }
   explicit PartitionConfigurationBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
@@ -265,13 +433,55 @@ inline ::flatbuffers::Offset<PartitionConfiguration> CreatePartitionConfiguratio
     int32_t seed = 0,
     uint64_t batch_size = 0,
     int32_t model_mode = 0,
-    int32_t alpha = 0) {
+    int32_t alpha = 0,
+    uint64_t max_buffer_size = 0,
+    uint32_t bb_ratio = 0,
+    int32_t buffer_score_type = 0,
+    uint32_t d_max = 0,
+    float haa_beta = 0.0f,
+    float haa_theta = 0.0f,
+    float cbs_theta = 0.0f,
+    float buffer_neighbor_weight = 0.0f,
+    float batch_frontier_weight = 0.0f,
+    int32_t num_streams_passes = 0,
+    int32_t restream_number = 0,
+    bool restream_include_high_degree_nodes = false,
+    bool restream_vcycle = false,
+    bool ghost_neighbors_enabled = false,
+    float ghost_weight = 0.0f,
+    bool sep_batch_marker = false,
+    int32_t batch_extraction_strategy = 0,
+    uint32_t max_active_batches = 0,
+    uint32_t max_input_q_size = 0,
+    bool alt_thread_queue = false,
+    bool collect_locality_metrics = false) {
   PartitionConfigurationBuilder builder_(_fbb);
-  builder_.add_stream_buffer(batch_size);
+  builder_.add_max_buffer_size(max_buffer_size);
+  builder_.add_batch_size(batch_size);
+  builder_.add_max_input_q_size(max_input_q_size);
+  builder_.add_max_active_batches(max_active_batches);
+  builder_.add_batch_extraction_strategy(batch_extraction_strategy);
+  builder_.add_ghost_weight(ghost_weight);
+  builder_.add_restream_number(restream_number);
+  builder_.add_num_streams_passes(num_streams_passes);
+  builder_.add_batch_frontier_weight(batch_frontier_weight);
+  builder_.add_buffer_neighbor_weight(buffer_neighbor_weight);
+  builder_.add_cbs_theta(cbs_theta);
+  builder_.add_haa_theta(haa_theta);
+  builder_.add_haa_beta(haa_beta);
+  builder_.add_d_max(d_max);
+  builder_.add_buffer_score_type(buffer_score_type);
+  builder_.add_bb_ratio(bb_ratio);
   builder_.add_alpha(alpha);
   builder_.add_model_mode(model_mode);
   builder_.add_seed(seed);
   builder_.add_k(k);
+  builder_.add_collect_locality_metrics(collect_locality_metrics);
+  builder_.add_alt_thread_queue(alt_thread_queue);
+  builder_.add_sep_batch_marker(sep_batch_marker);
+  builder_.add_ghost_neighbors_enabled(ghost_neighbors_enabled);
+  builder_.add_restream_vcycle(restream_vcycle);
+  builder_.add_restream_include_high_degree_nodes(restream_include_high_degree_nodes);
   return builder_.Finish();
 }
 
@@ -363,7 +573,10 @@ struct PartitionMetrics FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
     VT_VERTEX_CUT = 6,
     VT_REPLICAS = 8,
     VT_REPLICATION_FACTOR = 10,
-    VT_BALANCE = 12
+    VT_BALANCE = 12,
+    VT_INTERNAL_EDGE_RATIO = 14,
+    VT_NEIGHBOR_COVERAGE = 16,
+    VT_CONDUCTANCE = 18
   };
   int32_t edge_cut() const {
     return GetField<int32_t>(VT_EDGE_CUT, 0);
@@ -380,6 +593,15 @@ struct PartitionMetrics FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   double balance() const {
     return GetField<double>(VT_BALANCE, 0.0);
   }
+  double internal_edge_ratio() const {
+    return GetField<double>(VT_INTERNAL_EDGE_RATIO, 0.0);
+  }
+  double neighbor_coverage() const {
+    return GetField<double>(VT_NEIGHBOR_COVERAGE, 0.0);
+  }
+  double conductance() const {
+    return GetField<double>(VT_CONDUCTANCE, 0.0);
+  }
   bool Verify(::flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<int32_t>(verifier, VT_EDGE_CUT, 4) &&
@@ -387,6 +609,9 @@ struct PartitionMetrics FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
            VerifyField<uint32_t>(verifier, VT_REPLICAS, 4) &&
            VerifyField<double>(verifier, VT_REPLICATION_FACTOR, 8) &&
            VerifyField<double>(verifier, VT_BALANCE, 8) &&
+           VerifyField<double>(verifier, VT_INTERNAL_EDGE_RATIO, 8) &&
+           VerifyField<double>(verifier, VT_NEIGHBOR_COVERAGE, 8) &&
+           VerifyField<double>(verifier, VT_CONDUCTANCE, 8) &&
            verifier.EndTable();
   }
 };
@@ -410,6 +635,15 @@ struct PartitionMetricsBuilder {
   void add_balance(double balance) {
     fbb_.AddElement<double>(PartitionMetrics::VT_BALANCE, balance, 0.0);
   }
+  void add_internal_edge_ratio(double internal_edge_ratio) {
+    fbb_.AddElement<double>(PartitionMetrics::VT_INTERNAL_EDGE_RATIO, internal_edge_ratio, 0.0);
+  }
+  void add_neighbor_coverage(double neighbor_coverage) {
+    fbb_.AddElement<double>(PartitionMetrics::VT_NEIGHBOR_COVERAGE, neighbor_coverage, 0.0);
+  }
+  void add_conductance(double conductance) {
+    fbb_.AddElement<double>(PartitionMetrics::VT_CONDUCTANCE, conductance, 0.0);
+  }
   explicit PartitionMetricsBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -427,8 +661,14 @@ inline ::flatbuffers::Offset<PartitionMetrics> CreatePartitionMetrics(
     uint32_t vertex_cut = 0,
     uint32_t replicas = 0,
     double replication_factor = 0.0,
-    double balance = 0.0) {
+    double balance = 0.0,
+    double internal_edge_ratio = 0.0,
+    double neighbor_coverage = 0.0,
+    double conductance = 0.0) {
   PartitionMetricsBuilder builder_(_fbb);
+  builder_.add_conductance(conductance);
+  builder_.add_neighbor_coverage(neighbor_coverage);
+  builder_.add_internal_edge_ratio(internal_edge_ratio);
   builder_.add_balance(balance);
   builder_.add_replication_factor(replication_factor);
   builder_.add_replicas(replicas);

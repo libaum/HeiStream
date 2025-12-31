@@ -66,6 +66,22 @@ else()
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/misc)
 endif()
 
+set(BUFFCUT_ABSL_LIB "")
+find_package(absl CONFIG QUIET)
+if(absl_FOUND)
+  message(STATUS "Abseil support detected")
+  set(BUFFCUT_ABSL_LIB absl::flat_hash_map)
+else()
+  message(STATUS "Abseil not found, fetching locally")
+  FetchContent_Declare(
+    absl
+    GIT_REPOSITORY https://github.com/abseil/abseil-cpp
+    GIT_TAG        20230802.0
+  )
+  FetchContent_MakeAvailable(absl)
+  set(BUFFCUT_ABSL_LIB absl::flat_hash_map)
+endif()
+
 # readerwriterqueue
 FetchContent_Declare(
   readerwriterqueue
@@ -153,14 +169,14 @@ add_library(libkaffpa OBJECT ${LIBKAFFPA_SOURCE_FILES})
 # generate targets for each binary
 add_executable(buffcut app/streampartition.cpp $<TARGET_OBJECTS:libkaffpa> )
 target_compile_definitions(buffcut PRIVATE "-DMODE_STREAMPARTITION")
-target_link_libraries(buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers)
+target_link_libraries(buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers ${BUFFCUT_ABSL_LIB})
 #target_link_libraries (streampartition /usr/lib/x86_64-linux-gnu/libtcmalloc_and_profiler.so)
 install(TARGETS buffcut DESTINATION bin)
 
 
 add_executable(par_buffcut app/streampartition_parallel.cpp $<TARGET_OBJECTS:libkaffpa> )
 target_compile_definitions(par_buffcut PRIVATE "-DMODE_STREAMPARTITION")
-target_link_libraries(par_buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers readerwriterqueue)
+target_link_libraries(par_buffcut ${OpenMP_CXX_LIBRARIES} flatbuffers readerwriterqueue ${BUFFCUT_ABSL_LIB})
 install(TARGETS par_buffcut DESTINATION bin)
 
 # add_executable(heistream_edge app/streamedgepartition.cpp $<TARGET_OBJECTS:libkaffpa> )

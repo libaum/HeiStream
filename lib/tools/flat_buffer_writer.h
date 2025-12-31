@@ -79,13 +79,37 @@
          std::string baseFilename = extractBaseFilename(graph_filename);
          auto filenameOffset = builder.CreateString(baseFilename);
 
-         auto metadata = PartitionInfo::CreateGraphMetadata(
-            builder, filenameOffset, partition_config.total_nodes, partition_config.total_edges);
+        auto metadata = PartitionInfo::CreateGraphMetadata(
+           builder, filenameOffset, partition_config.total_nodes, partition_config.total_edges);
 
         auto configdata = PartitionInfo::CreatePartitionConfiguration(
-            builder, partition_config.k, partition_config.seed, partition_config.batch_size,
+            builder,
+            partition_config.k,
+            partition_config.seed,
+            partition_config.batch_size,
             partition_config.minimal_mode ? -1 : 0,
-            partition_config.batch_alpha ? 0 : 0);
+            partition_config.batch_alpha ? 0 : 0,
+            partition_config.max_buffer_size,
+            partition_config.bb_ratio == UNDEFINED_BB_RATIO ? 0 : partition_config.bb_ratio,
+            static_cast<int32_t>(partition_config.buffer_score_type),
+            partition_config.d_max,
+            partition_config.haa_beta,
+            partition_config.haa_theta,
+            partition_config.cbs_theta,
+            partition_config.buffer_neighbor_weight,
+            partition_config.batch_frontier_weight,
+            partition_config.num_streams_passes,
+            partition_config.restream_number,
+            partition_config.restream_include_high_degree_nodes,
+            partition_config.restream_vcycle,
+            partition_config.ghost_neighbors_enabled,
+            partition_config.ghost_weight,
+            partition_config.sep_batch_marker,
+            static_cast<int32_t>(partition_config.batch_extraction_strategy),
+            partition_config.max_active_batches,
+            partition_config.max_input_q_size,
+            partition_config.alt_thread_queue,
+            partition_config.collect_locality_metrics);
 
          if(partition_config.edge_partition) {
              if (partition_config.minimal_mode) std::cout << "Mode: Minimal" << std::endl;
@@ -101,9 +125,20 @@
         NodeID replicas_val = partition_config.edge_partition ? replicas_ : 0;
         double replication_factor_val = partition_config.edge_partition ? replication_factor_ : 0;
 
+        double batches_with_metrics = static_cast<double>(partition_config.batch_locality_count);
+        double avg_internal_ratio = 0.0;
+        double avg_neighbor_cov = 0.0;
+        double avg_conductance = 0.0;
+        if (partition_config.collect_locality_metrics && batches_with_metrics > 0.0) {
+            avg_internal_ratio = partition_config.batch_locality_internal_ratio_sum / batches_with_metrics;
+            avg_neighbor_cov = partition_config.batch_locality_neighbor_cov_sum / batches_with_metrics;
+            avg_conductance = partition_config.batch_locality_conductance_sum / batches_with_metrics;
+        }
+
         auto partition_metrics = PartitionInfo::CreatePartitionMetrics(
             builder, edge_cut_val, vertex_cut_val, replicas_val,
-            replication_factor_val, balance_);
+            replication_factor_val, balance_, avg_internal_ratio,
+            avg_neighbor_cov, avg_conductance);
 
          // Create MemoryConsumption
          auto memory_consumption = PartitionInfo::CreateMemoryConsumption(builder, maxRSS_);

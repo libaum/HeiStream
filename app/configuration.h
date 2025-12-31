@@ -554,12 +554,22 @@ inline void configuration::standard( PartitionConfig & partition_config ) {
         partition_config.haa_beta                       = 2.0f;
         partition_config.haa_theta                       = 0.75f;
         partition_config.cbs_theta                      = 2.0f;
+        partition_config.buffer_neighbor_weight         = 0.0f;
+        partition_config.batch_frontier_weight          = 0.0f;
+        partition_config.batch_locality_internal_ratio_sum = 0.0;
+        partition_config.batch_locality_neighbor_cov_sum = 0.0;
+        partition_config.batch_locality_conductance_sum = 0.0;
+        partition_config.batch_locality_count = 0;
+        partition_config.current_batch_marker           = INVALID_PARTITION;
+        partition_config.batch_frontier_active          = false;
+        partition_config.collect_locality_metrics       = false;
 
         /// Ghost neighbor handling
         partition_config.ghost_neighbors_enabled         = false;
         partition_config.default_weight_non_ghost       = 5;
         partition_config.ghost_weight                   = 0.0f;
         partition_config.sep_batch_marker                = false;
+        partition_config.use_flat_global_to_local_map    = false;
 
         partition_config.bb_ratio                        = UNDEFINED_BB_RATIO;
 

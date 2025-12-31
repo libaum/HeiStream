@@ -20,6 +20,27 @@ table PartitionConfiguration {
     batch_size: ulong;
     model_mode:int; //-1 = minimal mode
     alpha:int; // 0 = batch alpha, 1 = static alpha, 2 = dynamic alpha
+    max_buffer_size: ulong;
+    bb_ratio:uint;
+    buffer_score_type:int;
+    d_max:uint;
+    haa_beta:float;
+    haa_theta:float;
+    cbs_theta:float;
+    buffer_neighbor_weight:float;
+    batch_frontier_weight:float;
+    num_streams_passes:int;
+    restream_number:int;
+    restream_include_high_degree_nodes:bool;
+    restream_vcycle:bool;
+    ghost_neighbors_enabled:bool;
+    ghost_weight:float;
+    sep_batch_marker:bool;
+    batch_extraction_strategy:int;
+    max_active_batches:uint;
+    max_input_q_size:uint;
+    alt_thread_queue:bool;
+    collect_locality_metrics:bool;
 }
 
 table RunTime {
@@ -36,6 +57,9 @@ table PartitionMetrics{
     replicas: uint;
     replication_factor: double;
     balance: double;
+    internal_edge_ratio: double;
+    neighbor_coverage: double;
+    conductance: double;
 }
 
 table MemoryConsumption{

@@ -65,3 +65,23 @@ Note:
 - The program stores the results of the executed command in a [flatbuffer](https://github.com/google/flatbuffers) `.bin`
   file identified by `graph_k_batchsize_buffersize.bin` if you pass the flag `write_log`.
 
+---
+
+## 📊 Experiment Automation
+
+The `experiments/` folder now contains ready-to-use JSON templates that describe common
+parameter sweeps (buffer size, batch size, scoring variants, and ghost-neighbor toggles).
+Use `tools/run_experiments.py` to execute a config and automatically organize the FlatBuffer
+logs per graph and variant:
+
+```bash
+python tools/run_experiments.py --config experiments/configs/buffer_sweep.json
+```
+
+Each run records `run_meta.json` (arguments, duration, generated `.bin` files) and `run.log`
+alongside the FlatBuffer output under `experiments/results/<experiment>/<graph>/k_<k>/<variant>/`.
+Configs may include `k_values: [4,8,16,32,64,128,256]` (or any list) to sweep over multiple
+partition counts automatically; per-graph/variant runs are spawned for every listed `k`.
+Point `tools/analyze_experiments.py` at any of these folders to obtain CSV summaries and
+per-variant averages of quality, locality, runtime, and memory consumption, including a
+breakdown by `k`.

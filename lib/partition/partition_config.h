@@ -473,6 +473,7 @@ struct PartitionConfig
         float ghost_weight;
         float inv_ghost_weight; // Inverse ghost weight for buffer score updates
         bool sep_batch_marker;
+        bool use_flat_global_to_local_map;
         LongNodeID num_ghost_nodes;
         bool restream_include_high_degree_nodes;
         bool alt_thread_queue;
@@ -488,10 +489,19 @@ struct PartitionConfig
         float haa_beta; // Beta parameter for haa
         float haa_theta;
         float cbs_theta;
+        float buffer_neighbor_weight;
+        float batch_frontier_weight;
+        bool collect_locality_metrics;
         LongNodeID max_block_weight;
         LongNodeID total_nodes_loaded;
         LongNodeID number_of_nodes;
         std::vector<NodeID> *local_to_global_map;
+        double batch_locality_internal_ratio_sum;
+        double batch_locality_neighbor_cov_sum;
+        double batch_locality_conductance_sum;
+        uint64_t batch_locality_count;
+        PartitionID current_batch_marker;
+        bool batch_frontier_active;
         unsigned bb_ratio; /// Buffer to batch size ratio
         LongNodeID max_buffer_size;
         unsigned bq_disc_factor;

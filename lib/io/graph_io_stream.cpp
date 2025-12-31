@@ -9,11 +9,20 @@
 #include "data_structure/priority_queues/bucket_pq.h"
 #include "definitions.h"
 #include "timer.h"
+#if __has_include(<absl/container/flat_hash_map.h>)
+#include <absl/container/flat_hash_map.h>
+#define BUFFCUT_HAS_ABSL_FLAT_HASH_MAP 1
+#else
+#include <unordered_map>
+#define BUFFCUT_HAS_ABSL_FLAT_HASH_MAP 0
+#endif
 #include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <math.h>
 #include <sstream>
+#include <unordered_set>
+#include <algorithm>
 
 
 #define MIN(A, B) ((A) < (B)) ? (A) : (B)
@@ -45,6 +54,44 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
     PartitionID batch_marker = config.batch_manager->get_batch_marker(batch_id);
     PartitionID max_valid_part_id = config.k;
 
+    if (config.collect_locality_metrics && batch_nodes != nullptr && !batch_nodes->empty()) {
+        std::unordered_set<LongNodeID> batch_members;
+        batch_members.reserve(batch_nodes->size() * 2);
+        for (const auto &entry : *batch_nodes) {
+            batch_members.insert(entry.first);
+        }
+
+        double total_adj = 0.0;
+        double internal_adj = 0.0;
+        double coverage_sum = 0.0;
+        for (const auto &entry : *batch_nodes) {
+            const auto &adj = entry.second;
+            const double degree = static_cast<double>(adj.size());
+            total_adj += degree;
+            if (degree == 0.0) {
+                continue;
+            }
+            double in_batch = 0.0;
+            for (const LongNodeID nbr : adj) {
+                if (batch_members.find(nbr) != batch_members.end()) {
+                    in_batch += 1.0;
+                    internal_adj += 1.0;
+                }
+            }
+            coverage_sum += in_batch / degree;
+        }
+
+        const double external_adj = std::max(0.0, total_adj - internal_adj);
+        const double internal_ratio = total_adj > 0.0 ? internal_adj / total_adj : 1.0;
+        const double conductance_like = total_adj > 0.0 ? external_adj / total_adj : 0.0;
+        const double avg_neighbor_cov = coverage_sum / static_cast<double>(batch_nodes->size());
+
+        config.batch_locality_internal_ratio_sum += internal_ratio;
+        config.batch_locality_neighbor_cov_sum += avg_neighbor_cov;
+        config.batch_locality_conductance_sum += conductance_like;
+        config.batch_locality_count++;
+    }
+
     config.curr_batch++;
 
     if (config.ram_stream) {
@@ -70,7 +117,47 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
 
     setupForGhostNeighbors(config);
 
-    std::vector<NodeID> global_to_local_map(config.number_of_nodes, UNDEFINED_NODE);
+    struct LocalIDMapper {
+        LocalIDMapper(const PartitionConfig &cfg, size_t batch_size)
+            : use_hash(cfg.use_flat_global_to_local_map) {
+            if (use_hash) {
+                hash_map.reserve(batch_size);
+            } else {
+                vector_map.assign(static_cast<size_t>(cfg.number_of_nodes), UNDEFINED_NODE);
+            }
+        }
+
+        void set(LongNodeID global_node_id, NodeID local_node_id) {
+            if (use_hash) {
+                hash_map[global_node_id] = local_node_id;
+            } else {
+                vector_map[static_cast<size_t>(global_node_id - 1)] = local_node_id;
+            }
+        }
+
+        NodeID get(LongNodeID global_node_id) const {
+            if (use_hash) {
+                auto it = hash_map.find(global_node_id);
+                if (it == hash_map.end()) {
+                    return UNDEFINED_NODE;
+                }
+                return it->second;
+            }
+            return vector_map[static_cast<size_t>(global_node_id - 1)];
+        }
+
+    private:
+        bool use_hash;
+#if BUFFCUT_HAS_ABSL_FLAT_HASH_MAP
+        using FlatMap = absl::flat_hash_map<LongNodeID, NodeID>;
+#else
+        using FlatMap = std::unordered_map<LongNodeID, NodeID>;
+#endif
+        FlatMap hash_map;
+        std::vector<NodeID> vector_map;
+    };
+
+    LocalIDMapper global_to_local_map(config, batch_nodes->size());
 
     LongNodeID lower_global_node = (*batch_nodes)[0].first; // the first node in the batch
     LongNodeID upper_global_node = (*batch_nodes).back().first; // the last
@@ -89,7 +176,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
         node = (NodeID)node_counter;
 
         (*config.local_to_global_map)[node] = global_node_id;
-        global_to_local_map[global_node_id - 1] = node;
+        global_to_local_map.set(global_node_id, node);
 
         weight = 1;
         total_nodeweight += weight;
@@ -101,7 +188,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                 EdgeWeight edge_weight = 1;
 
                 if (lower_global_node <= target && target <= upper_global_node) { // edge to current batch
-                    NodeID local_target = global_to_local_map[target - 1];
+                    NodeID local_target = global_to_local_map.get(target);
                     if (local_target != UNDEFINED_NODE) {
                         used_edges++;
                         edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
@@ -124,7 +211,7 @@ graph_io_stream::createModel(PartitionConfig &config, graph_access &G, std::vect
                 // if ((*config.stream_nodes_batch_marker)[target - 1] == batch_marker) { // edge to current batch
                 if (node_to_batch_marker[target - 1] == batch_marker) { // Edge to current batch
 
-                    NodeID local_target = global_to_local_map[target - 1];
+                    NodeID local_target = global_to_local_map.get(target);
                     if (local_target != UNDEFINED_NODE) { // Means neighboring node is in current batch and was already processed
                         used_edges++;                 // used_edges only counts arcs to previous nodes
                         edge_counter += insertRegularEdgeInBatch(config, all_edges, node, local_target, edge_weight);
